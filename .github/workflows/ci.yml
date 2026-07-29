@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  cross-platform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: sbt
+      - uses: sbt/setup-sbt@v1
+      - name: Compile and test JVM and Scala.js
+        run: sbt -batch -J-Xmx4G compileAll testAll
+      - name: Optimized Scala.js linking
+        run: >-
+          sbt -batch
+          "image4s-coreJS/Test/fullOptJS"
+          "image4s-niftiJS/Test/fullOptJS"
