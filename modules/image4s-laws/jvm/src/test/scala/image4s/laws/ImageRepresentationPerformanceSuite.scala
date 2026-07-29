@@ -124,6 +124,8 @@ final class ImageRepresentationPerformanceSuite extends FunSuite:
     receipts.foreach { receipt =>
       val nanosPerSample =
         receipt.medianNanos.toDouble / receipt.samples.toDouble
+      val revision =
+        sys.props.getOrElse("image4s.revision", "unspecified")
       println(
         f"IMG-CONTRACT JVM baseline: workload=${receipt.name}, " +
           f"samples=${receipt.samples}%d, " +
@@ -133,7 +135,7 @@ final class ImageRepresentationPerformanceSuite extends FunSuite:
           f"sum=${receipt.signature.sum}%.6f, " +
           f"weightedSum=${receipt.signature.weightedSum}%.6f, " +
           s"ravel=f804ba51242aae3a1442b3855a20bd896ffa8b64, " +
-          s"revision=uncommitted-worktree"
+          s"revision=$revision"
       )
     }
 

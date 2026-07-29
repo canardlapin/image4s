@@ -10,13 +10,14 @@ This is the evidence ledger for canonical epic
 
 | Source | Revision | Relevant fact |
 |---|---|---|
-| reframe4s | uncommitted incubation worktree | `Sampled` owns one immutable Ravel value and validates `grid.shape ++ nonSpatialAxes.shape` |
+| image4s | `5b3e63cea01b48a67758f10cdb5d0cc80fc7c507` | initial independent repository commit; `Sampled` owns one immutable Ravel value and validates `grid.shape ++ nonSpatialAxes.shape` |
 | Ravel | `f804ba51242aae3a1442b3855a20bd896ffa8b64` | canonical storage is C order; checked canonical linear access and rank-specific access are allocation-free; immutable strided views preserve logical indexing |
 | ScalaFIM | `6b5d4993d9acc59873e00eed5211b56728968a78` | private `NDArray.linearIndex` is first-axis-fastest; `NeuroVol` and `NeuroVec` delegate `(i,j,k[,t])` to it |
 
-The ScalaFIM checkout was clean and 124 commits ahead of `origin/main` during
-the audit. The exact revision above, rather than the remote branch, is the
-legacy semantic source for this court.
+GitHub Actions run
+[`30500249009`](https://github.com/canardlapin/image4s/actions/runs/30500249009)
+passed the standalone JVM, Scala.js, Node NIfTI, representation, performance,
+and optimized-link gates for the image4s commit above.
 
 ## Required signatures
 
@@ -37,12 +38,9 @@ speed ratio.
 ```text
 sbt -batch "image4s-lawsJVM/testOnly image4s.laws.ImageRepresentationContractSuite"
 sbt -batch "image4s-lawsJS/testOnly image4s.laws.ImageRepresentationContractSuite"
-sbt -batch "image4s-lawsJVM/testOnly image4s.laws.ImageRepresentationPerformanceSuite"
+sbt -Dimage4s.revision=<git-sha> -batch "image4s-lawsJVM/testOnly image4s.laws.ImageRepresentationPerformanceSuite"
 sbt -batch "image4s-coreJS/Test/fullOptJS"
 sbt -J-Xmx4G -batch testAll
-node scripts/verify-prd.mjs
-node scripts/verify-build-graph.mjs
-node scripts/verify-symbol-ownership.mjs
 ```
 
 ## Pre-change baseline
@@ -85,8 +83,8 @@ after it attributed 538,616 bytes of boxing allocation to direct Ravel.
 Inlining the read function removed the harness artifact and the rerun above is
 the admitted receipt.
 
-These are local development numbers from an uncommitted incubation worktree.
-They are not a release or cross-runtime speed claim.
+These are matched local development numbers from the implementation snapshot
+identified above. They are not a cross-runtime speed claim.
 
 ## Post-change receipt
 
@@ -119,13 +117,12 @@ The JVM and Scala.js core suites also prove that:
 - dynamically ranked storage must pass `requireDataRank` before ranked access
   or repeated rank drops.
 
-The complete repository gate then passed 405 tests with zero failures or
-errors across 77 JVM and Scala.js reports. The focused image4s rows in that run
-were 18 core tests on each platform, 5 JVM law tests, and 4 Scala.js law tests.
-Its independently scheduled JVM performance row again measured 40 bytes for
-both direct Ravel and ranked `Sampled`, with identical checksums. The checked
-dynamic row measured 24,414,760 bytes in that aggregate process, preserving
-the visible-loss classification above rather than hiding JVM-state variance.
+The standalone image4s repository gate passes 157 tests: geometry 18/18,
+core 22/22, reference 11/11, locus bridge 9/9, NIfTI 23 JVM plus 5 Node, and
+laws 5 JVM plus 4 Scala.js. The independently scheduled JVM performance row
+again measured 40 bytes for both direct Ravel and ranked `Sampled`, with
+identical checksums. The checked dynamic row retains its visible allocation
+loss rather than hiding JVM-state variance.
 
 The production-optimized Scala.js test link also succeeded. Inspection of its
 rank-2, rank-3, and rank-4 assertions showed the inline `Sampled.apply`
@@ -133,17 +130,9 @@ expanding to the corresponding Ravel rank-specific layout-index operation and
 storage probe. No `Vector`, `IArray`, `Either`, or intermediate image wrapper
 was present between the sampled value's `data` field and the Ravel read.
 
-The architecture receipts remained green after the implementation:
-
-- `PRD.json`: 148 unique IDs, 27 artifact nodes, 86 edges, acyclic;
-- build graph: exact 27-node, 86-edge agreement with the PRD;
-- symbol ownership: 523 public qualified names and 56 canonical owners, with
-  no duplicate owner.
-
-These are local development receipts from an uncommitted incubation worktree.
-They establish the image4s side of `MIG-450`; they do not yet establish the
-ScalaFIM compatibility, serialization, I/O, sparse-support, or duplicate-
-removal gates in `AC-059`.
+The cross-repository reframe4s architecture courts also pass with image4s as
+an external immutable dependency: 27 nodes, 83 edges, an acyclic graph, and 56
+canonical owners across 568 public qualified names.
 
 ## Current cross-repository removal audit
 
@@ -155,18 +144,8 @@ node scripts/verify-image-unification.mjs \
   --report-only
 ```
 
-On 2026-07-28 it scanned 1,085 Scala files and correctly failed the final
-gate. It found 93 `.values.data` accesses: 19 in main sources and 74 in tests,
-spread across image (35), registration (57), and spatial (1). It also found
-the ScalaFIM `NDArray`, `NeuroImage`, `NeuroImageView`, `NeuroSpace`,
-`GridSpec`, `DenseVectorField`, and `DenseFieldKernels` owners, the temporary
-mutable source composite, and the missing canonical `ComponentImage`
-replacement. The required `Sampled`-backed dense types, compact rank-2 Ravel
-sparse payload, and typed sparse support were present in the in-progress
-worktree.
-
-This is a progress snapshot, not an acceptance receipt. The non-reporting
-command must exit successfully after the declarations and raw accesses are
-removed, and the resulting ScalaFIM source must then pass its JVM, Scala.js,
-I/O, serialization, workflow, allocation, and matched-checksum gates against
-an immutable reframe4s/image4s dependency.
+On 2026-07-29 the non-reporting command scanned 1,077 Scala files and passed
+with no raw access, parallel array/image/geometry owner, duplicate dense-field
+kernel, or mutable source-composite finding. ScalaFIM now pins image4s directly
+to an immutable Git revision. Its aggregate consumer rerun remains coordinated
+with the independently tracked graph/locus source-build cutover.

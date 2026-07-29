@@ -17,7 +17,12 @@ jobs:
           cache: sbt
       - uses: sbt/setup-sbt@v1
       - name: Compile and test JVM and Scala.js
-        run: sbt -batch -J-Xmx4G compileAll testAll
+        run: >-
+          sbt -batch
+          -Dimage4s.revision=${{ github.sha }}
+          -J-Xmx4G
+          compileAll
+          testAll
       - name: Optimized Scala.js linking
         run: >-
           sbt -batch
