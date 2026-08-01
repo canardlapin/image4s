@@ -4,9 +4,12 @@ import scala.compiletime.testing.typeCheckErrors
 
 import munit.FunSuite
 import ravel.AnyRank
+import ravel.ConversionError
+import ravel.ConversionPolicy
 import ravel.DType.given
 import ravel.MutableNDArray
 import ravel.NDArray
+import ravel.Overflow
 import ravel.Rank
 import ravel.Shape
 import image4s.geometry.Affine
@@ -501,6 +504,60 @@ Sampled.categorical(grid, NonSpatialAxes.empty, data)
     assertEquals(continuous.dtype.name, "Float")
     assertEquals(labels.dtype.name, "Int")
     assertEquals(mask.dtype.name, "Boolean")
+
+  test("numeric conversion preserves image ownership and semantic role"):
+    val frame = geometryRight(Frame.named[D2]("conversion"))
+    val grid =
+      geometryRight(Grid.in(frame)(Vector(2, 2), Affine.identity[D2]))
+    val metadata = ImageMetadata.named("labels")
+    val source =
+      imageRight(
+        Sampled.categorical(
+          grid,
+          NonSpatialAxes.empty,
+          NDArray.fromSeq(Shape(2, 2), Vector(1, 2, 3, 4)),
+          metadata
+        )
+      )
+
+    val converted = imageRight(source.convertTo[Byte]())
+
+    assert(converted.sampleSpace eq source.sampleSpace)
+    assert(converted.grid eq source.grid)
+    assertEquals(converted.nonSpatialAxes, source.nonSpatialAxes)
+    assertEquals(converted.metadata, source.metadata)
+    assertEquals(converted.data.elementsIterator.toList, List[Byte](1, 2, 3, 4))
+
+  test("numeric conversion exposes checked overflow and explicit clamp policy"):
+    val frame = geometryRight(Frame.named[D2]("conversion-overflow"))
+    val grid =
+      geometryRight(Grid.in(frame)(Vector(1, 2), Affine.identity[D2]))
+    val source =
+      imageRight(
+        Sampled.categorical(
+          grid,
+          NonSpatialAxes.empty,
+          NDArray.fromSeq(Shape(1, 2), Vector(127, 128))
+        )
+      )
+
+    assertEquals(
+      source.convertTo[Byte](),
+      Left(
+        ImageError.NumericConversion(
+          ConversionError.OutOfRange(1, "Int", "Byte")
+        )
+      )
+    )
+
+    val clamped =
+      imageRight(
+        source.convertTo[Byte](ConversionPolicy(overflow = Overflow.Clamp))
+      )
+    assertEquals(
+      clamped.data.elementsIterator.toList,
+      List[Byte](127, Byte.MaxValue)
+    )
 
   test("continuous construction requires a linear codomain"):
     val errors = typeCheckErrors(

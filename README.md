@@ -43,6 +43,26 @@ they prove a unique declared axis without creating another data container.
 depend on core; core never depends on ops. The Scala.js NIfTI artifact targets
 Node.js and does not claim browser filesystem support.
 
+## Numeric storage conversion
+
+Use `Sampled.convertTo[B]` when an image needs a different numeric storage
+dtype without changing its grid, declared non-spatial axes, metadata, or value
+semantic role. It returns `Either[ImageError, Sampled[...]]`; an
+`Overflow.Reject` failure is reported as `ImageError.NumericConversion`.
+
+```scala
+val labels: CategoricalImage[?, Int, ?] = ???
+val bytes = labels.convertTo[Byte](
+  ConversionPolicy(overflow = Overflow.Clamp)
+)
+```
+
+The default policy uses nearest-even rounding and rejects values outside the
+target range. Use `ConversionPolicy` to request toward-zero, floor, or ceiling
+rounding and reject, clamp, or explicit low-level wrap behavior. Ravel performs
+the successful conversion in primitive storage; image4s does not construct a
+boxed value collection.
+
 ## NIfTI semantic reads
 
 NIfTI decoding makes storage conversion explicit:

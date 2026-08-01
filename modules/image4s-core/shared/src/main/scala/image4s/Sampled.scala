@@ -4,10 +4,12 @@ import ravel.AnyRank
 import ravel.BorrowedNDArray
 import ravel.BroadcastRank
 import ravel.CanDropAxis
+import ravel.ConversionPolicy
 import ravel.DType
 import ravel.DropAxis
 import ravel.MutableNDArray
 import ravel.NDArray
+import ravel.NumericDType
 import ravel.Rank
 import ravel.map
 import ravel.select
@@ -393,6 +395,32 @@ final class Sampled[
       metadata,
       valueSemantics
     )
+
+  /** Convert numeric storage without changing the sampled space, metadata, or
+    * semantic role.
+    *
+    * Ravel validates `Overflow.Reject` before allocating its output and
+    * executes the successful conversion through a primitive storage kernel.
+    */
+  def convertTo[B](
+      policy: ConversionPolicy = ConversionPolicy()
+  )(using
+      source: NumericDType[A],
+      target: NumericDType[B],
+      outputSemantics: ValueSemantics[B, Sem]
+  ): Either[ImageError, Sampled[S, B, Sem, R]] =
+    data
+      .convert[B](policy)
+      .left
+      .map(ImageError.NumericConversion.apply)
+      .map(converted =>
+        new Sampled(
+          converted,
+          sampleSpace,
+          metadata,
+          outputSemantics
+        )
+      )
 
   /** Replace storage while rechecking the complete logical shape. */
   def replaceDataChecked[

@@ -7,6 +7,12 @@ sealed trait ImageError derives CanEqual:
   def message: String
 
 object ImageError:
+  final case class NumericConversion(
+      cause: ravel.ConversionError
+  ) extends ImageError:
+    val message: String =
+      cause.message
+
   final case class InvalidAxisName(value: String) extends ImageError:
     val message: String =
       "axis name must be non-empty and contain no surrounding whitespace"
