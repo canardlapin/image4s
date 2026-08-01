@@ -13,9 +13,11 @@ import image4s.geometry.Affine
 import image4s.geometry.D2
 import image4s.geometry.D3
 import image4s.geometry.Frame
+import image4s.geometry.FrameId
 import image4s.geometry.GeometryError
 import image4s.geometry.Grid
-import image4s.geometry.Index
+import image4s.geometry.GridId
+import image4s.geometry.LatticeIndex
 
 final class SampledSuite extends FunSuite:
   test("D2 scalar data preserves its statically known Ravel rank"):
@@ -23,8 +25,8 @@ final class SampledSuite extends FunSuite:
     val grid =
       geometryRight(Grid.in(frame)(Vector(2, 3), Affine.identity[D2]))
     val data = NDArray.fromSeq(Shape(2, 3), 0 until 6 map (_.toDouble))
-    val sampled: ScalarImage[frame.type, D2, Rank[2]] =
-      imageRight(Sampled.scalar(grid, NonSpatialAxes.empty, data))
+    val sampled =
+      imageRight(Sampled.continuous(grid, NonSpatialAxes.empty, data))
 
     assertEquals(sampled.logicalShape, Vector(2, 3))
     assertEquals(sampled.data.shape.rank, 2)
@@ -42,8 +44,8 @@ final class SampledSuite extends FunSuite:
         dynamicShape(2, 3, 4, 5, 2),
         0 until 240 map (_.toDouble)
       )
-    val sampled: ScalarImage[frame.type, D3, AnyRank] =
-      imageRight(Sampled.scalar(grid, axes, data))
+    val sampled =
+      imageRight(Sampled.continuous(grid, axes, data))
 
     assertEquals(sampled.grid.spatialRank, 3)
     assertEquals(sampled.nonSpatialAxes.shape, Vector(5, 2))
@@ -61,7 +63,7 @@ final class SampledSuite extends FunSuite:
     val data = NDArray.zeros[Double](2, 2, 2, 3)
     val metadata = ImageMetadata.named("subject-01")
     val sampled =
-      imageRight(Sampled.scalar(grid, axes, data, metadata))
+      imageRight(Sampled.continuous(grid, axes, data, metadata))
     val selected = imageRight(sampled.selectTime(1))
     val copied = sampled.materializedCopy
 
@@ -75,7 +77,7 @@ final class SampledSuite extends FunSuite:
       "renamed"
     )
 
-  test("sampled equality follows geometry, metadata, shape, and values"):
+  test("Sampled uses reference identity and named value comparison"):
     val frame = geometryRight(Frame.named[D2]("equality"))
     val grid =
       geometryRight(
@@ -84,31 +86,40 @@ final class SampledSuite extends FunSuite:
     val metadata = ImageMetadata.named("same")
     val first =
       imageRight(
-        Sampled.scalar(
+        Sampled.continuous(
           grid,
           NonSpatialAxes.empty,
-          NDArray.fromSeq(Shape(2, 2), Seq(1, 2, 3, 4)),
+          NDArray.fromSeq(Shape(2, 2), Seq(1.0, 2.0, 3.0, 4.0)),
           metadata
         )
       )
     val equalCopy = first.materializedCopy
     val differentValues =
       imageRight(
-        Sampled.scalar(
+        Sampled.continuous(
           grid,
           NonSpatialAxes.empty,
-          NDArray.fromSeq(Shape(2, 2), Seq(1, 2, 3, 5)),
+          NDArray.fromSeq(Shape(2, 2), Seq(1.0, 2.0, 3.0, 5.0)),
           metadata
         )
       )
 
-    assertEquals(first, equalCopy)
-    assertEquals(first.hashCode(), equalCopy.hashCode())
-    assertNotEquals(first, differentValues)
+    assert(first ne equalCopy)
+    assertNotEquals(first, equalCopy)
+    assert(
+      first.sameValuesAs(equalCopy)(_ == _)
+    )
+    assert(
+      !first.sameValuesAs(differentValues)(_ == _)
+    )
     assertNotEquals(
       first,
       first.withMetadata(ImageMetadata.named("different"))
     )
+    val indexed: Map[AnyRef, String] =
+      Map(first -> "first", equalCopy -> "copy")
+    assertEquals(indexed.size, 2)
+    assertEquals(indexed(first), "first")
 
   test("sample-space axis edits retain the exact grid and frame owners"):
     val frame = geometryRight(Frame.named[D3]("axis-edits"))
@@ -141,6 +152,101 @@ final class SampledSuite extends FunSuite:
     assert(removed.spatialOnly.grid eq grid)
     assertEquals(removed.spatialOnly.nonSpatialAxes.size, 0)
 
+  test("sample-space structural comparison includes axis coordinates"):
+    val frame = geometryRight(Frame.named[D3]("sampling-coordinates"))
+    val grid =
+      geometryRight(
+        Grid.in(frame)(Vector(2, 2, 2), Affine.identity[D3])
+      )
+    val fast =
+      imageRight(
+        Axis.regular(
+          "time",
+          AxisKind.Time,
+          240,
+          0.0,
+          0.8,
+          AxisUnit.Seconds
+        )
+      )
+    val slow =
+      imageRight(
+        Axis.regular(
+          "time",
+          AxisKind.Time,
+          240,
+          0.0,
+          2.0,
+          AxisUnit.Seconds
+        )
+      )
+    val fastSpace =
+      SampleSpace.create(
+        grid,
+        imageRight(NonSpatialAxes.from(Vector(fast)))
+      )
+    val slowSpace =
+      SampleSpace.create(
+        grid,
+        imageRight(NonSpatialAxes.from(Vector(slow)))
+      )
+
+    assertNotEquals(fastSpace, slowSpace)
+
+  test("SampleSpaceRecord separates persistent structure from live ownership"):
+    val frame =
+      geometryRight(
+        Frame.persistentNamed[D2](
+          geometryRight(FrameId.parse("sample-space-record-frame")),
+          "sample-space-record"
+        )
+      )
+    val grid =
+      geometryRight(
+        Grid.createPersistent(
+          geometryRight(GridId.parse("sample-space-record-grid")),
+          frame
+        )(Vector(2, 2), Affine.identity[D2])
+      )
+    val time =
+      imageRight(
+        Axis.regular(
+          "time",
+          AxisKind.Time,
+          2,
+          0.0,
+          1.5,
+          AxisUnit.Seconds
+        )
+      )
+    val axes = imageRight(NonSpatialAxes.from(Vector(time)))
+    val original = SampleSpace.create(grid, axes)
+    val record = imageRight(original.record)
+    val restored = imageRight(SampleSpace.restore(record, grid))
+
+    assert(restored ne original)
+    assert(restored.grid eq grid)
+    assertEquals(restored.nonSpatialAxes.records, axes.records)
+    assertEquals(imageRight(restored.record), record)
+
+    val otherGrid =
+      geometryRight(
+        Grid.createPersistent(
+          geometryRight(GridId.parse("sample-space-record-other-grid")),
+          frame
+        )(Vector(2, 2), Affine.identity[D2])
+      )
+    val otherRecord = geometryRight(otherGrid.record)
+    assertEquals(
+      SampleSpace.restore(record, otherGrid),
+      Left(
+        ImageError.SampleSpaceGridRecordMismatch(
+          record.grid,
+          otherRecord
+        )
+      )
+    )
+
   test("shape validation uses grid shape followed by non-spatial axes"):
     val frame = geometryRight(Frame.named[D2]("shape"))
     val grid =
@@ -150,7 +256,7 @@ final class SampledSuite extends FunSuite:
     val wrong = NDArray.zeros[Double](2, 2)
 
     assertEquals(
-      Sampled.scalar(grid, axes, wrong),
+      Sampled.continuous(grid, axes, wrong),
       Left(
         ImageError.SampledShapeMismatch(
           Vector(2, 2, 3),
@@ -159,42 +265,319 @@ final class SampledSuite extends FunSuite:
       )
     )
 
-  test("all convenience image names are exact aliases of Sampled"):
+  test("generic continuous images remain the sole Sampled representation"):
     val frame = geometryRight(Frame.named[D2]("aliases"))
     val grid =
       geometryRight(Grid.in(frame)(Vector(2, 2), Affine.identity[D2]))
     val data = NDArray.zeros[Double](2, 2)
+    val space = SampleSpace.create(grid, NonSpatialAxes.empty)
     val sampled =
-      imageRight(Sampled.scalar(grid, NonSpatialAxes.empty, data))
-    val image: Image[frame.type, D2, Double, Scalar, Rank[2]] = sampled
-    val series: ImageSeries[
-      frame.type,
-      D2,
+      imageRight(Sampled.continuous(space, data))
+    val image: Image[space.type, Double, Continuous, Rank[2]] = sampled
+    val continuous: ContinuousImage[
+      space.type,
       Double,
-      Scalar,
       Rank[2]
     ] = sampled
-    val scalar: ScalarImage[frame.type, D2, Rank[2]] = sampled
 
     assert(image eq sampled)
-    assert(series eq sampled)
-    assert(scalar eq sampled)
+    assert(continuous eq sampled)
     assert(image.data eq data)
 
-  test("existential SampleSpace refinement preserves live geometry owners"):
+  test("unproven series and component aliases are absent"):
+    val seriesErrors = typeCheckErrors(
+      """
+import image4s.*
+type UncheckedSeries[F <: geometry.Frame[geometry.D2]] =
+  ImageSeries[F, geometry.D2, Double, Continuous, ravel.AnyRank]
+"""
+    )
+    val componentErrors = typeCheckErrors(
+      """
+import image4s.*
+type UncheckedComponents[F <: geometry.Frame[geometry.D2]] =
+  ComponentImage[F, geometry.D2, ravel.AnyRank]
+"""
+    )
+
+    assert(seriesErrors.nonEmpty)
+    assert(componentErrors.nonEmpty)
+
+  test("MaskImage is a Boolean Mask alias distinct from Categorical labels"):
+    val frame = geometryRight(Frame.named[D2]("mask-plane"))
+    val grid =
+      geometryRight(Grid.in(frame)(Vector(2, 2), Affine.identity[D2]))
+    val data =
+      NDArray.fromSeq(Shape(2, 2), Vector(true, false, true, false))
+    val mask = imageRight(Sampled.mask(grid, NonSpatialAxes.empty, data))
+    val asAlias: MaskImage[? <: SampleSpace[?, ?], Rank[2]] = mask
+    val labels =
+      imageRight(
+        Sampled.categorical(
+          grid,
+          NonSpatialAxes.empty,
+          NDArray.fromSeq(Shape(2, 2), Vector(1L, 0L, 1L, 0L))
+        )
+      )
+
+    assert(asAlias eq mask)
+    assertEquals(mask(0, 0), true)
+    assertEquals(mask(0, 1), false)
+    assertEquals(labels(0, 0), 1L)
+    val maskIsNotLabel =
+      typeCheckErrors(
+        """
+import image4s.*
+import ravel.Rank
+def takeLabel[S <: SampleSpace[?, ?]](image: CategoricalImage[S, Boolean, Rank[2]]) = image
+def check(mask: MaskImage[? <: SampleSpace[?, ?], Rank[2]]) = takeLabel(mask)
+"""
+      )
+    assert(maskIsNotLabel.nonEmpty)
+
+  test("mask factory rejects non-Boolean element types at compile time"):
+    val errors = typeCheckErrors(
+      """
+import image4s.*
+import image4s.geometry.*
+import ravel.DType.given
+import ravel.NDArray
+import ravel.Shape
+val frame = Frame.named[D2]("plane").toOption.get
+val grid = Grid.in(frame)(Vector(2, 2), Affine.identity[D2]).toOption.get
+val data = NDArray.fromSeq(Shape(2, 2), Vector(1, 0, 1, 0))
+Sampled.mask(grid, NonSpatialAxes.empty, data)
+"""
+    )
+    assert(errors.nonEmpty)
+
+  test("Mask values do not receive LinearSampling evidence"):
+    val errors = typeCheckErrors(
+      """
+import image4s.*
+summon[LinearSampling[Boolean, Mask]]
+"""
+    )
+    assert(errors.nonEmpty)
+
+  test("DoubleContinuousImage and FloatContinuousImage are narrow Continuous aliases"):
+    val frame = geometryRight(Frame.named[D2]("aliases"))
+    val grid =
+      geometryRight(Grid.in(frame)(Vector(2, 2), Affine.identity[D2]))
+    val doubles =
+      imageRight(
+        Sampled.continuous(
+          grid,
+          NonSpatialAxes.empty,
+          NDArray.zeros[Double](2, 2)
+        )
+      )
+    val floats =
+      imageRight(
+        Sampled.continuous(
+          grid,
+          NonSpatialAxes.empty,
+          NDArray.zeros[Float](2, 2)
+        )
+      )
+    val asDouble: DoubleContinuousImage[? <: SampleSpace[?, ?], Rank[2]] =
+      doubles
+    val asFloat: FloatContinuousImage[? <: SampleSpace[?, ?], Rank[2]] =
+      floats
+    assert(asDouble eq doubles)
+    assert(asFloat eq floats)
+
+  test("semantic views cannot be constructed without checked axis evidence"):
+    val timeSeriesErrors = typeCheckErrors(
+      """
+import image4s.*
+import ravel.AnyRank
+import image4s.geometry.*
+def bypass[F <: Frame[D2], S <: SampleSpace[F, D2], A, Sem](
+  image: Sampled[S, A, Sem, AnyRank],
+  axis: Axis
+) =
+  new TimeSeriesView(image, 0, axis)
+"""
+    )
+    val componentErrors = typeCheckErrors(
+      """
+import image4s.*
+import ravel.AnyRank
+import image4s.geometry.*
+def bypass[F <: Frame[D2], S <: SampleSpace[F, D2], A, Sem](
+  image: Sampled[S, A, Sem, AnyRank],
+  axis: Axis
+) =
+  new ComponentAxisView(image, 0, axis)
+"""
+    )
+
+    assert(timeSeriesErrors.nonEmpty)
+    assert(componentErrors.nonEmpty)
+
+  test("continuous values are generic while categorical integers stay concise"):
+    val frame = geometryRight(Frame.named[D2]("value-semantics"))
+    val grid =
+      geometryRight(Grid.in(frame)(Vector(1, 2), Affine.identity[D2]))
+    val continuous =
+      imageRight(
+        Sampled.continuous(
+          grid,
+          NonSpatialAxes.empty,
+          NDArray.fromSeq(Shape(1, 2), Vector(1.5f, 2.5f))
+        )
+      )
+    val categorical =
+      imageRight(
+        Sampled.categorical(
+          grid,
+          NonSpatialAxes.empty,
+          NDArray.fromSeq(Shape(1, 2), Vector(3, 9))
+        )
+      )
+
+    assertEquals(continuous(0, 1), 2.5f)
+    assertEquals(categorical(0, 1), 9)
+
+  test("categorical construction rejects non-integral element types"):
+    val doubleErrors = typeCheckErrors(
+      """
+import image4s.*
+import image4s.geometry.*
+import ravel.DType.given
+import ravel.NDArray
+import ravel.Shape
+val frame = Frame.named[D2]("labels").toOption.get
+val grid = Grid.in(frame)(Vector(2, 2), Affine.identity[D2]).toOption.get
+val data = NDArray.fromSeq(Shape(2, 2), Vector(1.0, 2.0, 3.0, 4.0))
+Sampled.categorical(grid, NonSpatialAxes.empty, data)
+"""
+    )
+    val booleanErrors = typeCheckErrors(
+      """
+import image4s.*
+import image4s.geometry.*
+import ravel.DType.given
+import ravel.NDArray
+import ravel.Shape
+val frame = Frame.named[D2]("labels").toOption.get
+val grid = Grid.in(frame)(Vector(2, 2), Affine.identity[D2]).toOption.get
+val data = NDArray.fromSeq(Shape(2, 2), Vector(true, false, true, false))
+Sampled.categorical(grid, NonSpatialAxes.empty, data)
+"""
+    )
+    assert(doubleErrors.nonEmpty)
+    assert(booleanErrors.nonEmpty)
+
+  test("dtype forwards the Ravel element representation"):
+    val frame = geometryRight(Frame.named[D2]("dtype"))
+    val grid =
+      geometryRight(Grid.in(frame)(Vector(2, 2), Affine.identity[D2]))
+    val continuous =
+      imageRight(
+        Sampled.continuous(
+          grid,
+          NonSpatialAxes.empty,
+          NDArray.zeros[Float](2, 2)
+        )
+      )
+    val labels =
+      imageRight(
+        Sampled.categorical(
+          grid,
+          NonSpatialAxes.empty,
+          NDArray.fromSeq(Shape(2, 2), Vector(1, 2, 3, 4))
+        )
+      )
+    val mask =
+      imageRight(
+        Sampled.mask(
+          grid,
+          NonSpatialAxes.empty,
+          NDArray.fromSeq(Shape(2, 2), Vector(true, false, true, false))
+        )
+      )
+    assertEquals(continuous.dtype.name, "Float")
+    assertEquals(labels.dtype.name, "Int")
+    assertEquals(mask.dtype.name, "Boolean")
+
+  test("continuous construction requires a linear codomain"):
+    val errors = typeCheckErrors(
+      """
+import image4s.*
+import ravel.{NDArray, Shape}
+import image4s.geometry.*
+val frame = Frame.named[D2]("strings").toOption.get
+val grid =
+  Grid.in(frame)(Vector(1, 1), Affine.identity[D2]).toOption.get
+Sampled.continuous(
+  grid,
+  NonSpatialAxes.empty,
+  NDArray.fromSeq(Shape(1, 1), Vector("not-linear"))
+)
+"""
+    )
+
+    assert(errors.nonEmpty)
+
+  test("generic construction requires explicit value-semantic evidence"):
+    val errors = typeCheckErrors(
+      """
+import image4s.*
+import ravel.{NDArray, Rank, Shape}
+import image4s.geometry.*
+sealed trait Unproven
+val frame = Frame.named[D2]("unproven").toOption.get
+val grid =
+  Grid.in(frame)(Vector(1, 1), Affine.identity[D2]).toOption.get
+Sampled.create[
+  frame.type,
+  D2,
+  Double,
+  Unproven,
+  Rank[2]
+](
+  grid,
+  NonSpatialAxes.empty,
+  NDArray.fromSeq(Shape(1, 1), Vector(1.0))
+)
+"""
+    )
+
+    assert(errors.nonEmpty)
+
+  test("downstream semantic tags opt in without extending a closed hierarchy"):
+    sealed trait Probability
+    given ValueSemantics[Double, Probability] with {}
+
+    val frame = geometryRight(Frame.named[D2]("custom-semantics"))
+    val grid =
+      geometryRight(Grid.in(frame)(Vector(1, 1), Affine.identity[D2]))
+    val data = NDArray.fromSeq(Shape(1, 1), Vector(0.75))
+    val sampled =
+      imageRight(
+        Sampled.create[
+          frame.type,
+          D2,
+          Double,
+          Probability,
+          Rank[2]
+        ](grid, NonSpatialAxes.empty, data)
+      )
+
+    assert(sampled.data eq data)
+    assertEquals(sampled(0, 0), 0.75)
+
+  test("existential SampleSpace inspection preserves live geometry owners"):
     val frame2 = geometryRight(Frame.named[D2]("refine-d2"))
     val grid2 =
       geometryRight(Grid.in(frame2)(Vector(2, 3), Affine.identity[D2]))
     val space2: SomeSampleSpace =
       SampleSpace.create(grid2, NonSpatialAxes.empty)
-    val refined2 = imageRight(space2.requireD2)
-
-    assert(refined2 eq space2)
-    assert(refined2.grid eq grid2)
-    assertEquals(
-      space2.requireD3,
-      Left(ImageError.SpatialDimensionMismatch(3, 2))
-    )
+    assertEquals(space2.spatialRank, 2)
+    assertEquals(space2.logicalShape, Vector(2, 3))
+    assert(space2.typed.grid eq grid2)
 
     val frame3 = geometryRight(Frame.named[D3]("refine-d3"))
     val grid3 =
@@ -203,14 +586,9 @@ final class SampledSuite extends FunSuite:
       )
     val space3: SomeSampleSpace =
       SampleSpace.create(grid3, NonSpatialAxes.empty)
-    val refined3 = imageRight(space3.requireD3)
-
-    assert(refined3 eq space3)
-    assert(refined3.grid eq grid3)
-    assertEquals(
-      space3.requireD2,
-      Left(ImageError.SpatialDimensionMismatch(2, 3))
-    )
+    assertEquals(space3.spatialRank, 3)
+    assertEquals(space3.logicalShape, Vector(2, 3, 4))
+    assert(space3.typed.grid eq grid3)
 
   test("mutable Ravel input is copied at the explicit ownership boundary"):
     val frame = geometryRight(Frame.named[D2]("mutable-input"))
@@ -220,7 +598,7 @@ final class SampledSuite extends FunSuite:
     mutable.update(0, 0, 7.0)
     val sampled =
       imageRight(
-        Sampled.copyScalarFromMutable(
+        Sampled.copyContinuousFromMutable(
           grid,
           NonSpatialAxes.empty,
           mutable
@@ -250,11 +628,21 @@ final class SampledSuite extends FunSuite:
     val frame = geometryRight(Frame.named[D2]("lookup"))
     val grid =
       geometryRight(Grid.in(frame)(Vector(2, 2), Affine.identity[D2]))
-    val time = imageRight(Axis.create("time", 2, AxisKind.Time))
+    val time =
+      imageRight(
+        Axis.regular(
+          "time",
+          AxisKind.Time,
+          2,
+          0.0,
+          0.8,
+          AxisUnit.Seconds
+        )
+      )
     val axes = imageRight(NonSpatialAxes.from(Vector(time)))
     val data =
       NDArray.zeros[Double, Rank[3]](Shape(2, 2, 2))
-    val sampled = imageRight(Sampled.scalar(grid, axes, data))
+    val sampled = imageRight(Sampled.continuous(grid, axes, data))
 
     assertEquals(
       sampled.valueAt(Vector(0), Vector(0)),
@@ -287,7 +675,7 @@ final class SampledSuite extends FunSuite:
       )
     val plane =
       imageRight(
-        Sampled.scalar(
+        Sampled.continuous(
           planeGrid,
           NonSpatialAxes.empty,
           NDArray.tabulate[Double](2, 3)((i, j) =>
@@ -304,7 +692,7 @@ final class SampledSuite extends FunSuite:
       )
     val volume =
       imageRight(
-        Sampled.scalar(
+        Sampled.continuous(
           grid,
           NonSpatialAxes.empty,
           NDArray.tabulate[Double](2, 3, 4)((i, j, k) =>
@@ -318,7 +706,7 @@ final class SampledSuite extends FunSuite:
     val axes = imageRight(NonSpatialAxes.from(Vector(time)))
     val series =
       imageRight(
-        Sampled.scalar(
+        Sampled.continuous(
           grid,
           axes,
           NDArray.tabulate[Double](2, 3, 4, 2)((i, j, k, t) =>
@@ -333,7 +721,7 @@ final class SampledSuite extends FunSuite:
 
     val erased =
       imageRight(
-        Sampled.scalar(
+        Sampled.continuous(
           grid,
           axes,
           NDArray.fromSeq(
@@ -364,11 +752,21 @@ final class SampledSuite extends FunSuite:
       geometryRight(
         Grid.in(frame)(Vector(2, 3, 4), Affine.identity[D3])
       )
-    val time = imageRight(Axis.create("time", 2, AxisKind.Time))
+    val time =
+      imageRight(
+        Axis.regular(
+          "time",
+          AxisKind.Time,
+          2,
+          0.0,
+          0.8,
+          AxisUnit.Seconds
+        )
+      )
     val timeAxes = imageRight(NonSpatialAxes.from(Vector(time)))
     val series =
       imageRight(
-        Sampled.scalar(
+        Sampled.continuous(
           grid,
           timeAxes,
           NDArray.tabulate[Double](2, 3, 4, 2)((i, j, k, t) =>
@@ -379,9 +777,12 @@ final class SampledSuite extends FunSuite:
           )
         )
       )
-    val volume: ScalarImage[frame.type, D3, Rank[3]] =
-      imageRight(series.selectTime(1))
+    val volume = imageRight(series.selectTime(1))
 
+    assertEquals(
+      time.coordinateAt(1),
+      Right(AxisCoordinate.Numeric(0.8, AxisUnit.Seconds))
+    )
     assert(volume.grid eq grid)
     assertEquals(volume.nonSpatialAxes.size, 0)
     assert(!volume.data.isWholeBuffer)
@@ -393,7 +794,7 @@ final class SampledSuite extends FunSuite:
       imageRight(NonSpatialAxes.from(Vector(direction)))
     val components =
       imageRight(
-        Sampled.components(
+        Sampled.continuous(
           grid,
           directionAxes,
           NDArray.tabulate[Double](2, 3, 4, 3)((i, j, k, d) =>
@@ -410,7 +811,13 @@ final class SampledSuite extends FunSuite:
     assertEquals(component(1, 2, 3), components(1, 2, 3, 2))
 
     val channel =
-      imageRight(Axis.create("channel", 2, AxisKind.Channel))
+      imageRight(
+        Axis.categorical(
+          "channel",
+          AxisKind.Channel,
+          Vector("magnitude", "phase")
+        )
+      )
     val mixedAxes =
       imageRight(NonSpatialAxes.from(Vector(time, channel)))
     val mixedData =
@@ -419,16 +826,64 @@ final class SampledSuite extends FunSuite:
         0 until 96 map (_.toDouble)
       )
     val mixed =
-      imageRight(Sampled.scalar(grid, mixedAxes, mixedData))
+      imageRight(Sampled.continuous(grid, mixedAxes, mixedData))
     val atTime = imageRight(mixed.selectTime(1))
+    val (selectedCoordinate, locatedAtTime) =
+      imageRight(mixed.selectNonSpatialWithCoordinate(0, 1))
     val atTimeRanked = imageRight(atTime.requireDataRank[4])
     val rankedChannel =
       imageRight(atTimeRanked.selectChannel(1))
 
-    assertEquals(atTime.nonSpatialAxes.values.map(_.kind), Vector(AxisKind.Channel))
+    assertEquals(
+      selectedCoordinate,
+      AxisCoordinate.Numeric(0.8, AxisUnit.Seconds)
+    )
+    assertEquals(
+      locatedAtTime.nonSpatialAxes.records,
+      Vector(channel.record)
+    )
+    assert(locatedAtTime.grid eq grid)
+    assert(!locatedAtTime.data.isWholeBuffer)
+    assertEquals(
+      atTime.nonSpatialAxes.values.map(_.kind),
+      Vector(AxisKind.Channel)
+    )
+    assertEquals(atTime.nonSpatialAxes.records, Vector(channel.record))
     assertEquals(rankedChannel.nonSpatialAxes.size, 0)
     assert(!rankedChannel.data.isWholeBuffer)
     assertEquals(rankedChannel(1, 2, 3), 95.0)
+
+  test("time-series and component-axis views are checked and zero-copy"):
+    val frame = geometryRight(Frame.named[D2]("semantic-axis-views"))
+    val grid =
+      geometryRight(Grid.in(frame)(Vector(1, 1), Affine.identity[D2]))
+    val time = imageRight(Axis.create("time", 2, AxisKind.Time))
+    val direction =
+      imageRight(Axis.create("direction", 3, AxisKind.Direction))
+    val axes = imageRight(NonSpatialAxes.from(Vector(time, direction)))
+    val data =
+      NDArray.fromSeq(
+        Shape(1, 1, 2, 3),
+        Vector(0.0, 1.0, 2.0, 10.0, 11.0, 12.0)
+      )
+    val sampled =
+      imageRight(Sampled.continuous(grid, axes, data))
+    val timeSeries = imageRight(TimeSeriesView.from(sampled))
+    val components =
+      imageRight(ComponentAxisView.from(sampled, AxisKind.Direction))
+    val timePoint = imageRight(timeSeries.at(1))
+    val component = imageRight(components.at(2))
+
+    assert(timeSeries.image eq sampled)
+    assert(components.image eq sampled)
+    assert(timeSeries.image.data eq data)
+    assert(components.image.data eq data)
+    assert(timeSeries.axis eq time)
+    assert(components.axis eq direction)
+    assert(!timePoint.data.isWholeBuffer)
+    assert(!component.data.isWholeBuffer)
+    assertEquals(timePoint.nonSpatialAxes.records, Vector(direction.record))
+    assertEquals(component.nonSpatialAxes.records, Vector(time.record))
 
   test("non-spatial selection reports axis, kind, and coordinate failures"):
     val frame = geometryRight(Frame.named[D3]("axis-errors"))
@@ -438,7 +893,7 @@ final class SampledSuite extends FunSuite:
       )
     val volume =
       imageRight(
-        Sampled.scalar(
+        Sampled.continuous(
           grid,
           NonSpatialAxes.empty,
           NDArray.zeros[Double](1, 1, 1)
@@ -447,6 +902,14 @@ final class SampledSuite extends FunSuite:
     assertEquals(
       volume.selectTime(0),
       Left(ImageError.MissingNonSpatialAxisKind(AxisKind.Time))
+    )
+    assertEquals(
+      TimeSeriesView.from(volume),
+      Left(ImageError.MissingNonSpatialAxisKind(AxisKind.Time))
+    )
+    assertEquals(
+      ComponentAxisView.from(volume, AxisKind.Direction),
+      Left(ImageError.MissingNonSpatialAxisKind(AxisKind.Direction))
     )
     assertEquals(
       volume.selectNonSpatial(0, 0),
@@ -458,7 +921,7 @@ final class SampledSuite extends FunSuite:
     val axes = imageRight(NonSpatialAxes.from(Vector(first, second)))
     val ambiguous =
       imageRight(
-        Sampled.scalar(
+        Sampled.continuous(
           grid,
           axes,
           NDArray.fromSeq(
@@ -472,6 +935,10 @@ final class SampledSuite extends FunSuite:
       Left(ImageError.AmbiguousNonSpatialAxisKind(AxisKind.Time, 2))
     )
     assertEquals(
+      TimeSeriesView.from(ambiguous),
+      Left(ImageError.AmbiguousNonSpatialAxisKind(AxisKind.Time, 2))
+    )
+    assertEquals(
       ambiguous.selectNonSpatial(0, 2),
       Left(
         ImageError.NonSpatialIndexOutOfBounds(
@@ -479,6 +946,33 @@ final class SampledSuite extends FunSuite:
           2,
           2
         )
+      )
+    )
+
+    val directionA =
+      imageRight(Axis.create("direction-a", 2, AxisKind.Direction))
+    val directionB =
+      imageRight(Axis.create("direction-b", 2, AxisKind.Direction))
+    val directionAxes =
+      imageRight(NonSpatialAxes.from(Vector(directionA, directionB)))
+    val ambiguousComponents =
+      imageRight(
+        Sampled.continuous(
+          grid,
+          directionAxes,
+          NDArray.fromSeq(
+            dynamicShape(1, 1, 1, 2, 2),
+            0 until 4 map (_.toDouble)
+          )
+        )
+      )
+    assertEquals(
+      ComponentAxisView.from(
+        ambiguousComponents,
+        AxisKind.Direction
+      ),
+      Left(
+        ImageError.AmbiguousNonSpatialAxisKind(AxisKind.Direction, 2)
       )
     )
 
@@ -506,7 +1000,7 @@ final class SampledSuite extends FunSuite:
       geometryRight(Grid.in(frame)(Vector(5, 6, 7), affine))
     val source =
       imageRight(
-        Sampled.scalar(
+        Sampled.continuous(
           grid,
           NonSpatialAxes.empty,
           NDArray.tabulate[Double](5, 6, 7)((i, j, k) =>
@@ -522,9 +1016,15 @@ final class SampledSuite extends FunSuite:
         )
       )
     val sourceOrigin =
-      geometryRight(grid.pointAt(geometryRight(Index.of[D3](1, 2, 3))))
+      geometryRight(
+        grid.pointAt(geometryRight(LatticeIndex.of[D3](1, 2, 3)))
+      )
     val viewOrigin =
-      geometryRight(view.grid.pointAt(geometryRight(Index.of[D3](0, 0, 0))))
+      geometryRight(
+        view.grid.pointAt(
+          geometryRight(LatticeIndex.of[D3](0, 0, 0))
+        )
+      )
 
     assertEquals(view.grid.shape, Vector(3, 3, 2))
     assertEquals(viewOrigin.coordinates, sourceOrigin.coordinates)
@@ -557,10 +1057,10 @@ final class SampledSuite extends FunSuite:
         100.0 * i.toDouble + 10.0 * j.toDouble + k.toDouble
       )
     val canonical =
-      imageRight(Sampled.scalar(grid, NonSpatialAxes.empty, base))
+      imageRight(Sampled.continuous(grid, NonSpatialAxes.empty, base))
     val reversed =
       imageRight(
-        Sampled.scalar(grid, NonSpatialAxes.empty, base.reverse(0))
+        Sampled.continuous(grid, NonSpatialAxes.empty, base.reverse(0))
       )
     val normalized = reversed.canonicalLayout
     val copied = canonical.materializedCopy
@@ -589,7 +1089,7 @@ final class SampledSuite extends FunSuite:
       geometryRight(Grid.in(frame)(Vector(2, 3), Affine.identity[D2]))
     val sampled =
       imageRight(
-        Sampled.scalar(
+        Sampled.continuous(
           grid,
           NonSpatialAxes.empty,
           NDArray.zeros[Double](2, 3)
@@ -602,7 +1102,7 @@ final class SampledSuite extends FunSuite:
         d2 =>
           assert(d2.value eq sampled)
           assertEquals(d2.dimension.rank, 2)
-          assertEquals(d2.value.frame.id, frame.id)
+          assert(d2.value.frame eq frame)
           d2.value.logicalShape,
         _ => fail("expected D2")
       )
@@ -619,13 +1119,13 @@ final class SampledSuite extends FunSuite:
     val axes = imageRight(NonSpatialAxes.from(Vector(time)))
     val sampled =
       imageRight(
-        Sampled.scalar(
+        Sampled.continuous(
           grid,
           axes,
           NDArray.zeros[Double, Rank[4]](Shape(2, 2, 2, 3))
         )
       )
-    val discovered: SomeSampled[Double, Scalar] =
+    val discovered: SomeSampled[Double, Continuous] =
       SomeSampled.d3(sampled)
 
     val ranks =
@@ -647,7 +1147,7 @@ import image4s.geometry.*
 val frame = Frame.named[D3]("volume").toOption.get
 val grid = Grid.in(frame)(Vector(1, 1, 1), Affine.identity[D3]).toOption.get
 val sampled = Sampled
-  .scalar(grid, NonSpatialAxes.empty, NDArray.zeros[Double](1, 1, 1))
+  .continuous(grid, NonSpatialAxes.empty, NDArray.zeros[Double](1, 1, 1))
   .toOption
   .get
 SomeSampled.d2(sampled)
@@ -659,7 +1159,7 @@ SomeSampled.d2(sampled)
     val extensionErrors = typeCheckErrors(
       """
 import image4s.*
-trait UnsupportedPackage extends SomeSampled[Double, Scalar]
+trait UnsupportedPackage extends SomeSampled[Double, Continuous]
 """
     )
 
@@ -680,7 +1180,7 @@ val grid = Grid
   .get
 val dynamic = Shape.from(Vector(1, 1, 1)).toOption.get
 val erased = Sampled
-  .scalar(grid, NonSpatialAxes.empty, NDArray.zeros[Double, AnyRank](dynamic))
+  .continuous(grid, NonSpatialAxes.empty, NDArray.zeros[Double, AnyRank](dynamic))
   .toOption
   .get
 erased(0, 0, 0)
@@ -699,7 +1199,7 @@ val grid = Grid
 val time = Axis.create("time", 1, AxisKind.Time).toOption.get
 val axes = NonSpatialAxes.from(Vector(time)).toOption.get
 val series = Sampled
-  .scalar(grid, axes, NDArray.zeros[Double](1, 1, 1, 1))
+  .continuous(grid, axes, NDArray.zeros[Double](1, 1, 1, 1))
   .toOption
   .get
 series(0, 0, 0)

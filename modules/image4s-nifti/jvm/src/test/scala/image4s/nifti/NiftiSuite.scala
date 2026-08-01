@@ -1,9 +1,11 @@
 package image4s.nifti
 
-import image4s.Label
+import image4s.Categorical
+import image4s.AxisCoordinate
+import image4s.AxisUnit
 import image4s.NonSpatialAxes
 import image4s.Sampled
-import image4s.Scalar
+import image4s.Continuous
 import munit.FunSuite
 import ravel.DType.given
 import ravel.NDArray
@@ -12,7 +14,6 @@ import image4s.geometry.Affine
 import image4s.geometry.CoordinateConvention
 import image4s.geometry.D3
 import image4s.geometry.Frame
-import image4s.geometry.FrameMetadata
 import image4s.geometry.GeometryError
 import image4s.geometry.Grid
 import image4s.geometry.LengthUnit
@@ -33,7 +34,7 @@ final class NiftiSuite extends FunSuite:
       values = Vector(0.0, 100.0, 10.0, 110.0, 20.0, 120.0)
     )
 
-    val decoded = niftiRight(Nifti.readScalar(path))
+    val decoded = niftiRight(Nifti.readScaledDouble(path))
     val checked =
       decoded.image.fold(
         _ => fail("NIfTI must produce D3"),
@@ -68,9 +69,9 @@ final class NiftiSuite extends FunSuite:
       values = Vector(1.0, 2.0)
     )
 
-    val scalar: DecodedNifti[image4s.SomeSampled[Double, Scalar]] =
-      niftiRight(Nifti.readScalar(path))
-    val labels: DecodedNifti[image4s.SomeSampled[Double, Label]] =
+    val scalar: DecodedNifti[image4s.SomeSampled[Double, Continuous]] =
+      niftiRight(Nifti.readScaledDouble(path))
+    val labels: DecodedNifti[image4s.SomeSampled[Long, Categorical]] =
       niftiRight(Nifti.readLabels(path))
 
     assertEquals(scalar.image.storageRank, 3)
@@ -96,7 +97,7 @@ final class NiftiSuite extends FunSuite:
         intercept = 3.0,
         values = Vector(raw)
       )
-      val decoded = niftiRight(Nifti.readScalar(path))
+      val decoded = niftiRight(Nifti.readScaledDouble(path))
       decoded.image.fold(
         _ => fail("NIfTI must produce D3"),
         d3 =>
@@ -118,7 +119,7 @@ final class NiftiSuite extends FunSuite:
       values = Vector(-32000.0, 1234.0)
     )
 
-    val decoded = niftiRight(Nifti.readScalar(path))
+    val decoded = niftiRight(Nifti.readScaledDouble(path))
     assertEquals(decoded.header.byteOrder, NiftiByteOrder.BigEndian)
     decoded.image.fold(
       _ => fail("NIfTI must produce D3"),
@@ -152,9 +153,10 @@ final class NiftiSuite extends FunSuite:
         ),
       values = Vector(7.0)
     )
-    val qformHeader = niftiRight(Nifti.readHeader(qformPath))
+    val qformDecoded =
+      niftiRight(Nifti.readScaledDouble(qformPath))
     assertRows(
-      qformHeader.preferredAffine.rowMajor,
+      qformDecoded.affineSelection.affine.rowMajor,
       Vector(
         0.0, -3.0, 0.0, 10.0,
         2.0, 0.0, 0.0, 20.0,
@@ -187,8 +189,9 @@ final class NiftiSuite extends FunSuite:
       sform = Some(sform),
       values = Vector(1.0)
     )
-    val bothHeader = niftiRight(Nifti.readHeader(bothPath))
-    assertRows(bothHeader.preferredAffine.rowMajor, sform)
+    val bothDecoded =
+      niftiRight(Nifti.readScaledDouble(bothPath))
+    assertRows(bothDecoded.affineSelection.affine.rowMajor, sform)
 
   test("missing qform and sform use the pixel-dimension fallback"):
     val path = temporaryPath("fallback.nii")
@@ -199,9 +202,9 @@ final class NiftiSuite extends FunSuite:
       values = Vector(1.0)
     )
 
-    val header = niftiRight(Nifti.readHeader(path))
+    val decoded = niftiRight(Nifti.readScaledDouble(path))
     assertRows(
-      header.preferredAffine.rowMajor,
+      decoded.affineSelection.affine.rowMajor,
       Vector(
         2.0, 0.0, 0.0, 0.0,
         0.0, 3.0, 0.0, 0.0,
@@ -219,7 +222,7 @@ final class NiftiSuite extends FunSuite:
       compressed = true
     )
 
-    val decoded = niftiRight(Nifti.readScalar(path))
+    val decoded = niftiRight(Nifti.readScaledDouble(path))
     decoded.image.fold(
       _ => fail("NIfTI must produce D3"),
       d3 =>
@@ -238,10 +241,10 @@ final class NiftiSuite extends FunSuite:
       values = Vector(1.0)
     )
 
-    val default = niftiRight(Nifti.readScalar(path))
+    val default = niftiRight(Nifti.readScaledDouble(path))
     val meters =
       niftiRight(
-        Nifti.readScalar(
+        Nifti.readScaledDouble(
           path,
           NiftiReadOptions(LengthUnit.Meter)
         )
@@ -251,14 +254,14 @@ final class NiftiSuite extends FunSuite:
       _ => fail("NIfTI must produce D3"),
       d3 =>
         assertEquals(
-          d3.value.frame.metadata.unit,
+          d3.value.frame.unit,
           LengthUnit.Millimeter
         )
     )
     meters.image.fold(
       _ => fail("NIfTI must produce D3"),
       d3 =>
-        assertEquals(d3.value.frame.metadata.unit, LengthUnit.Meter)
+        assertEquals(d3.value.frame.unit, LengthUnit.Meter)
     )
 
   test("readIn preserves the caller-supplied frame owner"):
@@ -270,7 +273,7 @@ final class NiftiSuite extends FunSuite:
     )
     val frame = rasFrame("shared-RAS")
 
-    val decoded = niftiRight(Nifti.readScalarIn(path, frame))
+    val decoded = niftiRight(Nifti.readScaledDoubleIn(path, frame))
 
     assert(decoded.image.frame eq frame)
 
@@ -284,18 +287,16 @@ final class NiftiSuite extends FunSuite:
     val unspecified =
       geometryRight(Frame.named[D3]("unspecified"))
     val meters =
-      Frame.fresh[D3](
-        geometryRight(
-          FrameMetadata.create(
-            "meters",
-            LengthUnit.Meter,
-            CoordinateConvention.RAS
-          )
+      geometryRight(
+        Frame.named[D3](
+          "meters",
+          LengthUnit.Meter,
+          CoordinateConvention.RAS
         )
       )
 
     assertEquals(
-      Nifti.readScalarIn(path, unspecified),
+      Nifti.readScaledDoubleIn(path, unspecified),
       Left(
         NiftiError.FrameConventionMismatch(
           CoordinateConvention.Unspecified
@@ -303,7 +304,7 @@ final class NiftiSuite extends FunSuite:
       )
     )
     assertEquals(
-      Nifti.readScalarIn(path, meters),
+      Nifti.readScaledDoubleIn(path, meters),
       Left(
         NiftiError.FrameUnitMismatch(
           NiftiSpatialUnit.Millimeter,
@@ -341,7 +342,7 @@ final class NiftiSuite extends FunSuite:
         yield 1000.0 * x + 100.0 * y + 10.0 * z + t
       )
     val image =
-      imageRight(Sampled.scalar(grid, axes, data))
+      imageRight(Sampled.continuous(grid, axes, data))
     val writeOptions =
       writeOptionsRight(
         NiftiWriteOptions.default.withNonSpatialSampling(
@@ -371,13 +372,25 @@ final class NiftiSuite extends FunSuite:
       )
     }
 
-    val decoded = niftiRight(Nifti.readScalarIn(path, frame))
-    assertRows(decoded.header.preferredAffine.rowMajor, affine.rowMajor, 1e-5)
+    val decoded = niftiRight(Nifti.readScaledDoubleIn(path, frame))
+    assertRows(
+      decoded.affineSelection.affine.rowMajor,
+      affine.rowMajor,
+      1e-5
+    )
     assertEquals(decoded.header.pixelDimensions(3), 1.75)
     assertEquals(decoded.header.temporalUnit, NiftiTemporalUnit.Second)
     assertEquals(
       decoded.image.nonSpatialAxes(0).map(_.kind),
-      Some(image4s.AxisKind.Other)
+      Some(image4s.AxisKind.Time)
+    )
+    assertEquals(
+      decoded.image.nonSpatialAxes(0).map(_.coordinateAt(1)),
+      Some(
+        Right(
+          AxisCoordinate.Numeric(1.75, AxisUnit.Seconds)
+        )
+      )
     )
     for
       x <- 0 until 2
@@ -412,10 +425,10 @@ final class NiftiSuite extends FunSuite:
       geometryRight(Grid.in(frame)(Vector(2, 1, 1), Affine.identity[D3]))
     val labels =
       imageRight(
-        Sampled.labels(
+        Sampled.categorical(
           grid,
           NonSpatialAxes.empty,
-          NDArray.fromSeq(Shape(2, 1, 1), Vector(3.0, 9.0))
+          NDArray.fromSeq(Shape(2, 1, 1), Vector(3L, 9L))
         )
       )
 
@@ -427,7 +440,7 @@ final class NiftiSuite extends FunSuite:
       )
     )
     val decoded: DecodedNifti[
-      image4s.SomeSampled[Double, Label]
+      image4s.SomeSampled[Long, Categorical]
     ] =
       niftiRight(Nifti.readLabels(path))
 
@@ -437,11 +450,11 @@ final class NiftiSuite extends FunSuite:
       d3 =>
         assertEquals(
           imageValue(d3.value.valueAt(Vector(0, 0, 0))),
-          3.0
+          3L
         )
         assertEquals(
           imageValue(d3.value.valueAt(Vector(1, 0, 0))),
-          9.0
+          9L
         )
     )
 
@@ -452,7 +465,7 @@ final class NiftiSuite extends FunSuite:
       geometryRight(Grid.in(frame)(Vector(2, 1, 1), Affine.identity[D3]))
     val image =
       imageRight(
-        Sampled.scalar(
+        Sampled.continuous(
           grid,
           NonSpatialAxes.empty,
           NDArray.fromSeq(Shape(2, 1, 1), Vector(4.0, 8.0))
@@ -466,7 +479,7 @@ final class NiftiSuite extends FunSuite:
     val compressed = Files.readAllBytes(path)
     assertEquals(compressed.take(2).toVector, Vector(0x1f.toByte, 0x8b.toByte))
 
-    val decoded = niftiRight(Nifti.readScalar(path))
+    val decoded = niftiRight(Nifti.readScaledDouble(path))
     assertEquals(decoded.header.storage, NiftiStorage.SingleFile)
     decoded.image.fold(
       _ => fail("NIfTI must produce D3"),
@@ -485,7 +498,7 @@ final class NiftiSuite extends FunSuite:
       geometryRight(Grid.in(frame)(Vector(2, 1, 1), Affine.identity[D3]))
     val image =
       imageRight(
-        Sampled.scalar(
+        Sampled.continuous(
           grid,
           NonSpatialAxes.empty,
           NDArray.fromSeq(Shape(2, 1, 1), Vector(2.0, 6.0))
@@ -505,8 +518,8 @@ final class NiftiSuite extends FunSuite:
     assertEquals(Files.size(imagePath), 16L)
     Files.write(headerPath, headerBytes.take(348))
 
-    val throughHeader = niftiRight(Nifti.readScalar(headerPath))
-    val throughImage = niftiRight(Nifti.readScalar(imagePath))
+    val throughHeader = niftiRight(Nifti.readScaledDouble(headerPath))
+    val throughImage = niftiRight(Nifti.readScaledDouble(imagePath))
     assertEquals(throughHeader.header.storage, NiftiStorage.PairFile)
     Vector(throughHeader, throughImage).foreach { decoded =>
       decoded.image.fold(
@@ -527,7 +540,7 @@ final class NiftiSuite extends FunSuite:
       geometryRight(Grid.in(frame)(Vector(1, 1, 1), Affine.identity[D3]))
     val image =
       imageRight(
-        Sampled.scalar(
+        Sampled.continuous(
           grid,
           NonSpatialAxes.empty,
           NDArray.fromSeq(Shape(1, 1, 1), Vector(17.0))
@@ -545,7 +558,7 @@ final class NiftiSuite extends FunSuite:
       )
     }
     Vector(headerPath, imagePath).foreach { entry =>
-      val decoded = niftiRight(Nifti.readScalar(entry))
+      val decoded = niftiRight(Nifti.readScaledDouble(entry))
       decoded.image.fold(
         _ => fail("NIfTI must produce D3"),
         d3 =>
@@ -615,7 +628,7 @@ final class NiftiSuite extends FunSuite:
         expected
       )
 
-      val decoded = niftiRight(Nifti.readScalar(path))
+      val decoded = niftiRight(Nifti.readScaledDouble(path))
       assertEquals(decoded.header.datatype, datatype)
       decoded.image.fold(
         _ => fail("NIfTI must produce D3"),
@@ -661,7 +674,7 @@ final class NiftiSuite extends FunSuite:
       Vector(-1.toShort, 0.toShort, 1.toShort)
     )
 
-    val decoded = niftiRight(Nifti.readScalar(path))
+    val decoded = niftiRight(Nifti.readScaledDouble(path))
     decoded.image.fold(
       _ => fail("NIfTI must produce D3"),
       d3 =>
@@ -774,7 +787,7 @@ final class NiftiSuite extends FunSuite:
           NiftiWriteOptions.forDatatype(datatype)
         )
       )
-      val decoded = niftiRight(Nifti.readScalar(path))
+      val decoded = niftiRight(Nifti.readScaledDouble(path))
       decoded.image.fold(
         _ => fail("NIfTI must produce D3"),
         d3 =>
@@ -848,7 +861,7 @@ final class NiftiSuite extends FunSuite:
         .order(ByteOrder.LITTLE_ENDIAN)
         .getFloat(352)
     assertEquals(raw, value.toFloat)
-    val decoded = niftiRight(Nifti.readScalar(roundedPath))
+    val decoded = niftiRight(Nifti.readScaledDouble(roundedPath))
     decoded.image.fold(
       _ => fail("NIfTI must produce D3"),
       d3 =>
@@ -899,7 +912,7 @@ final class NiftiSuite extends FunSuite:
       geometryRight(Grid.in(frame)(Vector(1, 1, 1), Affine.identity[D3]))
     val image =
       imageRight(
-        Sampled.scalar(
+        Sampled.continuous(
           grid,
           NonSpatialAxes.empty,
           NDArray.fromSeq(Shape(1, 1, 1), Vector(11.0))
@@ -958,7 +971,7 @@ final class NiftiSuite extends FunSuite:
       geometryRight(Grid.in(frame)(Vector(1, 1, 1), Affine.identity[D3]))
     val image =
       imageRight(
-        Sampled.scalar(
+        Sampled.continuous(
           grid,
           NonSpatialAxes.empty,
           NDArray.fromSeq(Shape(1, 1, 1), Vector(1.0))
@@ -1037,7 +1050,7 @@ final class NiftiSuite extends FunSuite:
       geometryRight(Grid.in(frame)(Vector(1, 1, 1), Affine.identity[D3]))
     val image =
       imageRight(
-        Sampled.scalar(
+        Sampled.continuous(
           grid,
           NonSpatialAxes.empty,
           NDArray.zeros[Double](1, 1, 1)
@@ -1187,7 +1200,7 @@ final class NiftiSuite extends FunSuite:
         )
       )
     imageRight(
-      Sampled.scalar(
+      Sampled.continuous(
         grid,
         NonSpatialAxes.empty,
         NDArray.fromSeq(
@@ -1264,13 +1277,11 @@ final class NiftiSuite extends FunSuite:
       case Left(error)   => fail(error.message)
 
   private def rasFrame(label: String): Frame[D3] =
-    Frame.fresh[D3](
-      geometryRight(
-        FrameMetadata.create(
-          label,
-          LengthUnit.Millimeter,
-          CoordinateConvention.RAS
-        )
+    geometryRight(
+      Frame.named[D3](
+        label,
+        LengthUnit.Millimeter,
+        CoordinateConvention.RAS
       )
     )
 

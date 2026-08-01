@@ -4,18 +4,23 @@ import image4s.Axis
 import image4s.AxisKind
 import image4s.BoundaryPolicy
 import image4s.ImageError
+import image4s.LinearInterpolable
+import image4s.LinearSampling
 import image4s.NonSpatialAxes
 import image4s.PartialWeight.value
 import image4s.Sampled
 import image4s.Validity
+import image4s.ValueSemantics
 import munit.FunSuite
 import ravel.DType.given
 import ravel.NDArray
+import ravel.Rank
 import ravel.Shape
 import image4s.geometry.Affine
 import image4s.geometry.D2
 import image4s.geometry.D3
 import image4s.geometry.Frame
+import image4s.geometry.FrameId
 import image4s.geometry.GeometryError
 import image4s.geometry.Grid
 import image4s.geometry.Point
@@ -33,7 +38,7 @@ final class ReferenceSamplerSuite extends FunSuite:
       yield 2.0 * i.toDouble + 3.0 * j.toDouble + 1.0
     val sampled =
       imageRight(
-        Sampled.scalar(
+        Sampled.continuous(
           grid,
           NonSpatialAxes.empty,
           NDArray.fromSeq(Shape(3, 3), values)
@@ -57,7 +62,7 @@ final class ReferenceSamplerSuite extends FunSuite:
       yield i.toDouble + 2.0 * j.toDouble - k.toDouble + 4.0
     val sampled =
       imageRight(
-        Sampled.scalar(
+        Sampled.continuous(
           grid,
           NonSpatialAxes.empty,
           NDArray.fromSeq(Shape(3, 3, 3), values)
@@ -75,7 +80,7 @@ final class ReferenceSamplerSuite extends FunSuite:
       geometryRight(Grid.in(frame)(Vector(2, 2), Affine.identity[D2]))
     val sampled =
       imageRight(
-        Sampled.labels(
+        Sampled.categorical(
           grid,
           NonSpatialAxes.empty,
           NDArray.fromSeq(Shape(2, 2), Vector(1, 2, 3, 4))
@@ -98,7 +103,7 @@ final class ReferenceSamplerSuite extends FunSuite:
       imageRight(NonSpatialAxes.from(Vector(time, channel)))
     val sampled =
       imageRight(
-        Sampled.scalar(
+        Sampled.continuous(
           grid,
           axes,
           NDArray.fromSeq(
@@ -127,8 +132,8 @@ import image4s.*
 import image4s.reference.ReferenceSampler
 import ravel.AnyRank
 import image4s.geometry.*
-def invalid[F <: Frame[D2]](
-  image: Sampled[F, D2, Double, Label, AnyRank],
+def invalid[F <: Frame[D2], S <: SampleSpace[F, D2]](
+  image: Sampled[S, Double, Categorical, AnyRank],
   point: Point[F, D2]
 ): Unit =
   ReferenceSampler.linear(image, point)
@@ -136,13 +141,46 @@ def invalid[F <: Frame[D2]](
     )
     assert(errors.nonEmpty)
 
+  test("downstream semantics may opt into linear reference sampling"):
+    sealed trait Probability
+    given ValueSemantics[Double, Probability] with {}
+    given LinearSampling[Double, Probability] with
+      val interpolation: LinearInterpolable[Double] =
+        summon[LinearInterpolable[Double]]
+
+    val frame = geometryRight(Frame.named[D2]("probability"))
+    val grid =
+      geometryRight(Grid.in(frame)(Vector(2, 2), Affine.identity[D2]))
+    val sampled =
+      imageRight(
+        Sampled.create[
+          frame.type,
+          D2,
+          Double,
+          Probability,
+          Rank[2]
+        ](
+          grid,
+          NonSpatialAxes.empty,
+          NDArray.fromSeq(
+            Shape(2, 2),
+            Vector(0.0, 0.5, 0.5, 1.0)
+          )
+        )
+      )
+    val point = geometryRight(Point.in(frame)(0.5, 0.5))
+    val result = imageRight(ReferenceSampler.linear(sampled, point))
+
+    assertEqualsDouble(result.value, 0.5, 1e-12)
+    assertEquals(result.validity, Validity.Full)
+
   test("constant boundaries report partial support and outside support"):
     val frame = geometryRight(Frame.named[D2]("boundary"))
     val grid =
       geometryRight(Grid.in(frame)(Vector(2, 2), Affine.identity[D2]))
     val sampled =
       imageRight(
-        Sampled.scalar(
+        Sampled.continuous(
           grid,
           NonSpatialAxes.empty,
           NDArray.fromSeq(
@@ -184,7 +222,7 @@ def invalid[F <: Frame[D2]](
       geometryRight(Grid.in(frame)(Vector(2, 2), Affine.identity[D2]))
     val sampled =
       imageRight(
-        Sampled.scalar(
+        Sampled.continuous(
           grid,
           NonSpatialAxes.empty,
           NDArray.zeros[Double](2, 2)
@@ -207,7 +245,7 @@ def invalid[F <: Frame[D2]](
       )
     val sampled =
       imageRight(
-        Sampled.scalar(
+        Sampled.continuous(
           grid,
           NonSpatialAxes.empty,
           NDArray.zeros[Double](2, 2)
@@ -216,27 +254,34 @@ def invalid[F <: Frame[D2]](
     val point = geometryRight(Point.in(pointFrame)(0.0, 0.0))
 
     ReferenceSampler.nearestChecked(sampled, point) match
-      case Left(ImageError.Geometry(_: GeometryError.FrameMismatch)) =>
+      case Left(
+            ImageError.Geometry(GeometryError.EphemeralFrameMismatch)
+          ) =>
         assert(true)
       case other =>
         fail(s"expected a typed frame mismatch, got $other")
 
   test("checked reference boundary rebinds matching restored frame identities"):
-    val original = geometryRight(Frame.named[D2]("restored-frame"))
+    val id = geometryRight(FrameId.parse("frame-reference-restored"))
+    val original =
+      geometryRight(
+        Frame.persistentNamed[D2](id, "restored-frame")
+      )
+    val record = geometryRight(original.record)
     val left =
       geometryRight(
-        Frame.restore[D2](original.record, Frame.Registry.empty)
-      )
+        Frame.restore[D2](record, Frame.Registry.empty)
+      ).frame
     val right =
       geometryRight(
-        Frame.restore[D2](original.record, Frame.Registry.empty)
-      )
+        Frame.restore[D2](record, Frame.Registry.empty)
+      ).frame
     assert(left ne right)
     val grid =
       geometryRight(Grid.in(left)(Vector(2, 2), Affine.identity[D2]))
     val sampled =
       imageRight(
-        Sampled.scalar(
+        Sampled.continuous(
           grid,
           NonSpatialAxes.empty,
           NDArray.fromSeq(
@@ -263,7 +308,7 @@ import image4s.geometry.*
 val imageFrame = Frame.named[D2]("image").toOption.get
 val pointFrame = Frame.named[D2]("point").toOption.get
 val grid = Grid.in(imageFrame)(Vector(2, 2), Affine.identity[D2]).toOption.get
-val image = Sampled.scalar(
+val image = Sampled.continuous(
   grid,
   NonSpatialAxes.empty,
   NDArray.zeros[Double](2, 2)

@@ -36,7 +36,7 @@ final class PackageBoundarySuite extends FunSuite:
     assert(bridgeErrors.nonEmpty)
     assert(resolutionErrors.nonEmpty)
 
-  test("dimension-mismatched indices are rejected statically"):
+  test("dimension-mismatched lattice indices are rejected statically"):
     val errors = typeCheckErrors(
       """
         import image4s.locus.*
@@ -44,9 +44,24 @@ final class PackageBoundarySuite extends FunSuite:
         import image4s.geometry.*
         def invalid[F <: Frame[D2], S](
           bridge: GridDomain[F, D2, S],
-          index: Index[D3]
+          index: LatticeIndex[D3]
         ): Unit =
           bridge.ordinalOf(index)
+      """
+    )
+
+    assert(errors.nonEmpty)
+
+  test("one live domain's index cannot address another domain's field"):
+    val errors = typeCheckErrors(
+      """
+        import locus4s.*
+        import locus4s.data.*
+        def invalid[S, T, A](
+          field: Field[S, A],
+          foreign: Index[T]
+        ): A =
+          field(foreign)
       """
     )
 

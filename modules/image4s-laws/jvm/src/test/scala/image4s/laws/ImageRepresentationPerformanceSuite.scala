@@ -13,13 +13,90 @@ import munit.FunSuite
 import ravel.CanonicalArray
 import ravel.DType.given
 import ravel.NDArray
+import ravel.Rank
 import image4s.geometry.Affine
+import image4s.geometry.D2
 import image4s.geometry.D3
 import image4s.geometry.Frame
 import image4s.geometry.GeometryError
 import image4s.geometry.Grid
 
 final class ImageRepresentationPerformanceSuite extends FunSuite:
+  test(
+    "Sampled aliases add no material allocation tax versus raw NDArray access"
+  ):
+    val nx = 48
+    val ny = 37
+    val cases =
+      Vector(
+        dtypeCase("Byte")(
+          NDArray.tabulate[Byte](nx, ny)((i, j) => (i + 3 * j).toByte),
+          data => imageRight(Sampled.categorical(plane(nx, ny), NonSpatialAxes.empty, data)),
+          (array, i, j) => array(i, j).toLong,
+          (image, i, j) => image(i, j).toLong
+        ),
+        dtypeCase("Short")(
+          NDArray.tabulate[Short](nx, ny)((i, j) => (i + 3 * j).toShort),
+          data => imageRight(Sampled.categorical(plane(nx, ny), NonSpatialAxes.empty, data)),
+          (array, i, j) => array(i, j).toLong,
+          (image, i, j) => image(i, j).toLong
+        ),
+        dtypeCase("Float")(
+          NDArray.tabulate[Float](nx, ny)((i, j) => (i + 3 * j).toFloat),
+          data => imageRight(Sampled.continuous(plane(nx, ny), NonSpatialAxes.empty, data)),
+          (array, i, j) => java.lang.Float.floatToIntBits(array(i, j)).toLong,
+          (image, i, j) => java.lang.Float.floatToIntBits(image(i, j)).toLong
+        ),
+        dtypeCase("Double")(
+          NDArray.tabulate[Double](nx, ny)((i, j) => (i + 3 * j).toDouble),
+          data => imageRight(Sampled.continuous(plane(nx, ny), NonSpatialAxes.empty, data)),
+          (array, i, j) => java.lang.Double.doubleToLongBits(array(i, j)),
+          (image, i, j) => java.lang.Double.doubleToLongBits(image(i, j))
+        )
+      )
+
+    cases.foreach { dtypeCase =>
+      var warmup = 0
+      while warmup < 50 do
+        dtypeCase.ravelChecksum()
+        dtypeCase.sampledChecksum()
+        warmup += 1
+
+      val ravelReceipt = measureChecksum(dtypeCase.name + "-ravel", dtypeCase.ravelChecksum)
+      val sampledReceipt =
+        measureChecksum(dtypeCase.name + "-sampled", dtypeCase.sampledChecksum)
+
+      assertEquals(
+        sampledReceipt.checksum,
+        ravelReceipt.checksum,
+        s"${dtypeCase.name}: Sampled and NDArray traversals disagree"
+      )
+      assert(
+        sampledReceipt.allocatedBytes <= 64L * 1024L,
+        s"${dtypeCase.name} Sampled traversal allocated " +
+          s"${sampledReceipt.allocatedBytes} bytes"
+      )
+      assert(
+        ravelReceipt.allocatedBytes <= 64L * 1024L,
+        s"${dtypeCase.name} NDArray traversal allocated " +
+          s"${ravelReceipt.allocatedBytes} bytes"
+      )
+      // Alias tax gate: Sampled ranked access may not be dramatically slower
+      // than the underlying Ravel array on the same layout.
+      assert(
+        sampledReceipt.medianNanos <= ravelReceipt.medianNanos * 4L + 50_000L,
+        s"${dtypeCase.name}: Sampled took ${sampledReceipt.medianNanos} ns " +
+          s"versus ${ravelReceipt.medianNanos} ns for NDArray"
+      )
+      println(
+        s"DENSE-GENERIC JVM baseline: dtype=${dtypeCase.name}, " +
+          s"ravelAllocated=${ravelReceipt.allocatedBytes} B, " +
+          s"sampledAllocated=${sampledReceipt.allocatedBytes} B, " +
+          s"ravelMedian=${ravelReceipt.medianNanos} ns, " +
+          s"sampledMedian=${sampledReceipt.medianNanos} ns"
+      )
+    }
+
   test("matched image access workloads record checksums and allocation"):
     val fixture = new Fixture(24, 17, 11, 5)
     val workloads =
@@ -224,7 +301,7 @@ final class ImageRepresentationPerformanceSuite extends FunSuite:
     private val axes =
       imageRight(NonSpatialAxes.from(Vector(time)))
     private val sampled =
-      imageRight(Sampled.scalar(grid, axes, canonical))
+      imageRight(Sampled.continuous(grid, axes, canonical))
 
     val legacyCOrder: () => Signature =
       () => traverseCOrder((i, j, k, t) => legacy(legacyIndex(i, j, k, t)))
@@ -363,6 +440,79 @@ final class ImageRepresentationPerformanceSuite extends FunSuite:
         10.0 * j.toDouble +
         100.0 * k.toDouble +
         1000.0 * t.toDouble
+
+  private final case class DtypeCase(
+      name: String,
+      ravelChecksum: () => Long,
+      sampledChecksum: () => Long
+  )
+
+  private final case class ChecksumReceipt(
+      name: String,
+      checksum: Long,
+      allocatedBytes: Long,
+      medianNanos: Long
+  )
+
+  private def dtypeCase[A, Img](
+      name: String
+  )(
+      data: NDArray[A, Rank[2]],
+      wrap: NDArray[A, Rank[2]] => Img,
+      readArray: (NDArray[A, Rank[2]], Int, Int) => Long,
+      readImage: (Img, Int, Int) => Long
+  ): DtypeCase =
+    val image = wrap(data)
+    val nx = data.shape(0)
+    val ny = data.shape(1)
+    def checksum(read: (Int, Int) => Long): Long =
+      var acc = 0L
+      var i = 0
+      while i < nx do
+        var j = 0
+        while j < ny do
+          acc += read(i, j) * (1L + i + 31L * j)
+          j += 1
+        i += 1
+      acc
+    DtypeCase(
+      name,
+      () => checksum((i, j) => readArray(data, i, j)),
+      () => checksum((i, j) => readImage(image, i, j))
+    )
+
+  private def plane(nx: Int, ny: Int) =
+    val frame = geometryRight(Frame.named[D2]("dense-generic-perf"))
+    geometryRight(Grid.in(frame)(Vector(nx, ny), Affine.identity[D2]))
+
+  private def measureChecksum(
+      name: String,
+      run: () => Long
+  ): ChecksumReceipt =
+    val allocationSamples =
+      Vector.tabulate(7)(_ => measuredAllocation(run()))
+    val checksum = allocationSamples.head._1
+    allocationSamples.tail.foreach(sample =>
+      assertEquals(
+        sample._1,
+        checksum,
+        s"$name changed checksum during allocation sampling"
+      )
+    )
+    val allocatedBytes =
+      allocationSamples.map(_._2).sorted.apply(allocationSamples.size / 2)
+    val timings =
+      Vector.tabulate(21) { _ =>
+        val started = System.nanoTime()
+        run()
+        System.nanoTime() - started
+      }.sorted
+    ChecksumReceipt(
+      name,
+      checksum,
+      allocatedBytes,
+      timings(timings.size / 2)
+    )
 
   private def measure(workload: Workload): Receipt =
     val allocationSamples =

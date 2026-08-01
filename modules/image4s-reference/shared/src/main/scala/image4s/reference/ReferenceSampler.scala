@@ -1,12 +1,13 @@
 package image4s.reference
 
 import image4s.BoundaryPolicy
-import image4s.FieldRole
 import image4s.ImageError
+import image4s.LinearSampling
+import image4s.NearestInterpolable
 import image4s.PartialWeight
 import image4s.Sample
+import image4s.SampleSpace
 import image4s.Sampled
-import image4s.Scalar
 import image4s.Validity
 import ravel.AnyRank
 import image4s.geometry.Dim
@@ -25,14 +26,18 @@ object ReferenceSampler:
       F <: Frame[D],
       D <: Dim,
       A,
-      Role <: FieldRole,
+      Sem,
+      S <: SampleSpace[F, D],
       R <: AnyRank
   ](
-      image: Sampled[F, D, A, Role, R],
+      image: Sampled[S, A, Sem, R],
       point: Point[F, D],
       nonSpatialIndex: Vector[Int] = Vector.empty,
       boundary: BoundaryPolicy[A] = BoundaryPolicy.Reject
-  )(using Dimension[D]): Either[ImageError, Sample[A]] =
+  )(using
+      Dimension[D],
+      NearestInterpolable[A]
+  ): Either[ImageError, Sample[A]] =
     nearestChecked(image, point, nonSpatialIndex, boundary)
 
   def nearestChecked[
@@ -40,14 +45,18 @@ object ReferenceSampler:
       PF <: Frame[D],
       D <: Dim,
       A,
-      Role <: FieldRole,
+      Sem,
+      S <: SampleSpace[IF, D],
       R <: AnyRank
   ](
-      image: Sampled[IF, D, A, Role, R],
+      image: Sampled[S, A, Sem, R],
       point: Point[PF, D],
       nonSpatialIndex: Vector[Int] = Vector.empty,
       boundary: BoundaryPolicy[A] = BoundaryPolicy.Reject
-  )(using Dimension[D]): Either[ImageError, Sample[A]] =
+  )(using
+      Dimension[D],
+      NearestInterpolable[A]
+  ): Either[ImageError, Sample[A]] =
     for
       _ <- image.validateNonSpatialIndex(nonSpatialIndex)
       rebound <- rebindToImage(image, point)
@@ -71,26 +80,38 @@ object ReferenceSampler:
   def linear[
       F <: Frame[D],
       D <: Dim,
+      A,
+      Sem,
+      S <: SampleSpace[F, D],
       R <: AnyRank
   ](
-      image: Sampled[F, D, Double, Scalar, R],
+      image: Sampled[S, A, Sem, R],
       point: Point[F, D],
       nonSpatialIndex: Vector[Int] = Vector.empty,
-      boundary: BoundaryPolicy[Double] = BoundaryPolicy.Reject
-  )(using Dimension[D]): Either[ImageError, Sample[Double]] =
+      boundary: BoundaryPolicy[A] = BoundaryPolicy.Reject
+  )(using
+      Dimension[D],
+      LinearSampling[A, Sem]
+  ): Either[ImageError, Sample[A]] =
     linearChecked(image, point, nonSpatialIndex, boundary)
 
   def linearChecked[
       IF <: Frame[D],
       PF <: Frame[D],
       D <: Dim,
+      A,
+      Sem,
+      S <: SampleSpace[IF, D],
       R <: AnyRank
   ](
-      image: Sampled[IF, D, Double, Scalar, R],
+      image: Sampled[S, A, Sem, R],
       point: Point[PF, D],
       nonSpatialIndex: Vector[Int] = Vector.empty,
-      boundary: BoundaryPolicy[Double] = BoundaryPolicy.Reject
-  )(using dimension: Dimension[D]): Either[ImageError, Sample[Double]] =
+      boundary: BoundaryPolicy[A] = BoundaryPolicy.Reject
+  )(using
+      dimension: Dimension[D],
+      linear: LinearSampling[A, Sem]
+  ): Either[ImageError, Sample[A]] =
     for
       _ <- image.validateNonSpatialIndex(nonSpatialIndex)
       rebound <- rebindToImage(image, point)
@@ -112,31 +133,32 @@ object ReferenceSampler:
       PF <: Frame[D],
       D <: Dim,
       A,
-      Role <: FieldRole,
+      Sem,
+      S <: SampleSpace[IF, D],
       R <: AnyRank
   ](
-      image: Sampled[IF, D, A, Role, R],
+      image: Sampled[S, A, Sem, R],
       point: Point[PF, D]
   )(using Dimension[D]): Either[ImageError, Point[IF, D]] =
     Frame
-      .align(image.frame, point.frame)
+      .alignOwners[D, IF, PF](image.frame, point.frame)
       .left
       .map(ImageError.Geometry.apply)
-      .flatMap { _ =>
-        Point
-          .fromVector[D, IF](image.frame, point.coordinates)
+      .flatMap(
+        _.pointToLeft(point)
           .left
           .map(ImageError.Geometry.apply)
-      }
+      )
 
   private def valueOrBoundary[
       F <: Frame[D],
       D <: Dim,
       A,
-      Role <: FieldRole,
+      Sem,
+      S <: SampleSpace[F, D],
       R <: AnyRank
   ](
-      image: Sampled[F, D, A, Role, R],
+      image: Sampled[S, A, Sem, R],
       spatialIndex: Vector[Int],
       nonSpatialIndex: Vector[Int],
       continuousIndex: Vector[Double],
@@ -156,13 +178,19 @@ object ReferenceSampler:
   private def interpolateLinear[
       F <: Frame[D],
       D <: Dim,
+      A,
+      Sem,
+      S <: SampleSpace[F, D],
       R <: AnyRank
   ](
-      image: Sampled[F, D, Double, Scalar, R],
+      image: Sampled[S, A, Sem, R],
       continuousIndex: Vector[Double],
       nonSpatialIndex: Vector[Int],
-      boundary: BoundaryPolicy[Double]
-  )(using dimension: Dimension[D]): Either[ImageError, Sample[Double]] =
+      boundary: BoundaryPolicy[A]
+  )(using
+      dimension: Dimension[D],
+      linear: LinearSampling[A, Sem]
+  ): Either[ImageError, Sample[A]] =
     val lower =
       continuousIndex.map(math.floor(_).toInt)
     val fraction =
@@ -171,7 +199,7 @@ object ReferenceSampler:
         .map { case (coordinate, base) => coordinate - base.toDouble }
     val cornerCount = 1 << dimension.rank
     var corner = 0
-    var total = 0.0
+    var total = linear.interpolation.zero
     var insideWeight = 0.0
     var rejected = false
     var failure: Option[ImageError] = None
@@ -192,7 +220,8 @@ object ReferenceSampler:
         if contains(image.grid.shape, index) then
           image.valueAt(index, nonSpatialIndex) match
             case Right(value) =>
-              total += weight * value
+              total =
+                linear.interpolation.addScaled(total, value, weight)
               insideWeight += weight
             case Left(error) =>
               failure = Some(error)
@@ -201,7 +230,8 @@ object ReferenceSampler:
             case BoundaryPolicy.Reject =>
               rejected = true
             case BoundaryPolicy.Constant(value) =>
-              total += weight * value
+              total =
+                linear.interpolation.addScaled(total, value, weight)
       corner += 1
 
     failure match

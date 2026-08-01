@@ -20,7 +20,7 @@ final class BorrowedJvmSuite extends FunSuite:
       JvmInterop.unsafeBorrow(callerOwned, Shape(2, 2))
     val sampled =
       imageRight(
-        Sampled.copyScalarFromBorrowed(
+        Sampled.copyContinuousFromBorrowed(
           grid,
           NonSpatialAxes.empty,
           borrowed

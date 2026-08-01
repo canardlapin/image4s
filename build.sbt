@@ -7,6 +7,8 @@ import scalajscrossproject.ScalaJSCrossPlugin.autoImport.*
 ThisBuild / organization := "io.github.canardlapin"
 ThisBuild / scalaVersion := "3.7.4"
 ThisBuild / version := "0.1.0-SNAPSHOT"
+ThisBuild / versionScheme := Some("early-semver")
+ThisBuild / versionPolicyIntention := Compatibility.None
 ThisBuild / homepage := Some(url("https://github.com/canardlapin/image4s"))
 ThisBuild / licenses := List(
   "Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0")
@@ -40,7 +42,7 @@ lazy val galeBuild =
 lazy val galeCoreJVM = ProjectRef(galeBuild, "coreJVM")
 lazy val galeCoreJS  = ProjectRef(galeBuild, "coreJS")
 
-lazy val locus4sRevision = "4fedc7febf2728f51f6bb008ac7fe41060edc18e"
+lazy val locus4sRevision = "5186cf9dd691c5145286032080ef2d59fe3d179d"
 lazy val locus4sBuild =
   sys.props
     .get("image4s.locus4s.build")
@@ -50,6 +52,8 @@ lazy val locus4sBuild =
     )
 lazy val locus4sCoreJVM = ProjectRef(locus4sBuild, "locus4s-coreJVM")
 lazy val locus4sCoreJS  = ProjectRef(locus4sBuild, "locus4s-coreJS")
+lazy val locus4sDataJVM = ProjectRef(locus4sBuild, "locus4s-dataJVM")
+lazy val locus4sDataJS  = ProjectRef(locus4sBuild, "locus4s-dataJS")
 
 lazy val sharedSettings = Seq(
   libraryDependencies ++= Seq(
@@ -97,8 +101,37 @@ lazy val image4sLaws =
 lazy val image4sLocus =
   imageProject("image4s-locus")
     .dependsOn(image4sCore, image4sGeometry)
-    .jvmConfigure(_.dependsOn(locus4sCoreJVM))
-    .jsConfigure(_.dependsOn(locus4sCoreJS))
+    .jvmConfigure(_.dependsOn(locus4sCoreJVM, locus4sDataJVM))
+    .jsConfigure(_.dependsOn(locus4sCoreJS, locus4sDataJS))
+
+// Temporarily hosted here for extractability into canardlapin/image4s-ops.
+// Permanent rule: image4s-core must never depend on these modules.
+lazy val image4sOpsCore =
+  imageProject("image4s-ops-core")
+    .dependsOn(image4sCore)
+    .jvmConfigure(_.dependsOn(ravelCoreJVM))
+    .jsConfigure(_.dependsOn(ravelCoreJS))
+
+lazy val image4sFilter =
+  imageProject("image4s-filter")
+    .dependsOn(image4sOpsCore, image4sCore)
+    .jvmConfigure(_.dependsOn(ravelCoreJVM))
+    .jsConfigure(_.dependsOn(ravelCoreJS))
+
+lazy val image4sMorphology =
+  imageProject("image4s-morphology")
+    .dependsOn(image4sOpsCore, image4sCore)
+    .jvmConfigure(_.dependsOn(ravelCoreJVM))
+    .jsConfigure(_.dependsOn(ravelCoreJS))
+
+lazy val image4sOpsLaws =
+  imageProject("image4s-ops-laws")
+    .dependsOn(
+      image4sOpsCore,
+      image4sFilter,
+      image4sMorphology,
+      image4sLaws
+    )
 
 lazy val root =
   project
@@ -115,7 +148,15 @@ lazy val root =
       image4sLaws.jvm,
       image4sLaws.js,
       image4sLocus.jvm,
-      image4sLocus.js
+      image4sLocus.js,
+      image4sOpsCore.jvm,
+      image4sOpsCore.js,
+      image4sFilter.jvm,
+      image4sFilter.js,
+      image4sMorphology.jvm,
+      image4sMorphology.js,
+      image4sOpsLaws.jvm,
+      image4sOpsLaws.js
     )
     .settings(
       name := "image4s-root",

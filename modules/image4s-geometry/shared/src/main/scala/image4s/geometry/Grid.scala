@@ -1,54 +1,117 @@
 package image4s.geometry
 
-import scala.collection.mutable
-
-final case class GridRecord(
-    id: GridId,
-    frameId: FrameId,
-    spatialRank: Int,
-    shape: Vector[Int],
-    indexToFrameRowMajor: Vector[Double],
-    affineTolerance: Double
+/** Canonical affine values used in persistent grid identity.
+  *
+  * Affine construction tolerances and diagnostics are deliberately excluded.
+  */
+final case class CanonicalAffineRecord(
+    rowMajor: Vector[Double]
 ) derives CanEqual
 
+/** Persistent structural identity of a finite affine grid. */
+final case class GridKey(
+    id: GridId,
+    frame: FrameKey,
+    shape: Vector[Int],
+    indexToFrame: CanonicalAffineRecord
+) derives CanEqual:
+  def spatialRank: Int =
+    frame.spatialRank
+
+/** Neutral persistent grid record. */
+final case class GridRecord(
+    key: GridKey
+) derives CanEqual
+
+/** Checked bounded index owned by one live grid. */
+final class GridIndex[
+    G <: Grid[?, D],
+    D <: Dim
+] private[geometry] (
+    val grid: G,
+    val lattice: LatticeIndex[D]
+):
+  def values: Vector[Int] =
+    lattice.values
+
+  def apply(axis: Int): Option[Int] =
+    lattice(axis)
+
+object GridIndex:
+  private[geometry] def checked[
+      F <: Frame[D],
+      D <: Dim
+  ](
+      grid: Grid[F, D],
+      lattice: LatticeIndex[D]
+  ): Either[
+    GeometryError,
+    GridIndex[grid.type, D]
+  ] =
+    grid.shape.zip(lattice.values).zipWithIndex.collectFirst {
+      case ((extent, value), axis) if value < 0 || value >= extent =>
+        GeometryError.GridIndexOutOfBounds(axis, value, extent)
+    } match
+      case Some(error) => Left(error)
+      case None        => Right(new GridIndex(grid, lattice))
+
 final class Grid[F <: Frame[D], D <: Dim] private (
-    val id: GridId,
     val frame: F,
     val shape: Vector[Int],
     val indexToFrame: Affine[D],
     val dimension: Dimension[D],
+    val persistentKey: Option[GridKey],
     private val runtimeToken: Grid.RuntimeToken
 ):
   def spatialRank: Int =
     shape.length
 
-  def record: GridRecord =
-    GridRecord(
-      id,
-      frame.id,
-      spatialRank,
-      shape,
-      indexToFrame.rowMajor,
-      indexToFrame.tolerance
-    )
+  def persistentId: Option[GridId] =
+    persistentKey.map(_.id)
 
-  def contains(index: Index[D]): Boolean =
+  def record: Either[GeometryError, GridRecord] =
+    persistentKey
+      .map(GridRecord.apply)
+      .toRight(GeometryError.EphemeralGridHasNoRecord)
+
+  def contains(index: LatticeIndex[D]): Boolean =
     index.values.indices.forall(axis =>
       index.values(axis) >= 0 && index.values(axis) < shape(axis)
     )
 
-  def pointAt(index: Index[D])(using
+  def index(
+      lattice: LatticeIndex[D]
+  ): Either[GeometryError, GridIndex[this.type, D]] =
+    GridIndex.checked(this, lattice)
+
+  def index(
+      coordinates: Int*
+  )(using
+      dimension: Dimension[D]
+  ): Either[GeometryError, GridIndex[this.type, D]] =
+    LatticeIndex
+      .fromVector(coordinates.toVector)
+      .flatMap(index)
+
+  /** Map an unbounded lattice coordinate into the physical frame. */
+  def pointAt(index: LatticeIndex[D])(using
       dimension: Dimension[D]
   ): Either[GeometryError, Point[F, D]] =
-    Point.fromVector[D, F](
+    Point.fromVectorAs[D, F](
       frame,
       indexToFrame.applyUnchecked(index.values.map(_.toDouble))
     )
 
+  /** Map a checked index owned by this exact live grid. */
+  def pointAt(index: GridIndex[this.type, D])(using
+      dimension: Dimension[D]
+  ): Either[GeometryError, Point[F, D]] =
+    pointAt(index.lattice)
+
   def pointAt(continuousIndex: ContinuousIndex[D])(using
       dimension: Dimension[D]
   ): Either[GeometryError, Point[F, D]] =
-    Point.fromVector[D, F](
+    Point.fromVectorAs[D, F](
       frame,
       indexToFrame.applyUnchecked(continuousIndex.values)
     )
@@ -62,12 +125,20 @@ final class Grid[F <: Frame[D], D <: Dim] private (
         indexToFrame.inverse.applyUnchecked(point.coordinates)
       )
 
-  private[geometry] def sameRuntimeOwnerAs(other: Grid[?, ?]): Boolean =
+  def sameRuntimeOwnerAs(other: Grid[?, ?]): Boolean =
     runtimeToken.sameAs(other.runtimeToken)
 
+  def samePersistentKeyAs(other: Grid[?, ?]): Boolean =
+    persistentKey.nonEmpty && persistentKey == other.persistentKey
+
   private[geometry] def mismatchWith(other: Grid[?, ?]): GeometryError =
-    if id == other.id then GeometryError.GridOwnerMismatch(id)
-    else GeometryError.GridMismatch(id, other.id)
+    (persistentKey, other.persistentKey) match
+      case (Some(left), Some(right)) if left == right =>
+        GeometryError.GridOwnerMismatch(left.id)
+      case (Some(left), Some(right)) =>
+        GeometryError.GridMismatch(left.id, right.id)
+      case _ =>
+        GeometryError.EphemeralGridMismatch
 
 object Grid:
   private final class RuntimeToken:
@@ -75,22 +146,31 @@ object Grid:
       this eq other
 
   private final case class RegistryEntry(
-      record: GridRecord,
+      key: GridKey,
       frame: Frame[?],
-      value: AnyRef
+      value: Grid[?, ?]
   )
 
+  /** Immutable persistent-grid registry. */
   final class Registry private[Grid] (
-      private[Grid] val entries: mutable.Map[GridId, RegistryEntry]
+      private[Grid] val entries: Map[GridId, RegistryEntry]
   ):
+    def size: Int =
+      entries.size
+
     def register[D <: Dim, F <: Frame[D]](
         grid: Grid[F, D]
-    ): Either[GeometryError, Unit] =
+    ): Either[GeometryError, Registry] =
       Grid.register(grid, this)
 
   object Registry:
-    def empty: Registry =
-      new Registry(mutable.HashMap.empty)
+    val empty: Registry =
+      new Registry(Map.empty)
+
+  final class Resolution[F <: Frame[D], D <: Dim] private[Grid] (
+      val grid: Grid[F, D],
+      val registry: Registry
+  )
 
   def in[D <: Dim](
       frame: Frame[D]
@@ -99,13 +179,13 @@ object Grid:
       indexToFrame: Affine[D]
   )(using dimension: Dimension[D]): Either[GeometryError, Grid[frame.type, D]] =
     create(
-      GridId.fresh(),
       frame,
       shape.iterator.toVector,
-      indexToFrame
+      indexToFrame,
+      None
     )
 
-  /** Construct a grid while preserving an already precise frame type. */
+  /** Construct an ephemeral grid while preserving a precise frame type. */
   def forFrame[D <: Dim, F <: Frame[D]](
       frame: F
   )(
@@ -113,36 +193,71 @@ object Grid:
       indexToFrame: Affine[D]
   )(using dimension: Dimension[D]): Either[GeometryError, Grid[F, D]] =
     create(
-      GridId.fresh(),
       frame,
       shape.iterator.toVector,
-      indexToFrame
+      indexToFrame,
+      None
     )
 
-  def restore[D <: Dim](
+  def createPersistent[D <: Dim, F <: Frame[D]](
+      id: GridId,
+      frame: F
+  )(
+      shape: IterableOnce[Int],
+      indexToFrame: Affine[D]
+  )(using dimension: Dimension[D]): Either[GeometryError, Grid[F, D]] =
+    frame.persistentKey match
+      case None =>
+        Left(GeometryError.PersistentGridRequiresPersistentFrame(id))
+      case Some(frameKey) =>
+        val copiedShape = shape.iterator.toVector
+        val key =
+          GridKey(
+            id,
+            frameKey,
+            copiedShape,
+            CanonicalAffineRecord(indexToFrame.rowMajor)
+          )
+        create(frame, copiedShape, indexToFrame, Some(key))
+
+  def restore[D <: Dim, F <: Frame[D]](
       record: GridRecord,
-      frame: Frame[D],
-      registry: Registry
+      frame: F,
+      registry: Registry,
+      validationTolerance: Double = Affine.DefaultTolerance
   )(using
       dimension: Dimension[D]
-  ): Either[GeometryError, Grid[frame.type, D]] =
-    if record.spatialRank != dimension.rank then
-      Left(GeometryError.DimensionMismatch(dimension.rank, record.spatialRank))
-    else if record.frameId != frame.id then
-      Left(GeometryError.FrameMismatch(record.frameId, frame.id))
+  ): Either[GeometryError, Resolution[F, D]] =
+    val key = record.key
+    if key.spatialRank != dimension.rank then
+      Left(GeometryError.DimensionMismatch(dimension.rank, key.spatialRank))
+    else if !frame.persistentKey.contains(key.frame) then
+      Left(
+        GeometryError.GridFrameKeyMismatch(
+          key.id,
+          key.frame,
+          frame.persistentKey
+        )
+      )
     else
       for
         affine <- Affine.fromRowMajor[D](
-          record.indexToFrameRowMajor,
-          record.affineTolerance
+          key.indexToFrame.rowMajor,
+          validationTolerance
         )
-        candidate <- create[D, frame.type](
-          record.id,
+        _ <-
+          Either.cond(
+            affine.rowMajor == key.indexToFrame.rowMajor,
+            (),
+            GeometryError.NonCanonicalGridAffineRecord(key.id)
+          )
+        candidate <- create[D, F](
           frame,
-          record.shape,
-          affine
+          key.shape,
+          affine,
+          Some(key)
         )
-        restored <- restoreRegistered(record, candidate, registry)
+        restored <- restoreRegistered(key, candidate, registry)
       yield restored
 
   def align[D <: Dim, LF <: Frame[D], RF <: Frame[D]](
@@ -151,11 +266,60 @@ object Grid:
   ): Either[GeometryError, GridAlignment[D, LF, RF]] =
     GridAlignment.check(left, right)
 
+  def exactCongruence[D <: Dim, LF <: Frame[D], RF <: Frame[D]](
+      left: Grid[LF, D],
+      right: Grid[RF, D]
+  ): Either[GeometryError, GridCongruence[D, LF, RF]] =
+    for
+      _ <- Frame.align(left.frame, right.frame)
+      _ <-
+        Either.cond(
+          left.shape == right.shape &&
+            left.indexToFrame.rowMajor == right.indexToFrame.rowMajor,
+          (),
+          GeometryError.GridsNotCongruent(0.0)
+        )
+    yield new GridCongruence(left, right, 0.0, true)
+
+  def approximateCongruence[
+      D <: Dim,
+      LF <: Frame[D],
+      RF <: Frame[D]
+  ](
+      left: Grid[LF, D],
+      right: Grid[RF, D],
+      tolerance: Double
+  ): Either[GeometryError, GridCongruence[D, LF, RF]] =
+    if !tolerance.isFinite || tolerance < 0.0 then
+      Left(GeometryError.InvalidCongruenceTolerance(tolerance))
+    else
+      for
+        _ <- Frame.align(left.frame, right.frame)
+        sameShape = left.shape == right.shape
+        sameAffine =
+          left.indexToFrame.rowMajor
+            .zip(right.indexToFrame.rowMajor)
+            .forall { case (leftValue, rightValue) =>
+              math.abs(leftValue - rightValue) <= tolerance
+            }
+        _ <-
+          Either.cond(
+            sameShape && sameAffine,
+            (),
+            GeometryError.GridsNotCongruent(tolerance)
+          )
+      yield new GridCongruence(
+        left,
+        right,
+        tolerance,
+        left.indexToFrame.rowMajor == right.indexToFrame.rowMajor
+      )
+
   private def create[D <: Dim, F <: Frame[D]](
-      id: GridId,
       frame: F,
       shape: Vector[Int],
-      indexToFrame: Affine[D]
+      indexToFrame: Affine[D],
+      key: Option[GridKey]
   )(using dimension: Dimension[D]): Either[GeometryError, Grid[F, D]] =
     if shape.length != dimension.rank then
       Left(GeometryError.DimensionMismatch(dimension.rank, shape.length))
@@ -169,11 +333,11 @@ object Grid:
         case None =>
           Right(
             new Grid(
-              id,
               frame,
               shape,
               indexToFrame,
               dimension,
+              key,
               new RuntimeToken()
             )
           )
@@ -181,62 +345,97 @@ object Grid:
   private def register[D <: Dim, F <: Frame[D]](
       grid: Grid[F, D],
       registry: Registry
-  ): Either[GeometryError, Unit] =
-    registry.entries.get(grid.id) match
+  ): Either[GeometryError, Registry] =
+    grid.persistentKey match
       case None =>
-        registry.entries.update(
-          grid.id,
-          RegistryEntry(grid.record, grid.frame, grid)
-        )
-        Right(())
-      case Some(entry)
-          if entry.record == grid.record &&
-            entry.frame.sameRuntimeOwnerAs(grid.frame) &&
-            (entry.value eq grid) =>
-        Right(())
-      case Some(entry) if entry.record != grid.record =>
-        Left(GeometryError.GridRestoreMetadataConflict(grid.id))
-      case Some(entry) if !entry.frame.sameRuntimeOwnerAs(grid.frame) =>
-        Left(
-          GeometryError.GridRestoreFrameOwnerConflict(
-            grid.id,
-            grid.frame.id
-          )
-        )
-      case Some(_) =>
-        Left(GeometryError.GridRestoreDuplicateOwner(grid.id))
+        Left(GeometryError.CannotRegisterEphemeralGrid)
+      case Some(key) =>
+        registry.entries.get(key.id) match
+          case None =>
+            Right(
+              new Registry(
+                registry.entries.updated(
+                  key.id,
+                  RegistryEntry(key, grid.frame, grid)
+                )
+              )
+            )
+          case Some(entry)
+              if entry.key == key &&
+                entry.frame.sameRuntimeOwnerAs(grid.frame) &&
+                (entry.value eq grid) =>
+            Right(registry)
+          case Some(entry) if entry.key != key =>
+            Left(
+              GeometryError.GridKeyConflict(
+                key.id,
+                entry.key,
+                key
+              )
+            )
+          case Some(entry)
+              if !entry.frame.sameRuntimeOwnerAs(grid.frame) =>
+            Left(
+              GeometryError.GridRestoreFrameOwnerConflict(
+                key.id,
+                key.frame.id
+              )
+            )
+          case Some(_) =>
+            Left(GeometryError.GridRestoreDuplicateOwner(key.id))
 
   private def restoreRegistered[D <: Dim, F <: Frame[D]](
-      record: GridRecord,
+      key: GridKey,
       candidate: Grid[F, D],
       registry: Registry
-  ): Either[GeometryError, Grid[F, D]] =
-    registry.entries.get(record.id) match
+  ): Either[GeometryError, Resolution[F, D]] =
+    registry.entries.get(key.id) match
       case None =>
-        registry.entries.update(
-          record.id,
-          RegistryEntry(record, candidate.frame, candidate)
+        val updated =
+          new Registry(
+            registry.entries.updated(
+              key.id,
+              RegistryEntry(key, candidate.frame, candidate)
+            )
+          )
+        Right(new Resolution(candidate, updated))
+      case Some(entry) if entry.key != key =>
+        Left(
+          GeometryError.GridKeyConflict(
+            key.id,
+            entry.key,
+            key
+          )
         )
-        Right(candidate)
-      case Some(entry) if entry.record != record =>
-        Left(GeometryError.GridRestoreMetadataConflict(record.id))
       case Some(entry)
           if !entry.frame.sameRuntimeOwnerAs(candidate.frame) =>
         Left(
           GeometryError.GridRestoreFrameOwnerConflict(
-            record.id,
-            candidate.frame.id
+            key.id,
+            key.frame.id
           )
         )
       case Some(entry) =>
-        // F is the exact candidate frame type. Equal live frame ownership plus
-        // the checked record make recovery of the registered grid sound.
-        Right(entry.value.asInstanceOf[Grid[F, D]])
+        // Retype the immutable header after the checked key/frame-owner match
+        // while retaining the registry's live grid-owner token.
+        Right(
+          new Resolution(
+            new Grid(
+              candidate.frame,
+              candidate.shape,
+              candidate.indexToFrame,
+              candidate.dimension,
+              candidate.persistentKey,
+              entry.value.runtimeToken
+            ),
+            registry
+          )
+        )
 
 type GridRegistry = Grid.Registry
 
 object GridRegistry:
-  def empty: GridRegistry =
+  val empty: GridRegistry =
     Grid.Registry.empty
 
 final class GridAlignment[
@@ -254,14 +453,14 @@ final class GridAlignment[
       point: Point[LF, D]
   )(using Dimension[D]): Either[GeometryError, Point[RF, D]] =
     if point.belongsTo(left.frame) then
-      Point.fromVector(right.frame, point.coordinates)
+      Point.fromVectorAs(right.frame, point.coordinates)
     else Left(left.frame.mismatchWith(point.frame))
 
   def pointToLeft(
       point: Point[RF, D]
   )(using Dimension[D]): Either[GeometryError, Point[LF, D]] =
     if point.belongsTo(right.frame) then
-      Point.fromVector(left.frame, point.coordinates)
+      Point.fromVectorAs(left.frame, point.coordinates)
     else Left(right.frame.mismatchWith(point.frame))
 
 object GridAlignment:
@@ -269,11 +468,19 @@ object GridAlignment:
       left: Grid[LF, D],
       right: Grid[RF, D]
   ): Either[GeometryError, GridAlignment[D, LF, RF]] =
-    if left.id != right.id then
-      Left(GeometryError.GridMismatch(left.id, right.id))
-    else if left.record != right.record then
-      Left(GeometryError.GridRestoreMetadataConflict(left.id))
-    else
+    if left.sameRuntimeOwnerAs(right) || left.samePersistentKeyAs(right) then
       Frame.align(left.frame, right.frame).map(_ =>
         new GridAlignment(left, right)
       )
+    else Left(left.mismatchWith(right))
+
+final class GridCongruence[
+    D <: Dim,
+    LF <: Frame[D],
+    RF <: Frame[D]
+] private[geometry] (
+    val left: Grid[LF, D],
+    val right: Grid[RF, D],
+    val tolerance: Double,
+    val exact: Boolean
+)

@@ -1,11 +1,20 @@
 package image4s
 
 import image4s.geometry.Dim
-import image4s.geometry.D2
-import image4s.geometry.D3
 import image4s.geometry.Dimension
 import image4s.geometry.Frame
 import image4s.geometry.Grid
+import image4s.geometry.GridRecord
+
+/** Neutral persistent record for one complete sampling space.
+  *
+  * The grid record carries persistent physical identity. Axis records carry
+  * ordered non-spatial sampling coordinates but no live owner identity.
+  */
+final case class SampleSpaceRecord(
+    grid: GridRecord,
+    nonSpatialAxes: Vector[AxisRecord]
+) derives CanEqual
 
 /** Canonical sampling geometry shared by images with the same spatial grid
   * and ordered non-spatial axes.
@@ -28,28 +37,6 @@ sealed trait SomeSampleSpace:
 
   final def logicalShape: Vector[Int] =
     grid.shape ++ nonSpatialAxes.shape
-
-  /** Recover a statically D2 sampling space at an existential boundary.
-    *
-    * Frame identity is retained; only its path-dependent singleton type is
-    * widened to `Frame[D2]`.
-    */
-  final def requireD2: Either[
-    ImageError,
-    SampleSpace[Frame[D2], D2]
-  ] =
-    SampleSpace.requireD2(this)
-
-  /** Recover a statically D3 sampling space at an existential boundary.
-    *
-    * Frame identity is retained; only its path-dependent singleton type is
-    * widened to `Frame[D3]`.
-    */
-  final def requireD3: Either[
-    ImageError,
-    SampleSpace[Frame[D3], D3]
-  ] =
-    SampleSpace.requireD3(this)
 
 final class SampleSpace[
     F0 <: Frame[D0],
@@ -93,26 +80,77 @@ final class SampleSpace[
     if nonSpatialAxes.size == 0 then this
     else SampleSpace.create(grid, NonSpatialAxes.empty)
 
-  override def equals(other: Any): Boolean =
-    other match
-      case that: SomeSampleSpace =>
-        (this eq that) ||
-          (
-            grid.shape == that.grid.shape &&
-              grid.indexToFrame.rowMajor == that.grid.indexToFrame.rowMajor &&
-              axisRecords == SampleSpace.axisRecords(that.nonSpatialAxes)
-          )
-      case _ => false
+  def record: Either[ImageError, SampleSpaceRecord] =
+    grid.record
+      .left
+      .map(ImageError.Geometry.apply)
+      .map(SampleSpaceRecord(_, nonSpatialAxes.records))
 
-  override def hashCode(): Int =
-    var hash = grid.shape.hashCode()
-    hash = 31 * hash + grid.indexToFrame.rowMajor.hashCode()
-    31 * hash + axisRecords.hashCode()
+  def sameRuntimeSpaceAs(other: SomeSampleSpace): Boolean =
+    this eq other
+
+  final override def equals(other: Any): Boolean =
+    other match
+      case reference: AnyRef => this eq reference
+      case _                 => false
+
+  final override def hashCode(): Int =
+    System.identityHashCode(this)
+
+  def persistentRelationTo(
+      other: SomeSampleSpace
+  ): PersistentSpaceComparison =
+    (record, other.typed.record) match
+      case (Right(left), Right(right)) =>
+        if left == right then PersistentSpaceComparison.Same
+        else PersistentSpaceComparison.Different
+      case (Left(_), Right(_)) =>
+        PersistentSpaceComparison.LeftEphemeral
+      case (Right(_), Left(_)) =>
+        PersistentSpaceComparison.RightEphemeral
+      case (Left(_), Left(_)) =>
+        PersistentSpaceComparison.BothEphemeral
+
+  def samePersistentSpaceAs(
+      other: SomeSampleSpace
+  ): Either[ImageError, Boolean] =
+    persistentRelationTo(other) match
+      case PersistentSpaceComparison.Same =>
+        Right(true)
+      case PersistentSpaceComparison.Different =>
+        Right(false)
+      case PersistentSpaceComparison.LeftEphemeral =>
+        Left(ImageError.PersistentSampleSpaceUnavailable(true, false))
+      case PersistentSpaceComparison.RightEphemeral =>
+        Left(ImageError.PersistentSampleSpaceUnavailable(false, true))
+      case PersistentSpaceComparison.BothEphemeral =>
+        Left(ImageError.PersistentSampleSpaceUnavailable(true, true))
+
+  def alignExact[
+      RF <: Frame[D0]
+  ](
+      right: SampleSpace[RF, D0]
+  ): Either[
+    ImageError,
+    SamplingAlignment[this.type, right.type]
+  ] =
+    SamplingAlignment.exact(this, right)
+
+  def approximatelyCongruentTo[
+      RF <: Frame[D0]
+  ](
+      right: SampleSpace[RF, D0],
+      tolerance: Double
+  ): Either[
+    ImageError,
+    ApproximateSamplingCongruence[this.type, right.type]
+  ] =
+    ApproximateSamplingCongruence.check(this, right, tolerance)
 
   override def toString: String =
     s"SampleSpace(spatialShape=${grid.shape}, nonSpatialAxes=$axisRecords)"
 
-  private def axisRecords: Vector[(String, Int, AxisKind)] =
+  private def axisRecords: Vector[AxisRecord] =
     SampleSpace.axisRecords(nonSpatialAxes)
 
 object SampleSpace:
@@ -122,27 +160,25 @@ object SampleSpace:
   ): SampleSpace[F, D] =
     new SampleSpace(grid, nonSpatialAxes)
 
+  def restore[F <: Frame[D], D <: Dim](
+      record: SampleSpaceRecord,
+      grid: Grid[F, D]
+  ): Either[ImageError, SampleSpace[F, D]] =
+    for
+      liveGridRecord <- grid.record.left.map(ImageError.Geometry.apply)
+      _ <-
+        Either.cond(
+          liveGridRecord == record.grid,
+          (),
+          ImageError.SampleSpaceGridRecordMismatch(
+            record.grid,
+            liveGridRecord
+          )
+        )
+      axes <- NonSpatialAxes.fromRecords(record.nonSpatialAxes)
+    yield create(grid, axes)
+
   private def axisRecords(
       axes: NonSpatialAxes
-  ): Vector[(String, Int, AxisKind)] =
-    axes.values.map(axis => (axis.name.value, axis.extent, axis.kind))
-
-  private[image4s] def requireD2(
-      space: SomeSampleSpace
-  ): Either[ImageError, SampleSpace[Frame[D2], D2]] =
-    if space.spatialRank == 2 then
-      // SampleSpace is immutable. The checked dimension refinement and frame
-      // widening preserve the same live Grid and Frame owners without a copy.
-      Right(space.typed.asInstanceOf[SampleSpace[Frame[D2], D2]])
-    else
-      Left(ImageError.SpatialDimensionMismatch(2, space.spatialRank))
-
-  private[image4s] def requireD3(
-      space: SomeSampleSpace
-  ): Either[ImageError, SampleSpace[Frame[D3], D3]] =
-    if space.spatialRank == 3 then
-      // SampleSpace is immutable. The checked dimension refinement and frame
-      // widening preserve the same live Grid and Frame owners without a copy.
-      Right(space.typed.asInstanceOf[SampleSpace[Frame[D3], D3]])
-    else
-      Left(ImageError.SpatialDimensionMismatch(3, space.spatialRank))
+  ): Vector[AxisRecord] =
+    axes.records

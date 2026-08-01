@@ -12,7 +12,6 @@ import image4s.geometry.Affine
 import image4s.geometry.CoordinateConvention
 import image4s.geometry.D3
 import image4s.geometry.Frame
-import image4s.geometry.FrameMetadata
 import image4s.geometry.GeometryError
 import image4s.geometry.Grid
 import image4s.geometry.LengthUnit
@@ -118,6 +117,25 @@ final class NodeNiftiSuite extends FunSuite:
       assertEquals(bytes(1).toInt, 0x8b)
     }
 
+  test("Node round trips exact labels across single, pair, and gzip storage"):
+    val suffixes = Vector(".nii", ".nii.gz", ".hdr", ".hdr.gz")
+    val expected = Vector(-32768L, 0L, 32767L)
+
+    suffixes.foreach { suffix =>
+      val path = temporaryPath(s"labels$suffix")
+      niftiRight(
+        Nifti.writeLabels(
+          path,
+          labelImage(s"labels-$suffix", expected),
+          NiftiWriteOptions.forDatatype(NiftiDatatype.Int16)
+        )
+      )
+      assertEquals(
+        sampledValues(niftiRight(Nifti.readLabels(path)).image),
+        expected
+      )
+    }
+
   test("Node reports missing pair companions with physical paths"):
     val path = temporaryPath("missing.hdr")
     val image = scalarImage("missing", Vector(1.0))
@@ -158,7 +176,7 @@ final class NodeNiftiSuite extends FunSuite:
     val axes = imageRight(NonSpatialAxes.from(Vector(time)))
     val image =
       imageRight(
-        Sampled.scalar(
+        Sampled.continuous(
           grid,
           axes,
           NDArray.fromSeq(Shape(1, 1, 1, 2), Vector(1.0, 2.0))
@@ -175,15 +193,40 @@ final class NodeNiftiSuite extends FunSuite:
 
     niftiRight(Nifti.writeScalar(path, image, options))
     val header = niftiRight(Nifti.readHeader(path))
+    val decoded = niftiRight(Nifti.readScaledDouble(path))
 
     assertEqualsDouble(header.pixelDimensions(3), 0.8f.toDouble, 0.0)
     assertEquals(header.temporalUnit, NiftiTemporalUnit.Second)
+    decoded.image.fold(
+      _ => fail("NIfTI must produce D3"),
+      d3 =>
+        val axis =
+          d3.value.nonSpatialAxes(0).getOrElse(fail("missing time axis"))
+        assertEquals(axis.kind, AxisKind.Time)
+        assertEquals(
+          imageRight(axis.coordinateAt(1)),
+          image4s.AxisCoordinate.Numeric(
+            0.8f.toDouble,
+            image4s.AxisUnit.Seconds
+          )
+        )
+    )
+
+  test("Node reports bounded uncompressed and buffered gzip strategies"):
+    assertEquals(
+      Nifti.ioStrategy(temporaryPath("strategy.nii")),
+      NiftiIoStrategy.BoundedStreaming
+    )
+    assertEquals(
+      Nifti.ioStrategy(temporaryPath("strategy.nii.gz")),
+      NiftiIoStrategy.WholeFileCompressedCompatibility
+    )
 
   private def assertDecodedValues(
       path: String,
       expected: Vector[Double]
   ): Unit =
-    val decoded = niftiRight(Nifti.readScalar(path))
+    val decoded = niftiRight(Nifti.readScaledDouble(path))
     decoded.image.fold(
       _ => fail("NIfTI must produce D3"),
       d3 =>
@@ -195,6 +238,29 @@ final class NodeNiftiSuite extends FunSuite:
           )
         }
     )
+    val raw = niftiRight(Nifti.readRaw(path))
+    assertEquals(rawAsDoubles(raw.image), expected)
+
+  private def sampledValues[A, Sem](
+      sampled: image4s.SomeSampled[A, Sem]
+  ): Vector[A] =
+    sampled.fold(
+      _ => fail("NIfTI must produce D3"),
+      d3 => d3.value.data.elementsIterator.toVector
+    )
+
+  private def rawAsDoubles(raw: NiftiRawImage): Vector[Double] =
+    raw match
+      case NiftiRawImage.UInt8(image) =>
+        sampledValues(image).map(_.toDouble)
+      case NiftiRawImage.Int16(image) =>
+        sampledValues(image).map(_.toDouble)
+      case NiftiRawImage.Int32(image) =>
+        sampledValues(image).map(_.toDouble)
+      case NiftiRawImage.Float32(image) =>
+        sampledValues(image).map(_.toDouble)
+      case NiftiRawImage.Float64(image) =>
+        sampledValues(image)
 
   private def scalarImage(
       label: String,
@@ -209,7 +275,30 @@ final class NodeNiftiSuite extends FunSuite:
         )
       )
     imageRight(
-      Sampled.scalar(
+      Sampled.continuous(
+        grid,
+        NonSpatialAxes.empty,
+        NDArray.fromSeq(
+          Shape(values.length, 1, 1),
+          values
+        )
+      )
+    )
+
+  private def labelImage(
+      label: String,
+      values: Vector[Long]
+  ) =
+    val frame = rasFrame(label)
+    val grid =
+      geometryRight(
+        Grid.in(frame)(
+          Vector(values.length, 1, 1),
+          Affine.identity[D3]
+        )
+      )
+    imageRight(
+      Sampled.categorical(
         grid,
         NonSpatialAxes.empty,
         NDArray.fromSeq(
@@ -223,13 +312,11 @@ final class NodeNiftiSuite extends FunSuite:
     NodeTestPath.join(temporaryDirectory, name)
 
   private def rasFrame(label: String): Frame[D3] =
-    Frame.fresh[D3](
-      geometryRight(
-        FrameMetadata.create(
-          label,
-          LengthUnit.Millimeter,
-          CoordinateConvention.RAS
-        )
+    geometryRight(
+      Frame.named[D3](
+        label,
+        LengthUnit.Millimeter,
+        CoordinateConvention.RAS
       )
     )
 

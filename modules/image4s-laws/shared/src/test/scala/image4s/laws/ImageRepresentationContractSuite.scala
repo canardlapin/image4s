@@ -17,7 +17,7 @@ import image4s.geometry.D3
 import image4s.geometry.Frame
 import image4s.geometry.GeometryError
 import image4s.geometry.Grid
-import image4s.geometry.Index
+import image4s.geometry.LatticeIndex
 
 final class ImageRepresentationContractSuite extends ScalaCheckSuite:
   private val extents =
@@ -47,7 +47,7 @@ final class ImageRepresentationContractSuite extends ScalaCheckSuite:
         )
       val time = imageRight(Axis.create("time", nt, AxisKind.Time))
       val axes = imageRight(NonSpatialAxes.from(Vector(time)))
-      val sampled = imageRight(Sampled.scalar(grid, axes, canonical))
+      val sampled = imageRight(Sampled.continuous(grid, axes, canonical))
 
       assertEquals(sampled.logicalShape, Vector(nx, ny, nz, nt))
       assertEquals(
@@ -91,7 +91,7 @@ final class ImageRepresentationContractSuite extends ScalaCheckSuite:
       )
     val reversed = base.reverse(0)
     val sampled =
-      imageRight(Sampled.scalar(grid, NonSpatialAxes.empty, reversed))
+      imageRight(Sampled.continuous(grid, NonSpatialAxes.empty, reversed))
 
     assert(sampled.data eq reversed)
     assert(!sampled.data.isContiguous)
@@ -125,13 +125,13 @@ final class ImageRepresentationContractSuite extends ScalaCheckSuite:
       geometryRight(Grid.in(frame)(Vector(2, 3, 4), affine))
     val sampled =
       imageRight(
-        Sampled.scalar(
+        Sampled.continuous(
           grid,
           NonSpatialAxes.empty,
           NDArray.tabulate[Double](2, 3, 4)((_, _, k) => k.toDouble)
         )
       )
-    val index = geometryRight(Index.of[D3](1, 2, 3))
+    val index = geometryRight(LatticeIndex.of[D3](1, 2, 3))
     val world = geometryRight(grid.pointAt(index))
 
     assertEquals(sampled(1, 2, 3), 3.0)

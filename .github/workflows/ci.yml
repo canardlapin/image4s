@@ -7,13 +7,18 @@ on:
 
 jobs:
   cross-platform:
+    name: JVM and Scala.js / JDK ${{ matrix.java }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        java: ["17", "21"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: ${{ matrix.java }}
           cache: sbt
       - uses: sbt/setup-sbt@v1
       - name: Compile and test JVM and Scala.js
@@ -23,8 +28,82 @@ jobs:
           -J-Xmx4G
           compileAll
           testAll
-      - name: Optimized Scala.js linking
+      - name: Preserve test and fuzz reproductions
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-jdk-${{ matrix.java }}
+          path: |
+            **/target/test-reports/**
+            **/target/scala-*/test-reports/**
+          if-no-files-found: ignore
+
+  optimized-scalajs:
+    name: Optimized Scala.js and Node NIfTI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: sbt
+      - uses: sbt/setup-sbt@v1
+      - name: Test optimized Scala.js artifacts
         run: >-
           sbt -batch
-          "image4s-coreJS/Test/fullOptJS"
-          "image4s-niftiJS/Test/fullOptJS"
+          "set Global / scalaJSStage := FullOptStage"
+          "image4s-coreJS/test"
+          "image4s-niftiJS/test"
+          "image4s-locusJS/test"
+
+  compatibility:
+    name: Version and binary compatibility policy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: sbt
+      - uses: sbt/setup-sbt@v1
+      - name: Check early-semver compatibility policy
+        run: sbt -batch versionPolicyCheck
+
+  concurrency:
+    name: Immutable registry concurrency court
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: sbt
+      - uses: sbt/setup-sbt@v1
+      - name: Run focused concurrent registry suites
+        run: >-
+          sbt -batch
+          "image4s-geometryJVM / Test / testOnly image4s.geometry.RegistryConcurrencySuite"
+          "image4s-locusJVM / Test / testOnly image4s.locus.GridDomainConcurrencySuite"
+
+  allocation:
+    name: Isolated allocation receipts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: sbt
+      - uses: sbt/setup-sbt@v1
+      - name: Run source-fingerprinted allocation courts
+        run: >-
+          sbt -batch
+          -Dimage4s.revision=${{ github.sha }}
+          "image4s-lawsJVM / Test / testOnly image4s.laws.ImageRepresentationPerformanceSuite"
+          "image4s-coreJVM / Test / testOnly image4s.LatticeMapAllocationSuite"
+          "image4s-niftiJVM / Test / testOnly image4s.nifti.NiftiProductionJvmSuite"
+          "image4s-locusJVM / Test / testOnly image4s.locus.GridDomainAllocationSuite"

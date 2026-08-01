@@ -15,13 +15,14 @@ import image4s.geometry.Frame
   * D2 or D3 case while retaining the hidden frame and rank as path-dependent
   * type members.
   */
-sealed trait SomeSampled[A, Role <: FieldRole]:
+sealed trait SomeSampled[A, Sem]:
   type D <: Dim
   type F <: Frame[D]
+  type S <: SampleSpace[F, D]
   type R <: AnyRank
 
   val dimension: Dimension[D]
-  val value: Sampled[F, D, A, Role, R]
+  val value: Sampled[S, A, Sem, R]
 
   final def spatialRank: Int =
     dimension.rank
@@ -30,60 +31,64 @@ sealed trait SomeSampled[A, Role <: FieldRole]:
     value.data.shape.rank
 
   def fold[B](
-      onD2: SomeSampled.D2Case[A, Role] => B,
-      onD3: SomeSampled.D3Case[A, Role] => B
+      onD2: SomeSampled.D2Case[A, Sem] => B,
+      onD3: SomeSampled.D3Case[A, Sem] => B
   ): B
 
 object SomeSampled:
-  sealed trait D2Case[A, Role <: FieldRole]
-      extends SomeSampled[A, Role]:
+  sealed trait D2Case[A, Sem]
+      extends SomeSampled[A, Sem]:
     final type D = D2
 
     final def fold[B](
-        onD2: D2Case[A, Role] => B,
-        onD3: D3Case[A, Role] => B
+        onD2: D2Case[A, Sem] => B,
+        onD3: D3Case[A, Sem] => B
     ): B =
       onD2(this)
 
-  sealed trait D3Case[A, Role <: FieldRole]
-      extends SomeSampled[A, Role]:
+  sealed trait D3Case[A, Sem]
+      extends SomeSampled[A, Sem]:
     final type D = D3
 
     final def fold[B](
-        onD2: D2Case[A, Role] => B,
-        onD3: D3Case[A, Role] => B
+        onD2: D2Case[A, Sem] => B,
+        onD3: D3Case[A, Sem] => B
     ): B =
       onD3(this)
 
   def d2[
       A,
-      Role <: FieldRole,
+      Sem,
       F0 <: Frame[D2],
+      S0 <: SampleSpace[F0, D2],
       R0 <: AnyRank
   ](
-      sampled: Sampled[F0, D2, A, Role, R0]
-  ): D2Case[A, Role] { type F = F0; type R = R0 } =
+      sampled: Sampled[S0, A, Sem, R0]
+  ): D2Case[A, Sem] { type F = F0; type S = S0; type R = R0 } =
     new PackedD2(sampled)
 
   def d3[
       A,
-      Role <: FieldRole,
+      Sem,
       F0 <: Frame[D3],
+      S0 <: SampleSpace[F0, D3],
       R0 <: AnyRank
   ](
-      sampled: Sampled[F0, D3, A, Role, R0]
-  ): D3Case[A, Role] { type F = F0; type R = R0 } =
+      sampled: Sampled[S0, A, Sem, R0]
+  ): D3Case[A, Sem] { type F = F0; type S = S0; type R = R0 } =
     new PackedD3(sampled)
 
   private final class PackedD2[
       A,
-      Role <: FieldRole,
+      Sem,
       F0 <: Frame[D2],
+      S0 <: SampleSpace[F0, D2],
       R0 <: AnyRank
   ](
-      val value: Sampled[F0, D2, A, Role, R0]
-  ) extends D2Case[A, Role]:
+      val value: Sampled[S0, A, Sem, R0]
+  ) extends D2Case[A, Sem]:
     type F = F0
+    type S = S0
     type R = R0
 
     val dimension: Dimension[D2] =
@@ -91,13 +96,15 @@ object SomeSampled:
 
   private final class PackedD3[
       A,
-      Role <: FieldRole,
+      Sem,
       F0 <: Frame[D3],
+      S0 <: SampleSpace[F0, D3],
       R0 <: AnyRank
   ](
-      val value: Sampled[F0, D3, A, Role, R0]
-  ) extends D3Case[A, Role]:
+      val value: Sampled[S0, A, Sem, R0]
+  ) extends D3Case[A, Sem]:
     type F = F0
+    type S = S0
     type R = R0
 
     val dimension: Dimension[D3] =

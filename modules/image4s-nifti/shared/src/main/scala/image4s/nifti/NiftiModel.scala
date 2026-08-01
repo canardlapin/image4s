@@ -1,6 +1,8 @@
 package image4s.nifti
 
 import image4s.ImageError
+import image4s.SomeSampled
+import image4s.ValueSemantics
 import image4s.geometry.Affine
 import image4s.geometry.CoordinateConvention
 import image4s.geometry.D3
@@ -40,6 +42,71 @@ object NiftiDatatype:
       case _ =>
         Left(NiftiError.UnsupportedDatatype(code, bitsPerValue))
 
+/** Semantic tag for unscaled values read exactly from NIfTI storage. */
+sealed trait NiftiRaw
+
+object NiftiRaw:
+  given [A]: ValueSemantics[A, NiftiRaw] with {}
+
+/** Exact raw image cases for the supported NIfTI-1 datatype subset.
+  *
+  * Unsigned bytes use `Short` because Ravel deliberately has no unsigned
+  * primitive dtype.
+  */
+enum NiftiRawImage:
+  case UInt8(image: SomeSampled[Short, NiftiRaw])
+  case Int16(image: SomeSampled[Short, NiftiRaw])
+  case Int32(image: SomeSampled[Int, NiftiRaw])
+  case Float32(image: SomeSampled[Float, NiftiRaw])
+  case Float64(image: SomeSampled[Double, NiftiRaw])
+
+  def datatype: NiftiDatatype =
+    this match
+      case UInt8(_)   => NiftiDatatype.UInt8
+      case Int16(_)   => NiftiDatatype.Int16
+      case Int32(_)   => NiftiDatatype.Int32
+      case Float32(_) => NiftiDatatype.Float32
+      case Float64(_) => NiftiDatatype.Float64
+
+enum NiftiFloatPrecision derives CanEqual:
+  case RejectLossy
+  case AllowRounding
+
+/** Caller-visible conversion from raw storage values to scaled values. */
+enum NiftiValueConversion[A]:
+  case ScaledDouble extends NiftiValueConversion[Double]
+  case ScaledFloat(
+      precision: NiftiFloatPrecision
+  ) extends NiftiValueConversion[Float]
+
+enum NiftiUnknownTemporalUnitPolicy derives CanEqual:
+  case Ordinal
+  case Reject
+  case AssumeSeconds
+  case AssumeMilliseconds
+  case AssumeMicroseconds
+
+enum NiftiAffinePolicy:
+  case PreferSform
+  case PreferQform
+  case RequireAgreement(tolerance: Double)
+  case UseExplicit(affine: Affine[D3])
+
+enum NiftiAffineSource derives CanEqual:
+  case Sform
+  case Qform
+  case Fallback
+  case Explicit
+
+enum NiftiDiagnostic derives CanEqual:
+  case QformSformDisagreement(maxAbsoluteDifference: Double)
+
+final case class NiftiAffineSelection(
+    affine: Affine[D3],
+    source: NiftiAffineSource,
+    diagnostics: Vector[NiftiDiagnostic]
+)
+
 enum NiftiIntegerConversion derives CanEqual:
   case RejectLossy, RoundToNearestEven
 
@@ -70,7 +137,8 @@ final class NiftiWriteOptions private (
     val intercept: Double,
     val integerConversion: NiftiIntegerConversion,
     val nonSpatialPixelDimensions: Vector[Double],
-    val temporalUnit: NiftiTemporalUnit
+    val temporalUnit: NiftiTemporalUnit,
+    val ioLimits: NiftiIoLimits
 ) derives CanEqual:
   override def equals(other: Any): Boolean =
     other match
@@ -80,7 +148,8 @@ final class NiftiWriteOptions private (
         intercept == that.intercept &&
         integerConversion == that.integerConversion &&
         nonSpatialPixelDimensions == that.nonSpatialPixelDimensions &&
-        temporalUnit == that.temporalUnit
+        temporalUnit == that.temporalUnit &&
+        ioLimits == that.ioLimits
       case _ =>
         false
 
@@ -91,11 +160,12 @@ final class NiftiWriteOptions private (
       intercept,
       integerConversion,
       nonSpatialPixelDimensions,
-      temporalUnit
+      temporalUnit,
+      ioLimits
     ).hashCode
 
   override def toString: String =
-    s"NiftiWriteOptions($datatype,$slope,$intercept,$integerConversion,$nonSpatialPixelDimensions,$temporalUnit)"
+    s"NiftiWriteOptions($datatype,$slope,$intercept,$integerConversion,$nonSpatialPixelDimensions,$temporalUnit,$ioLimits)"
 
   def withNonSpatialSampling(
       pixelDimensions: Vector[Double],
@@ -110,9 +180,21 @@ final class NiftiWriteOptions private (
           intercept,
           integerConversion,
           stored,
-          unit
+          unit,
+          ioLimits
         )
       }
+
+  def withIoLimits(limits: NiftiIoLimits): NiftiWriteOptions =
+    new NiftiWriteOptions(
+      datatype,
+      slope,
+      intercept,
+      integerConversion,
+      nonSpatialPixelDimensions,
+      temporalUnit,
+      limits
+    )
 
 object NiftiWriteOptions:
   val default: NiftiWriteOptions =
@@ -125,7 +207,8 @@ object NiftiWriteOptions:
       intercept = 0.0,
       integerConversion = NiftiIntegerConversion.RejectLossy,
       nonSpatialPixelDimensions = Vector.empty,
-      temporalUnit = NiftiTemporalUnit.Unknown
+      temporalUnit = NiftiTemporalUnit.Unknown,
+      ioLimits = NiftiIoLimits.default
     )
 
   def create(
@@ -135,7 +218,8 @@ object NiftiWriteOptions:
       integerConversion: NiftiIntegerConversion =
         NiftiIntegerConversion.RejectLossy,
       nonSpatialPixelDimensions: Vector[Double] = Vector.empty,
-      temporalUnit: NiftiTemporalUnit = NiftiTemporalUnit.Unknown
+      temporalUnit: NiftiTemporalUnit = NiftiTemporalUnit.Unknown,
+      ioLimits: NiftiIoLimits = NiftiIoLimits.default
   ): Either[NiftiWriteOptionsError, NiftiWriteOptions] =
     val storedSlope = slope.toFloat
     val storedIntercept = intercept.toFloat
@@ -153,7 +237,8 @@ object NiftiWriteOptions:
           storedIntercept.toDouble,
           integerConversion,
           stored,
-          temporalUnit
+          temporalUnit,
+          ioLimits
         )
       }
 
@@ -273,12 +358,6 @@ final case class NiftiHeader(
     storage: NiftiStorage,
     extensions: Vector[NiftiExtension]
 ):
-  def preferredAffine: Affine[D3] =
-    sform.orElse(qform).getOrElse(fallbackAffine)
-
-  def effectiveSlope: Double =
-    if slope == 0.0 then 1.0 else slope
-
   def spatialShape: Vector[Int] =
     dimensions.padTo(3, 1).take(3)
 
@@ -289,15 +368,40 @@ final case class NiftiHeader(
     spatialShape ++ nonSpatialShape
 
 final case class NiftiReadOptions(
-    fallbackSpatialUnit: LengthUnit
+    fallbackSpatialUnit: LengthUnit,
+    affinePolicy: NiftiAffinePolicy = NiftiAffinePolicy.PreferSform,
+    unknownTemporalUnit: NiftiUnknownTemporalUnitPolicy =
+      NiftiUnknownTemporalUnitPolicy.Ordinal,
+    ioLimits: NiftiIoLimits = NiftiIoLimits.default
 )
 
 object NiftiReadOptions:
   val default: NiftiReadOptions =
     NiftiReadOptions(LengthUnit.Millimeter)
 
+/** Explicit working-set and resource bounds for synchronous codec paths. */
+final case class NiftiIoLimits(
+    workingBufferBytes: Int,
+    maximumPayloadBytes: Long,
+    maximumDecodedBytes: Long,
+    maximumExtensionBytes: Int
+) derives CanEqual
+
+object NiftiIoLimits:
+  val default: NiftiIoLimits =
+    NiftiIoLimits(
+      workingBufferBytes = 64 * 1024,
+      maximumPayloadBytes = 8L * 1024L * 1024L * 1024L,
+      maximumDecodedBytes = 16L * 1024L * 1024L * 1024L,
+      maximumExtensionBytes = 16 * 1024 * 1024
+    )
+
 enum NiftiOperation derives CanEqual:
   case ReadHeader, ReadPayload, Write
+
+enum NiftiIoStrategy derives CanEqual:
+  case BoundedStreaming
+  case WholeFileCompressedCompatibility
 
 enum NiftiHeaderField derives CanEqual:
   case HeaderSize
@@ -317,6 +421,13 @@ enum NiftiValueProblem derives CanEqual:
       maximum: Double
   )
   case FloatingOverflow
+
+enum NiftiReadValueProblem derives CanEqual:
+  case FloatingOverflow
+  case PrecisionLoss
+  case NonFiniteLabel
+  case FractionalLabel
+  case LabelOutsideLongRange
 
 enum NiftiFiles[+P] derives CanEqual:
   case SingleFile(path: P)
@@ -358,6 +469,35 @@ object NiftiError:
     val message: String =
       s"unsupported NIfTI datatype $code with $bitsPerValue bits per value"
 
+  final case class InvalidAffineAgreementTolerance(value: Double)
+      extends NiftiError:
+    val message: String =
+      s"NIfTI affine agreement tolerance must be finite and non-negative, got $value"
+
+  final case class AffineFormsDisagree(
+      maxAbsoluteDifference: Double,
+      tolerance: Double
+  ) extends NiftiError:
+    val message: String =
+      s"NIfTI qform and sform differ by $maxAbsoluteDifference, beyond tolerance $tolerance"
+
+  case object UnknownTemporalUnitForFourthDimension
+      extends NiftiError:
+    val message: String =
+      "NIfTI fourth dimension has no declared temporal unit and the read policy requires one"
+
+  final case class ReadValueNotRepresentable(
+      logicalIndex: Vector[Int],
+      rawValue: Double,
+      scaledValue: Double,
+      datatype: NiftiDatatype,
+      target: String,
+      problem: NiftiReadValueProblem
+  ) extends NiftiError:
+    val message: String =
+      s"NIfTI raw value $rawValue at ${logicalIndex.mkString("[", ",", "]")} " +
+        s"scales to $scaledValue and cannot be read as $target from $datatype: $problem"
+
   final case class UnexpectedEndOfFile(
       operation: NiftiOperation,
       expectedBytes: Int,
@@ -366,6 +506,39 @@ object NiftiError:
     val message: String =
       s"unexpected end of NIfTI input during $operation: " +
         s"expected $expectedBytes bytes, got $actualBytes"
+
+  final case class InvalidIoLimit(
+      name: String,
+      value: Long
+  ) extends NiftiError:
+    val message: String =
+      s"NIfTI I/O limit $name must be positive, got $value"
+
+  final case class PayloadResourceLimitExceeded(
+      operation: NiftiOperation,
+      requiredBytes: Long,
+      maximumBytes: Long
+  ) extends NiftiError:
+    val message: String =
+      s"NIfTI $operation requires $requiredBytes payload bytes, beyond " +
+        s"the configured limit $maximumBytes"
+
+  final case class DecodedResourceLimitExceeded(
+      requiredBytes: Long,
+      maximumBytes: Long,
+      dtype: String
+  ) extends NiftiError:
+    val message: String =
+      s"NIfTI decoded $dtype storage requires $requiredBytes bytes, beyond " +
+        s"the configured limit $maximumBytes"
+
+  final case class ExtensionResourceLimitExceeded(
+      requiredBytes: Long,
+      maximumBytes: Int
+  ) extends NiftiError:
+    val message: String =
+      s"NIfTI extension region requires $requiredBytes bytes, beyond " +
+        s"the configured limit $maximumBytes"
 
   final case class InvalidArrayShape(detail: String) extends NiftiError:
     val message: String =
@@ -402,6 +575,17 @@ object NiftiError:
   ) extends NiftiError:
     val message: String =
       s"NIfTI write options supplied $supplied non-spatial pixel dimensions for $available non-spatial axes"
+
+  final case class LabelDatatypeMustBeIntegral(
+      datatype: NiftiDatatype
+  ) extends NiftiError:
+    val message: String =
+      s"NIfTI label output requires UInt8, Int16, or Int32 storage, got $datatype"
+
+  case object LabelWriteRequiresExactIntegerConversion
+      extends NiftiError:
+    val message: String =
+      "NIfTI label output requires RejectLossy integer conversion"
 
   final case class OutputTooLarge(bytes: Long) extends NiftiError:
     val message: String =
@@ -444,5 +628,6 @@ object NiftiError:
 
 final case class DecodedNifti[I](
     image: I,
-    header: NiftiHeader
+    header: NiftiHeader,
+    affineSelection: NiftiAffineSelection
 )
