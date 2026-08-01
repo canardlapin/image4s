@@ -24,7 +24,7 @@ ThisBuild / scalacOptions ++= Seq(
 ThisBuild / Test / parallelExecution := false
 Global / concurrentRestrictions += Tags.limit(Tags.Test, 1)
 
-lazy val ravelRevision = "f804ba51242aae3a1442b3855a20bd896ffa8b64"
+lazy val ravelRevision = "89cbc557dfa467dd3f88bcb8098bceb4c85834b3"
 lazy val ravelBuild =
   sys.props
     .get("image4s.ravel.build")
@@ -164,4 +164,7 @@ lazy val root =
     )
 
 addCommandAlias("compileAll", ";root/compile")
-addCommandAlias("testAll", ";root/test")
+addCommandAlias(
+  "testAll",
+  ";image4s-geometryJVM/test;image4s-geometryJS/test;image4s-coreJVM/test;image4s-coreJS/test;image4s-niftiJVM/test;image4s-niftiJS/test;image4s-referenceJVM/test;image4s-referenceJS/test;image4s-lawsJVM/test;image4s-lawsJS/test;image4s-locusJVM/test;image4s-locusJS/test;image4s-ops-coreJVM/test;image4s-ops-coreJS/test;image4s-filterJVM/test;image4s-filterJS/test;image4s-morphologyJVM/test;image4s-morphologyJS/test;image4s-ops-lawsJVM/test;image4s-ops-lawsJS/test"
+)
