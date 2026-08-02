@@ -6,18 +6,44 @@ import _root_.intaglio.DisplayOpacity
 import _root_.intaglio.DisplayWindow
 import _root_.intaglio.RasterInterpolation
 import _root_.intaglio.Rgba32
+import _root_.intaglio.toPackedInt
 
 /** Pure appearance choices for lowering a scalar image to Intaglio.
   *
   * A display plan never changes sampled values or geometry. In particular, it
   * contains no resampling or filtering policy.
+  *
+  * The v0.1 display vocabulary is deliberately decomposed rather than folded
+  * into one record: the D3 plane is an explicit `renderSliceRaster` argument,
+  * the transfer function is the window plus palette pair, overlay and label
+  * alpha ride on [[MaskOverlay]] and [[LabelPalette]], and multi-channel
+  * display is out of scope. `interpolation` is a scene-scale placement hint
+  * consumed by Intaglio backends; the bridge itself never resamples.
   */
 final case class DisplayPlan(
     window: DisplayWindow,
     palette: ColorRamp = ColorRamp.Grayscale,
     orientation: DisplayOrientation = DisplayOrientation.Identity,
     interpolation: RasterInterpolation = RasterInterpolation.Nearest
-)
+):
+  /** Deterministic content fingerprint over every appearance choice.
+    *
+    * Two plans share a fingerprint exactly when they render identically, so
+    * the fingerprint (with the source identity) keys the bridge cache.
+    */
+  def fingerprint: Long =
+    var state = DisplayPlan.mix(DisplayPlan.seed, java.lang.Double.doubleToRawLongBits(window.lower))
+    state = DisplayPlan.mix(state, java.lang.Double.doubleToRawLongBits(window.upper))
+    state = DisplayPlan.mix(state, palette.low.toPackedInt.toLong)
+    state = DisplayPlan.mix(state, palette.high.toPackedInt.toLong)
+    state = DisplayPlan.mix(state, orientation.packedBits.toLong)
+    DisplayPlan.mix(state, interpolation.ordinal.toLong)
+
+object DisplayPlan:
+  private[intaglio] val seed: Long = 0xcbf29ce484222325L
+
+  private[intaglio] def mix(state: Long, value: Long): Long =
+    (state ^ value) * 0x100000001b3L
 
 /** Pixel-space orientation resolved during raster packing.
   *
@@ -34,6 +60,11 @@ final case class DisplayOrientation(
 
   def outputHeight(sourceWidth: Int, sourceHeight: Int): Int =
     if transpose then sourceWidth else sourceHeight
+
+  private[intaglio] def packedBits: Int =
+    (if transpose then 4 else 0) |
+      (if flipX then 2 else 0) |
+      (if flipY then 1 else 0)
 
 object DisplayOrientation:
   val Identity: DisplayOrientation =
@@ -58,6 +89,10 @@ final case class LabelPalette(
         255
       )
 
+  /** Deterministic content fingerprint for cache keying. */
+  def fingerprint: Long =
+    DisplayPlan.mix(DisplayPlan.seed, background.toPackedInt.toLong)
+
   private def mix(value: Int): Int =
     var state = value
     state ^= state >>> 16
@@ -71,7 +106,15 @@ final case class MaskOverlay(
     foreground: Rgba32,
     opacity: DisplayOpacity = DisplayOpacity.Opaque,
     blend: DisplayBlendMode = DisplayBlendMode.Normal
-)
+):
+  /** Deterministic content fingerprint for cache keying. */
+  def fingerprint: Long =
+    var state = DisplayPlan.mix(DisplayPlan.seed, foreground.toPackedInt.toLong)
+    state = DisplayPlan.mix(
+      state,
+      java.lang.Double.doubleToRawLongBits(opacity.toDouble)
+    )
+    DisplayPlan.mix(state, blend.ordinal.toLong)
 
 /** Orthogonal D3 source axis fixed while lowering a two-dimensional slice. */
 enum SliceAxis derives CanEqual:
