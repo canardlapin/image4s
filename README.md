@@ -1,342 +1,28 @@
 # image4s
 
-image4s is a Scala 3 library for typed, multidimensional sampled images. It
-runs on the JVM and Scala.js. Use it when an array of values must stay aligned
-with its spatial geometry, non-spatial sampling axes, metadata, and value
-semantics.
+[CI workflow](.github/workflows/ci.yml) · [Representation contract](docs/image-representation-contract.md) · [Versioning policy](docs/versioning-policy.md)
 
-The main image value is `Sampled`. It combines an immutable Ravel `NDArray`
-with a validated spatial grid and ordered non-spatial axes. Constructors and
-operations return typed errors when shapes, geometry, storage types, or sample
-spaces do not agree. The type parameters carry this evidence; normal callers
-usually rely on inference rather than naming all of them.
+image4s is a typed Scala 3 library for multidimensional images that keeps
+values aligned with their spatial geometry, declared non-spatial sampling
+axes, metadata, and value semantics. Use it for scientific or data-processing
+pipelines where a crop, slice, or view must preserve what the values mean.
+The core API is cross-compiled for the JVM and Scala.js.
 
-> **Status:** pre-release (`0.1-development` / `0.1.0-SNAPSHOT`). The API and
-> module boundaries are still changing. Do not treat this version as a stable
-> support commitment.
+> **Status:** Early development on `0.1.0-SNAPSHOT`. APIs and module
+> boundaries may change; this is not a stable support commitment.
 
-## What it supports
+## Quick start
 
-- 2D and 3D spatial grids, with time, channel, echo, and other non-spatial
-  axes kept in declared order.
-- Ravel-backed primitive storage with explicit numeric conversion policies.
-- Zero-copy spatial and non-spatial views when the requested transformation is
-  representable as a checked Ravel view.
-- Convolution, correlation, Gaussian filtering, thresholding, and binary or
-  grayscale morphology.
-- NIfTI-1 reads and writes with explicit scaling, label, affine, and I/O
-  policies.
-- Reference sampling, image laws, visual QA, and Python parity benchmarks.
-
-## Start here
-
-| If you need to... | Read... |
-|---|---|
-| create an image, select a time point, crop it, and map values | [A complete image workflow](#a-complete-image-workflow) |
-| filter floating- or integer-backed images | [Linear filtering](#linear-filtering) |
-| convert storage while preserving image semantics | [Numeric storage conversion](#numeric-storage-conversion) |
-| read or write NIfTI data | [NIfTI reads and writes](#nifti-reads-and-writes) |
-| understand zero-copy views and alignment | [Zero-copy views and image algebra](#zero-copy-views-and-image-algebra) |
-| build and test the repository | [Build and test](#build-and-test) |
-
-The short example below creates a 2D `Float` image and applies a Gaussian
-filter. It uses `.toOption.get` to keep the example small; application code
-should handle the `Left` case returned by each constructor or operation.
-
-```scala
-import image4s.*
-import image4s.filter.*
-import image4s.geometry.*
-import image4s.ops.*
-import ravel.DType.given
-import ravel.NDArray
-
-val frame =
-  Frame.named[D2](
-    "native",
-    unit = LengthUnit.Millimeter,
-    convention = CoordinateConvention.RAS
-  ).toOption.get
-val grid =
-  Grid.in(frame)(Vector(64, 64), Affine.identity[D2]).toOption.get
-val image =
-  Image.continuous(
-    grid,
-    NonSpatialAxes.empty,
-    NDArray.tabulate[Float](64, 64)((row, column) =>
-      (row * 64 + column).toFloat
-    )
-  ).toOption.get
-val sigma = SpatialSigma.samples[D2](1.5).toOption.get
-val blurred = image.gaussianBlur(sigma).toOption.get
-```
-
-`ContinuousImage`, `CategoricalImage`, and `MaskImage` are aliases of
-`Sampled`. The continuous and categorical aliases remain generic in their
-element type. `MaskImage` stores Boolean support; it is not a 0/1 label image.
-`TimeSeriesView` and `ComponentAxisView` are checked zero-copy views that
-require one unambiguous declared axis and do not create another data buffer.
-
-## Modules
-
-The module names below are sbt projects. Use the smallest module that provides
-the operation you need; the ops modules depend on `image4s-core`, while core
-does not depend on an operation catalogue.
-
-| Module | Use it for |
-|---|---|
-| `image4s-geometry` | dimensions, frames, points, vectors, grids, identities, and validated affine coordinates |
-| `image4s-core` | `Sampled`, logical axes, value semantics, semantic views, validity, metadata, checked construction, and ranked access |
-| `image4s-ops-core` | shared operation vocabulary: borders, extents, supports, and plans |
-| `image4s-filter` | convolution, correlation, Gaussian filtering, and neighborhood filters |
-| `image4s-morphology` | binary and grayscale morphology |
-| `image4s-ops-laws` | operation laws, conformance suites, visual QA, and parity benchmarks |
-| `image4s-nifti` | NIfTI-1 parsing and encoding, plus JVM and Node.js filesystem/gzip adapters |
-| `image4s-reference` | independent nearest and linear correctness oracles |
-| `image4s-laws` | image laws, representation contracts, and JVM allocation/performance checks |
-| `image4s-locus` | checked conversion from an image grid to a locus4s finite domain |
-| `image4s-intaglio` | display-only lowering of D2 continuous images into Intaglio fields and rasters |
-
-## Module boundaries
-
-These libraries deliberately own different concerns:
-
-- Ravel owns dense storage, shapes, strides, layouts, views, builders, and
-  numeric kernels.
-- image4s owns spatial geometry, sampled-image semantics, basic NIfTI
-  mechanics, reference sampling, and the optional finite-domain bridge.
-- reframe4s owns transformations, production resampling, registration, fields,
-  flows, and motion.
-- locus4s owns identity-safe finite domains.
-- ScalaFIM owns neuroimaging workflow and scientific policy.
-
-`image4s-core` has no filesystem, format, or filter catalogue API. Ops modules
-depend on core; core never depends on ops. The Scala.js NIfTI artifact targets
-Node.js and does not claim browser filesystem support.
-
-## Numeric storage conversion
-
-Use `Sampled.convertTo[B]` when an image needs a different numeric storage
-dtype without changing its grid, declared non-spatial axes, metadata, or value
-semantic role. It returns `Either[ImageError, Sampled[...]]`; an
-`Overflow.Reject` failure is reported as `ImageError.NumericConversion`.
-
-```scala
-val labels: CategoricalImage[?, Int, ?] = ???
-val bytes = labels.convertTo[Byte](
-  ConversionPolicy(overflow = Overflow.Clamp)
-)
-```
-
-The default policy uses nearest-even rounding and rejects values outside the
-target range. Use `ConversionPolicy` to request toward-zero, floor, or ceiling
-rounding and reject, clamp, or explicit low-level wrap behavior. Ravel performs
-the successful conversion in primitive storage; image4s does not construct a
-boxed value collection.
-
-## Linear filtering
-
-`image4s-filter` preserves `Float` or `Double` storage when the input already
-uses a floating dtype:
-
-```scala
-import image4s.filter.*
-import image4s.ops.*
-
-val sigma = SpatialSigma.samples[D2](1.5)
-val blurred = sigma.flatMap(image.gaussianBlur(_))
-```
-
-Integer-backed continuous images require an explicit floating output:
-
-```scala
-val blurredFloat = sigma.flatMap(image.gaussianBlurTo[Float](_))
-```
-
-The preserving method is unavailable for integer storage, so filtering cannot
-silently truncate into `Byte`, `Short`, `Int`, or `Long`. Both methods process
-non-spatial axes independently and preserve the exact grid for `Same` extent.
-Sample-space sigma always produces a separable Gaussian. Frame-space sigma is
-also separable for axis-aligned grids and for isotropic kernels on orthogonal
-grids; anisotropic rotated or sheared cases return `OpError.InvalidScale`.
-
-Call `Gaussian.prepare` or `Gaussian.prepareTo` when applying the same filter
-to several images in the same live `SampleSpace`. With the default
-`ExecutionPolicy.Auto`, `Same`-extent separable kernels use one primitive
-ping-pong pass per spatial axis; use `ExecutionPolicy(method =
-FilterMethod.Direct)` to request the dense path or `FilterMethod.Separable` to
-require the optimized path. `Valid` and `Full` extents currently use the direct
-path under `Auto`.
-
-The returned sequential plan reuses its primitive workspaces and Ravel address
-schedules. Each `run` still returns a fresh immutable image, so later runs
-cannot change earlier results. Create one plan per concurrent caller.
-
-## Encoded storage
-
-`EncodedSampled` retains one Ravel buffer plus a structural `ValueEncoding`.
-It does not introduce another image storage type. `valueAt` decodes a domain
-value on demand; `materializeTo` creates a regular `Sampled` when downstream
-code needs decoded storage.
-
-The v1 encodings are `Identity`, `UniformAffine`, `PerAxisAffine`, and a
-deterministic string `Codebook`. Encodings contain only data, expose stable
-fingerprints, and never accept user callbacks. Spatial crops remain zero-copy
-and retain the same encoding; `PerAxisAffine` coefficients remain aligned to
-their declared non-spatial axis.
-
-## NIfTI reads and writes
-
-NIfTI decoding makes storage conversion explicit:
-
-```scala
-val stored  = Nifti.readScalarStored(path)
-val floats  = Nifti.readScalarAs(
-  path,
-  NiftiValueConversion.ScaledFloat(NiftiFloatPrecision.RejectLossy)
-)
-val doubles = Nifti.readScalar(path)
-val labels  = Nifti.readLabels(path)
-```
-
-`readScalarStored` returns a `NiftiScalarStored` case with the native codes and
-their `ValueEncoding`. UInt8, Int16, Int32, Float32, and Float64 use Ravel
-`UInt8`, `Short`, `Int`, `Float`, and `Double` storage with identity
-interpretation. It does not apply the NIfTI
-slope/intercept. The returned `DecodedNifti` retains the header that declares
-that scaling.
-
-`readScalarAs` materializes scaled values at a requested floating precision.
-`readScalar` is the `Double` convenience spelling. `readScaledDouble`,
-`readScaledFloat`, `readAs`, and `readRaw` remain available as compatibility
-names. The Float reader rejects precision loss by default and requires
-`NiftiFloatPrecision.AllowRounding` to narrow deliberately.
-
-Writes require `NiftiWriteOptions.forDatatype(...)`; its slope and intercept
-state the storage encoding instead of inferring one from image values.
-
-`readLabels` applies declared scaling only when every result remains an exact
-finite `Long` category. Fractional, non-finite, or out-of-range labels are
-typed failures. `writeLabels` likewise accepts `Long` categories and integral
-NIfTI storage only.
-
-`readLabelsNative` is stricter. It returns `NiftiLabelStored` with UInt8,
-Int16, or Int32 codes and their encoding receipt, without widening to `Long`.
-It rejects Float32/Float64 payloads and non-identity header scaling. A zero
-header slope is accepted because NIfTI defines it as "do not scale."
-
-The fourth dimension becomes a regular `Time` axis when the header declares
-seconds, milliseconds, or microseconds. Unknown units follow
-`NiftiUnknownTemporalUnitPolicy`; later axes remain ordinal unless the caller
-adds domain semantics.
-
-Affine choice belongs to `NiftiReadOptions`: prefer sform, prefer qform,
-require agreement under an explicit tolerance, or supply an explicit affine.
-Every `DecodedNifti` retains the original `NiftiHeader` plus an
-`NiftiAffineSelection` receipt and qform/sform disagreement diagnostics.
-
-The codec supports the NIfTI-1 UInt8, Int16, Int32, Float32, and Float64
-datatype subset; little- and big-endian input; single and pair files; gzip;
-extension blocks; qform and sform. Complex, RGB, binary, wider integer, and
-NIfTI-2 payloads are rejected rather than guessed.
-
-JVM reads and writes, including gzip, use a bounded reusable working buffer and
-decode directly into the one final Ravel-owned array. Node.js uses the same
-bounded path for uncompressed files; its synchronous gzip adapter currently
-reports `WholeFileCompressedCompatibility` through `Nifti.ioStrategy(path)`.
-Callers can inspect this strategy before I/O. `NiftiIoLimits` bounds the working
-buffer, encoded payload, decoded output, and extension region, with typed
-failures before allocation or output when a limit is exceeded. Memory mapping
-and out-of-core storage remain Ravel concerns, not reasons to introduce a
-second image representation.
-
-## Intaglio display bridge
-
-`image4s-intaglio` lowers a D2 continuous `Sampled` image to Intaglio without
-turning display choices into image-processing operations.
-
-```scala
-val plan = DisplayPlan(DisplayWindow.unsafe(0.0, 1.0))
-val field = DisplayBridge.toIntaglioField(image)
-val raster = DisplayBridge.renderRaster(image, plan)
-```
-
-`toIntaglioField` accepts only axis-aligned, separable affines. Reflected axes
-are displayed in increasing Intaglio-axis order; rotated and sheared grids
-return `DisplayBridgeError.NonAxisAlignedField` rather than being silently
-reinterpreted. Resample those grids explicitly with reframe4s, or render a
-raster and place it in an Intaglio scene using the corresponding transform.
-
-`renderRaster` is always available for the D2 scalar surface. It applies the
-window, palette, and pixel-space orientation while directly packing Intaglio's
-primitive RGBA raster. It does not create a transformed `Sampled` image.
-
-## Indexing and axes
-
-Logical image axes are spatial axes followed by non-spatial axes:
+The current project is sbt-first and built from source. From a checkout:
 
 ```text
-(i, j)
-(i, j, k)
-(i, j, k, t)
+git clone https://github.com/canardlapin/image4s.git
+cd image4s
+sbt -batch compileAll
 ```
 
-For a three-dimensional grid, `k` is the third grid coordinate and therefore
-the slice index. Anatomical/world direction comes from the grid affine, not
-from the array position. Ravel alone owns physical storage order.
-
-## Non-spatial sampling
-
-Every non-spatial axis declares the coordinates at which its values were
-sampled. Coordinates may be ordinal, regular numeric samples, explicit numeric
-samples, or categorical labels:
-
-```scala
-val time =
-  Axis.regular(
-    name = "time",
-    kind = AxisKind.Time,
-    extent = 300,
-    origin = 0.0,
-    step = 0.8,
-    unit = AxisUnit.Seconds
-  )
-
-val echo =
-  Axis.explicit(
-    name = "echo",
-    kind = AxisKind.Echo,
-    values = Vector(12.0, 28.0, 44.0),
-    unit = AxisUnit.Milliseconds
-  )
-```
-
-`Axis.create(name, extent, kind)` remains an ordinal-axis constructor. Use
-`Axis.regular`, `Axis.explicit`, or `Axis.categorical` when the coordinates
-carry sampling meaning. `AxisRecord` is a validated-round-trip structural
-record; it does not create persistent identity. Downstream domains can add
-stable custom kind and unit identifiers without adding cases to image4s.
-
-## Value types and sampling
-
-Value structure is separate from axis structure. `Sampled.continuous` is
-generic in its element type and requires a `LinearInterpolable[A]` capability.
-`Sampled.categorical` accepts exact categorical values such as integral label
-codes. `ReferenceSampler.nearest` preserves the stored element type. Linear
-sampling requires `LinearSampling[A,Sem]` and an explicit
-`ReferenceSampler.linearToFloat` or `ReferenceSampler.linearToDouble` call;
-it accumulates in Double and never performs implicit Byte or Short arithmetic.
-
-Downstream libraries may define their own semantic tag and opt into
-`ValueSemantics[A,Sem]` or `LinearSampling[A,Sem]` without extending a closed
-image-role hierarchy. A time series or component-bearing image is established
-by `TimeSeriesView.from(image)` or
-`ComponentAxisView.from(image, kind)`, both of which reject missing or
-ambiguous axes and retain the original `Sampled` value by reference.
-
-## A complete image workflow
-
-The proof machinery stays behind inferred owners and checked constructors:
+This constructs a 3D image with a declared time axis, selects one time point,
+takes a spatial crop, and maps its values:
 
 ```scala
 import image4s.*
@@ -351,10 +37,7 @@ val frame =
     convention = CoordinateConvention.RAS
   ).toOption.get
 val grid =
-  Grid.in(frame)(
-    Vector(6, 7, 5),
-    Affine.identity[D3]
-  ).toOption.get
+  Grid.in(frame)(Vector(6, 7, 5), Affine.identity[D3]).toOption.get
 val time =
   Axis.regular(
     "time",
@@ -370,112 +53,147 @@ val values =
     1000.0 * i + 100.0 * j + 10.0 * k + t
   )
 
-val bold = Image.continuous(grid, axes, values).toOption.get
-val volume = bold.atTime(2).toOption.get
+val image = Image.continuous(grid, axes, values).toOption.get
+val volume = image.atTime(2).toOption.get
 val crop =
   volume
-    .crop(Vector(1, 2, 1), Vector(3, 4, 2))
+    .crop(origin = Vector(1, 2, 1), shape = Vector(3, 4, 2))
     .toOption
     .get
 val centered = crop.mapValues(_ - 1000.0)
+
+assert(image.logicalShape == Vector(6, 7, 5, 4))
+assert(centered(0, 0, 0) == 212.0)
 ```
 
-Two fields constructed from one explicit `SampleSpace` have the same inferred
-owner and combine directly with `zipWith`. Independently reconstructed spaces
-first produce `SamplingAlignment`; `rebind` shares the immutable Ravel array,
-and `zipWithAligned` consumes the same evidence without rechecking:
+The example unwraps successful `Either` values to keep the workflow visible;
+constructors and operations return typed errors, which application code should
+handle explicitly. The same construction, selection, crop, and map workflow is
+compiled and run on both platforms by
+[`ApproachableApiSuite`](modules/image4s-core/shared/src/test/scala/image4s/ApproachableApiSuite.scala):
 
-```scala
-val sum = left.zipWith(sameOwner)(_ + _)
-val alignment = left.sampleSpace.alignExact(right.sampleSpace).toOption.get
-val checkedSum = left.zipWithAligned(right, alignment)(_ + _)
+```text
+sbt -batch "image4s-coreJVM / Test / testOnly image4s.ApproachableApiSuite" "image4s-coreJS / Test / testOnly image4s.ApproachableApiSuite"
 ```
 
-The corresponding construction, selection, crop, map, alignment, rebind, and
-zip workflow is compiled and run on JVM and Scala.js by
-`ApproachableApiSuite`.
+## What it covers
 
-## Zero-copy views and image algebra
+- Keep a spatial grid and ordered time, channel, echo, categorical, or custom
+  axes attached to immutable Ravel-backed values.
+- Select axes, crop, flip, permute, or stride through checked views when the
+  requested transformation is an exact Ravel view.
+- Make value semantics, interpolation, numeric storage conversion, and filter
+  output types explicit.
+- Apply convolution, correlation, Gaussian filtering, thresholding, and
+  binary or grayscale morphology.
+- Read and write the supported scalar NIfTI-1 subset with explicit scaling,
+  label, affine, and I/O policies.
+- Run the core image model on the JVM and Scala.js; the Scala.js NIfTI file
+  adapter targets Node.js rather than browser filesystem APIs.
 
-`LatticeMap[D]` is an exact target-to-source integer-affine map restricted to
-signed strides and axis permutations. Every constructible map is therefore a
-zero-copy Ravel view. Its target grid affine is derived by composition, so
-physical coordinates and logical values cannot drift apart:
+## Fit and boundaries
 
-```scala
-val crop       = image.spatialView(Vector(8, 8, 4), Vector(80, 80, 48))
-val flipped    = image.flipSpatial(axis = 0)
-val reoriented = image.permuteSpatial(Vector(2, 1, 0))
-val sparseGrid = image.strideSpatial(Vector(2, 2, 1))
-```
+image4s is a good fit when image meaning is part of correctness: a value should
+not silently lose its grid, sampling coordinates, semantic role, or storage
+policy while it moves through a pipeline.
 
-`LatticeMap.identity`, `crop`, `flip`, `permute`, `stride`, and
-`stridedPermutation` are checked constructors; `followedBy` composes exact
-pullbacks. Arbitrary index maps are not disguised as views. A caller needing a
-broader transform must materialize explicitly or resample through reframe4s.
+It is not a general tensor library or a registration/resampling engine. Ravel
+owns dense storage, layouts, views, and numeric kernels; image4s owns sampled
+image semantics and geometry; reframe4s owns production transformations and
+resampling; locus4s owns identity-safe finite domains. `image4s-core` has no
+filesystem, format, or filter catalogue API.
 
-`mapValues` preserves the element type and proven value semantics;
-`mapValuesAs` requires explicit evidence when either changes. `zipWith` is
-total for equal-typed images with the same static sample-space owner;
-`zipWithAligned` consumes one reusable exact alignment proof. The `As`
-variants expose changed output types and semantics. `replaceDataChecked` and
-`replaceAfterNonSpatialReduction` let downstream Ravel kernels return storage
-while image4s revalidates the resulting sampling shape. Non-spatial selection
-and permutation always move declared coordinates with their data axes.
+NIfTI support is deliberately bounded to scalar NIfTI-1 UInt8, Int16, Int32,
+Float32, and Float64 payloads plus the implemented endianness, gzip, extension,
+and affine cases. Complex, RGB, binary, wider-integer, and NIfTI-2 payloads
+are rejected rather than guessed.
 
-## Geometry identity
+## Modules
 
-Ordinary constructors are pure and ephemeral:
+Start with `image4s-core`; add only the modules needed by the workflow:
 
-```scala
-val frame =
-  Frame.named[D3](
-    "native",
-    unit = LengthUnit.Millimeter,
-    convention = CoordinateConvention.RAS
-  )
-val grid = frame.flatMap(value =>
-  Grid.in(value)(Vector(96, 96, 60), affine)
-)
-```
+| Module | Use it for |
+|---|---|
+| `image4s-geometry` | dimensions, frames, points, vectors, grids, identities, and affine coordinates |
+| `image4s-core` | `Sampled`, axes, value semantics, checked construction, metadata, and views |
+| `image4s-filter` | convolution, correlation, Gaussian filtering, and neighborhood filters |
+| `image4s-morphology` | binary and grayscale morphology |
+| `image4s-nifti` | NIfTI-1 parsing and encoding, with JVM and Node.js adapters |
+| `image4s-reference` | independent nearest and linear sampling oracles |
+| `image4s-locus` | checked conversion from an image grid to a locus4s finite domain |
+| `image4s-intaglio` | display-only lowering of D2 continuous images into Intaglio fields and rasters |
 
-Ephemeral frames and grids have live owner identity but no persistent record.
-Persistence is explicit: parse or supply a project ID, call
-`Frame.persistentNamed` or `Grid.createPersistent`, and pass the resulting
-record through an immutable registry. `FrameKey` contains rank, unit, and
-coordinate convention; `GridKey` contains the frame key, shape, and canonical
-affine values. Display labels and affine validation tolerances are not key
-material. Restoring through separate registries deliberately creates distinct
-live owners that can be aligned by their common persistent key.
+`image4s-ops-core`, `image4s-laws`, and `image4s-ops-laws` provide shared
+operation vocabulary, law suites, visual QA, parity benchmarks, and allocation
+checks for development and validation.
 
-Spatial geometry is deliberately equal-dimensional: `Affine[D]` /
-`AffineIso[D]` and `Grid[F,D]` mean D2-in-D2 or D3-in-D3. A future native
-D2-in-D3 plane will use a separately named embedding type rather than changing
-those coordinates. Direction/spacing construction checks orthonormal direction
-cosines, and every affine exposes inverse-residual and condition diagnostics.
-Use `LatticeIndex` for an unbounded integer coordinate and a grid-created
-`GridIndex` when finite bounds and live-grid ownership must be proved.
+## Semantics that affect use
+
+- **Image meaning stays together.** `Sampled` combines the Ravel `NDArray`, a
+  validated spatial grid, ordered non-spatial axes, metadata, and value
+  semantics. Ravel's physical storage order is not used as a substitute for
+  spatial meaning.
+- **Axes carry sampling meaning.** Use `Axis.regular`, `Axis.explicit`, or
+  `Axis.categorical` when coordinates matter. Logical axes are spatial axes
+  followed by the declared non-spatial axes.
+- **Views are exact or explicit.** `LatticeMap` represents only signed
+  integer-affine maps and axis permutations that Ravel can express as a
+  zero-copy view. Broader transforms must be materialized or resampled
+  explicitly.
+- **Alignment is not guessed.** Images built from one live `SampleSpace` can
+  combine directly. Independently reconstructed spaces require an explicit
+  `SamplingAlignment`; structural similarity does not create hidden ownership.
+- **Numeric behavior is visible.** `Sampled.convertTo[B]` takes an explicit
+  conversion policy. Floating images can use `gaussianBlur`; integer-backed
+  continuous images must request a floating output with `gaussianBlurTo[B]`
+  rather than silently truncating.
+- **NIfTI scaling is visible.** Stored codes, scaled values, labels, affine
+  choice, and I/O limits have separate policies and typed failure paths.
+
+The [canonical image representation contract](docs/image-representation-contract.md)
+is the normative description of these boundaries.
+
+## Documentation and evidence
+
+- [Canonical image representation contract](docs/image-representation-contract.md)
+  — ownership, axes, geometry, identity, views, and failure behavior.
+- [Sample-space owner decision](docs/sample-space-owner-decision.md) — why
+  runtime sample-space ownership is part of the public model.
+- [Versioning and compatibility policy](docs/versioning-policy.md) — early
+  semantic versioning and the current snapshot baseline.
+- [Image-operation visual QA](docs/visual-qa.md) — cross-platform operation
+  conformance and visual checks.
+- [Python parity benchmark](docs/parity-benchmark.md) — operation mapping and
+  benchmark interpretation.
+- [Ravel capability gate](docs/ravel-capability-gate.md) — evidence required
+  before production resampling work can move into this layer.
+- [Core API source](modules/image4s-core/shared/src/main/scala/image4s/) and
+  [geometry API source](modules/image4s-geometry/shared/src/main/scala/image4s/geometry/)
+  — the current public implementation surface.
 
 ## Build and test
 
-From the repository root, compile all projects with:
+The build declares Scala 3.7.4 and sbt 1.11.7. The configured CI matrix runs
+the JVM and Scala.js suites on JDK 17 and 21, plus optimized Scala.js/Node
+checks, version-policy checks, concurrency suites, and isolated allocation or
+performance courts.
+
+Compile all projects:
 
 ```text
-sbt compileAll
+sbt -batch compileAll
 ```
 
-Run the full JVM and Scala.js test suite with:
+Run the full JVM and Scala.js test suite:
 
 ```text
-sbt image4sTestAll
+sbt -batch image4sTestAll
 ```
 
-The build uses Scala 3.7.4 and cross-compiles the projects for the JVM and
-Scala.js. `image4s-nifti` runs its Scala.js filesystem tests under Node.js.
-For operation-specific checks, see the [visual QA](docs/visual-qa.md) and
-[Python parity benchmark](docs/parity-benchmark.md) notes.
+For operation-specific visual checks, see [visual QA](docs/visual-qa.md). For
+the Python comparison workflow, see the [parity benchmark](docs/parity-benchmark.md).
 
-During coordinated development, immutable source dependencies may be replaced
+When developing against sibling source checkouts, override the pinned builds
 explicitly:
 
 ```text
@@ -485,3 +203,8 @@ explicitly:
 ```
 
 Ordinary builds use the exact revisions declared in `build.sbt`.
+
+## License
+
+Apache-2.0, as declared by the build. See the
+[Apache-2.0 license text](https://www.apache.org/licenses/LICENSE-2.0).
