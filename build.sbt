@@ -151,7 +151,8 @@ lazy val image4sOpsLaws =
       image4sOpsCore,
       image4sFilter,
       image4sMorphology,
-      image4sLaws
+      image4sLaws,
+      image4sIntaglio % "test->compile"
     )
 
 lazy val root =
@@ -187,6 +188,14 @@ lazy val root =
     )
 
 addCommandAlias("compileAll", ";root/compile")
+addCommandAlias(
+  "imageOpsVisualQaJVM",
+  "image4s-ops-lawsJVM / Test / runMain image4s.ops.laws.ImageOpsVisualQa"
+)
+addCommandAlias(
+  "imageOpsParityJVM",
+  "image4s-ops-lawsJVM / Test / runMain image4s.ops.laws.ImageOpsParityBenchmark"
+)
 addCommandAlias(
   "image4sTestAll",
   ";image4s-geometryJVM/test;image4s-geometryJS/test;image4s-coreJVM/test;image4s-coreJS/test;image4s-niftiJVM/test;image4s-niftiJS/test;image4s-referenceJVM/test;image4s-referenceJS/test;image4s-lawsJVM/test;image4s-lawsJS/test;image4s-locusJVM/test;image4s-locusJS/test;image4s-intaglioJVM/test;image4s-intaglioJS/test;image4s-ops-coreJVM/test;image4s-ops-coreJS/test;image4s-filterJVM/test;image4s-filterJS/test;image4s-morphologyJVM/test;image4s-morphologyJS/test;image4s-ops-lawsJVM/test;image4s-ops-lawsJS/test"
