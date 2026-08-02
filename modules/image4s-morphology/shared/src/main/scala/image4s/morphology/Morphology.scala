@@ -20,6 +20,8 @@ import ravel.AnyRank
 import ravel.DType.given
 import ravel.MutableNDArray
 import ravel.NDArray
+import ravel.OrderedDType
+import ravel.*
 import ravel.map
 import ravel.stencil.BooleanNeighborhoodReducer
 import ravel.stencil.BorderMode
@@ -41,6 +43,37 @@ enum ThresholdComparison derives CanEqual:
       case GreaterOrEqual => comparison >= 0
       case LessThan       => comparison < 0
       case LessOrEqual    => comparison <= 0
+
+private object ThresholdOrdering:
+  /** Ravel's ordered kernels implement the same compare relation as these
+    * canonical Scala orderings. Other orderings must retain the callback path.
+    */
+  def isCanonical[A](ordering: Ordering[A]): Boolean =
+    val ref = ordering.asInstanceOf[AnyRef]
+    (ref eq Ordering.Byte) ||
+      (ref eq Ordering.Short) ||
+      (ref eq Ordering.Int) ||
+      (ref eq Ordering.Long) ||
+      (ref eq Ordering.Float.TotalOrdering) ||
+      (ref eq Ordering.Float.IeeeOrdering) ||
+      (ref eq Ordering.DeprecatedFloatOrdering) ||
+      (ref eq Ordering.Double.TotalOrdering) ||
+      (ref eq Ordering.Double.IeeeOrdering) ||
+      (ref eq Ordering.DeprecatedDoubleOrdering)
+
+private def primitiveThresholdMask[A, R <: AnyRank](
+    data: NDArray[A, R],
+    value: A,
+    comparison: ThresholdComparison
+)(using ordered: OrderedDType[A]): NDArray[Boolean, R] =
+  val result =
+    comparison match
+      case ThresholdComparison.GreaterThan => data.orderedGreaterThan(value)
+      case ThresholdComparison.GreaterOrEqual =>
+        data.orderedGreaterOrEqual(value)
+      case ThresholdComparison.LessThan => data.orderedLessThan(value)
+      case ThresholdComparison.LessOrEqual => data.orderedLessOrEqual(value)
+  result.asInstanceOf[NDArray[Boolean, R]]
 
 /** Geometry of a flat binary structuring element. */
 enum StructuringElementShape derives CanEqual:
@@ -278,6 +311,10 @@ private object PreparedBooleanPass:
               offsetIndex: Int
           ): Boolean =
             accumulator && value
+
+          override def isTerminal(accumulator: Boolean): Boolean =
+            !accumulator
+
           def finish(accumulator: Boolean): Boolean = accumulator
       case BinaryOperation.Dilate =>
         new BooleanNeighborhoodReducer:
@@ -288,6 +325,10 @@ private object PreparedBooleanPass:
               offsetIndex: Int
           ): Boolean =
             accumulator || value
+
+          override def isTerminal(accumulator: Boolean): Boolean =
+            accumulator
+
           def finish(accumulator: Boolean): Boolean = accumulator
 
 /** Prepared binary morphology schedule with support and address plan reuse.
@@ -583,7 +624,16 @@ extension [
     MaskImage[? <: SampleSpace[input.sampleSpace.F, input.sampleSpace.D], R]
   ] =
     val mask =
-      input.data.map(sample => comparison.matches(ordering, sample, value))
+      if ThresholdOrdering.isCanonical(ordering) &&
+        input.data.dtype.isInstanceOf[OrderedDType[?]]
+      then
+        primitiveThresholdMask(
+          input.data,
+          value,
+          comparison
+        )(using input.data.dtype.asInstanceOf[OrderedDType[A]])
+      else
+        input.data.map(sample => comparison.matches(ordering, sample, value))
     Sampled
       .mask(input.sampleSpace, mask, input.metadata)
       .left

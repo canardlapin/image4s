@@ -3,9 +3,11 @@ package image4s.morphology
 import image4s.Axis
 import image4s.AxisKind
 import image4s.ImageError
+import image4s.Mask
 import image4s.NonSpatialAxes
 import image4s.SampleSpace
 import image4s.Sampled
+import image4s.ValueSemantics
 import image4s.geometry.Affine
 import image4s.geometry.D2
 import image4s.geometry.D3
@@ -37,6 +39,26 @@ final class MorphologySuite extends FunSuite:
     )
     assertEquals(result.logicalShape, image.logicalShape)
     assert(result.grid.sameRuntimeOwnerAs(image.grid))
+
+  test("threshold keeps custom Ordering semantics off the primitive fast path"):
+    val image =
+      continuous2D(
+        Vector(1.0f, 2.0f, 3.0f, 4.0f),
+        Vector(2, 2)
+      )
+    val descending = Ordering.Float.IeeeOrdering.reverse
+    val result =
+      opsRight(
+        image.threshold(
+          2.0f,
+          ThresholdComparison.GreaterOrEqual
+        )(using descending, summon[ValueSemantics[Boolean, Mask]])
+      )
+
+    assertEquals(
+      result.data.elementsIterator.toVector,
+      Vector(true, true, false, false)
+    )
 
   test("sample-radius box erosion and dilation use primitive Boolean neighborhoods"):
     val source =
