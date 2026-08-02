@@ -105,6 +105,7 @@ jobs:
           -Dimage4s.revision=${{ github.sha }}
           "image4s-lawsJVM / Test / testOnly image4s.laws.ImageRepresentationPerformanceSuite"
           "image4s-coreJVM / Test / testOnly image4s.LatticeMapAllocationSuite"
+          "image4s-coreJVM / Test / testOnly image4s.PackedMaskPerformanceSuite"
           "image4s-niftiJVM / Test / testOnly image4s.nifti.NiftiProductionJvmSuite"
           "image4s-locusJVM / Test / testOnly image4s.locus.GridDomainAllocationSuite"
           "image4s-filterJVM / Test / testOnly image4s.filter.FilterPerformanceSuite"
