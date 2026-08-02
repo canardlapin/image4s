@@ -252,7 +252,7 @@ final class NodeNiftiSuite extends FunSuite:
   private def rawAsDoubles(raw: NiftiRawImage): Vector[Double] =
     raw match
       case NiftiRawImage.UInt8(image) =>
-        sampledValues(image).map(_.toDouble)
+        sampledValues(image).map(_.toInt.toDouble)
       case NiftiRawImage.Int16(image) =>
         sampledValues(image).map(_.toDouble)
       case NiftiRawImage.Int32(image) =>

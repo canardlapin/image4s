@@ -102,7 +102,7 @@ final class NiftiProductionJvmSuite extends FunSuite:
       )
 
     readCases.foreach { readCase =>
-      readCase.run()
+      Vector.fill(3)(readCase.run())
       val samples =
         Vector.fill(7)(allocatedBytes(readCase.run())).sorted
       val median = samples(samples.size / 2)
@@ -125,7 +125,7 @@ final class NiftiProductionJvmSuite extends FunSuite:
       retainFiles(
         Nifti.writeScalar(writeTarget, fmri, floatOptions)
       )
-    writeRun()
+    Vector.fill(3)(writeRun())
     val writeSamples =
       Vector.fill(7)(allocatedBytes(writeRun())).sorted
     val writeMedian = writeSamples(writeSamples.size / 2)
@@ -143,7 +143,7 @@ final class NiftiProductionJvmSuite extends FunSuite:
       retainFiles(
         Nifti.writeScalar(gzipWriteTarget, fmri, floatOptions)
       )
-    gzipWriteRun()
+    Vector.fill(3)(gzipWriteRun())
     val gzipWriteSamples =
       Vector.fill(7)(allocatedBytes(gzipWriteRun())).sorted
     val gzipWriteMedian =
@@ -161,6 +161,82 @@ final class NiftiProductionJvmSuite extends FunSuite:
       fmri.data.size,
       gzipWriteMedian
     )
+
+  test("stored UInt8 and Int16 reads stay below Double-path allocation"):
+    val directory = Files.createTempDirectory("image4s-nifti-native-stored-")
+    val shape = Vector(128, 128, 64)
+    val uint8 = uint8Image(shape)
+    val labels = categorical3d(shape)
+    val uint8Path = directory.resolve("uint8.nii")
+    val int16Path = directory.resolve("int16.nii")
+
+    niftiRight(
+      Nifti.writeScalar(
+        uint8Path,
+        uint8,
+        NiftiWriteOptions.forDatatype(NiftiDatatype.UInt8)
+      )
+    )
+    niftiRight(
+      Nifti.writeLabels(
+        int16Path,
+        labels,
+        NiftiWriteOptions.forDatatype(NiftiDatatype.Int16)
+      )
+    )
+
+    val cases =
+      Vector(
+        (
+          "uint8",
+          uint8Path,
+          () => retainStored(Nifti.readScalarStored(uint8Path))
+        ),
+        (
+          "int16",
+          int16Path,
+          () => retainNativeLabels(Nifti.readLabelsNative(int16Path))
+        )
+      )
+    cases.foreach { case (name, path, readStored) =>
+      val readDouble = () =>
+        retained = niftiRight(Nifti.readScaledDouble(path)).image
+      readStored()
+      readDouble()
+      val storedAllocations =
+        Vector.fill(7)(allocatedBytes(readStored())).sorted
+      val doubleAllocations =
+        Vector.fill(7)(allocatedBytes(readDouble())).sorted
+      val storedMedian = storedAllocations(storedAllocations.size / 2)
+      val doubleMedian = doubleAllocations(doubleAllocations.size / 2)
+      val storedNanos = Vector.fill(7)(elapsedNanos(readStored())).sorted
+      val doubleNanos = Vector.fill(7)(elapsedNanos(readDouble())).sorted
+      val valueCount = shape.product
+      val limit = valueCount.toLong * 5L + 1024L * 1024L
+      assert(
+        storedMedian <= limit,
+        s"native stored $name read allocated $storedMedian bytes; limit=$limit"
+      )
+      assert(
+        storedMedian < doubleMedian,
+        s"native stored $name read allocated $storedMedian bytes; " +
+          s"Double materialization allocated $doubleMedian bytes"
+      )
+      receipt("read-stored", name, valueCount, storedMedian)
+      receipt("read-scaled-double", name, valueCount, doubleMedian)
+      timingReceipt(
+        "read-stored",
+        name,
+        valueCount,
+        storedNanos(storedNanos.size / 2)
+      )
+      timingReceipt(
+        "read-scaled-double",
+        name,
+        valueCount,
+        doubleNanos(doubleNanos.size / 2)
+      )
+    }
 
   private final case class ReadCase(
       name: String,
@@ -227,6 +303,16 @@ final class NiftiProductionJvmSuite extends FunSuite:
   ): Unit =
     retained = niftiRight(decoded).image.value.data
 
+  private def retainStored(
+      decoded: Either[NiftiError, DecodedNifti[NiftiScalarStored]]
+  ): Unit =
+    retained = niftiRight(decoded).image
+
+  private def retainNativeLabels(
+      decoded: Either[NiftiError, DecodedNifti[NiftiLabelStored]]
+  ): Unit =
+    retained = niftiRight(decoded).image
+
   private def retainFiles(
       written: Either[NiftiError, NiftiFiles[Path]]
   ): Unit =
@@ -251,6 +337,13 @@ final class NiftiProductionJvmSuite extends FunSuite:
     assert(retained ne null)
     after - before
 
+  private def elapsedNanos(
+      body: => Unit
+  ): Long =
+    val before = System.nanoTime()
+    body
+    System.nanoTime() - before
+
   private def receipt(
       operation: String,
       name: String,
@@ -266,6 +359,21 @@ final class NiftiProductionJvmSuite extends FunSuite:
         s"scala=${util.Properties.versionNumberString}, revision=$revision"
     )
 
+  private def timingReceipt(
+      operation: String,
+      name: String,
+      samples: Int,
+      elapsedNanos: Long
+  ): Unit =
+    val revision =
+      sys.props.getOrElse("image4s.revision", "unspecified")
+    println(
+      s"IMG-NIFTI JVM time: operation=$operation, case=$name, " +
+        s"samples=$samples, elapsed=$elapsedNanos ns, " +
+        s"java=${sys.props.getOrElse("java.version", "unknown")}, " +
+        s"scala=${util.Properties.versionNumberString}, revision=$revision"
+    )
+
   private def continuous3d(
       shape: Vector[Int]
   ) =
@@ -277,6 +385,21 @@ final class NiftiProductionJvmSuite extends FunSuite:
         NDArray.tabulate[Double](shape(0), shape(1), shape(2)) {
           (i, j, k) =>
             (i + 17 * j + 101 * k).toDouble
+        }
+      )
+    )
+
+  private def uint8Image(
+      shape: Vector[Int]
+  ) =
+    val grid = gridFor(shape)
+    imageRight(
+      Sampled.continuous(
+        grid,
+        NonSpatialAxes.empty,
+        NDArray.tabulate[Double](shape(0), shape(1), shape(2)) {
+          (i, j, k) =>
+            ((i + 17 * j + 101 * k) % 251).toDouble
         }
       )
     )

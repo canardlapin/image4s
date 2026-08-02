@@ -2,6 +2,7 @@ package image4s.reference
 
 import image4s.BoundaryPolicy
 import image4s.ImageError
+import image4s.LinearOutput
 import image4s.LinearSampling
 import image4s.NearestInterpolable
 import image4s.PartialWeight
@@ -77,7 +78,8 @@ object ReferenceSampler:
         )
     yield sampled
 
-  def linear[
+  /** Linearly sample into a Float result. */
+  def linearToFloat[
       F <: Frame[D],
       D <: Dim,
       A,
@@ -92,10 +94,56 @@ object ReferenceSampler:
   )(using
       Dimension[D],
       LinearSampling[A, Sem]
-  ): Either[ImageError, Sample[A]] =
-    linearChecked(image, point, nonSpatialIndex, boundary)
+  ): Either[ImageError, Sample[Float]] =
+    linearToOutput(image, point, nonSpatialIndex, boundary, LinearOutput.float)
 
-  def linearChecked[
+  /** Linearly sample into a Double result. */
+  def linearToDouble[
+      F <: Frame[D],
+      D <: Dim,
+      A,
+      Sem,
+      S <: SampleSpace[F, D],
+      R <: AnyRank
+  ](
+      image: Sampled[S, A, Sem, R],
+      point: Point[F, D],
+      nonSpatialIndex: Vector[Int] = Vector.empty,
+      boundary: BoundaryPolicy[A] = BoundaryPolicy.Reject
+  )(using
+      Dimension[D],
+      LinearSampling[A, Sem]
+  ): Either[ImageError, Sample[Double]] =
+    linearToOutput(image, point, nonSpatialIndex, boundary, LinearOutput.double)
+
+  /** Frame-rebinding Float-output variant of [[linearToFloat]]. */
+  def linearToFloatChecked[
+      IF <: Frame[D],
+      PF <: Frame[D],
+      D <: Dim,
+      A,
+      Sem,
+      S <: SampleSpace[IF, D],
+      R <: AnyRank
+  ](
+      image: Sampled[S, A, Sem, R],
+      point: Point[PF, D],
+      nonSpatialIndex: Vector[Int] = Vector.empty,
+      boundary: BoundaryPolicy[A] = BoundaryPolicy.Reject
+  )(using
+      Dimension[D],
+      LinearSampling[A, Sem]
+  ): Either[ImageError, Sample[Float]] =
+    linearToOutputChecked(
+      image,
+      point,
+      nonSpatialIndex,
+      boundary,
+      LinearOutput.float
+    )
+
+  /** Frame-rebinding Double-output variant of [[linearToDouble]]. */
+  def linearToDoubleChecked[
       IF <: Frame[D],
       PF <: Frame[D],
       D <: Dim,
@@ -111,7 +159,54 @@ object ReferenceSampler:
   )(using
       dimension: Dimension[D],
       linear: LinearSampling[A, Sem]
-  ): Either[ImageError, Sample[A]] =
+  ): Either[ImageError, Sample[Double]] =
+    linearToOutputChecked(
+      image,
+      point,
+      nonSpatialIndex,
+      boundary,
+      LinearOutput.double
+    )
+
+  private def linearToOutput[
+      F <: Frame[D],
+      D <: Dim,
+      A,
+      Sem,
+      S <: SampleSpace[F, D],
+      R <: AnyRank,
+      B
+  ](
+      image: Sampled[S, A, Sem, R],
+      point: Point[F, D],
+      nonSpatialIndex: Vector[Int],
+      boundary: BoundaryPolicy[A],
+      output: LinearOutput[B]
+  )(using
+      dimension: Dimension[D],
+      linear: LinearSampling[A, Sem]
+  ): Either[ImageError, Sample[B]] =
+    linearToOutputChecked(image, point, nonSpatialIndex, boundary, output)
+
+  private def linearToOutputChecked[
+      IF <: Frame[D],
+      PF <: Frame[D],
+      D <: Dim,
+      A,
+      Sem,
+      S <: SampleSpace[IF, D],
+      R <: AnyRank,
+      B
+  ](
+      image: Sampled[S, A, Sem, R],
+      point: Point[PF, D],
+      nonSpatialIndex: Vector[Int],
+      boundary: BoundaryPolicy[A],
+      output: LinearOutput[B]
+  )(using
+      dimension: Dimension[D],
+      linear: LinearSampling[A, Sem]
+  ): Either[ImageError, Sample[B]] =
     for
       _ <- image.validateNonSpatialIndex(nonSpatialIndex)
       rebound <- rebindToImage(image, point)
@@ -120,11 +215,12 @@ object ReferenceSampler:
           .continuousIndexOf(rebound)
           .left
           .map(ImageError.Geometry.apply)
-      sampled <- interpolateLinear(
+      sampled <- interpolateLinearTo(
         image,
         continuous.values,
         nonSpatialIndex,
-        boundary
+        boundary,
+        output
       )
     yield sampled
 
@@ -175,10 +271,11 @@ object ReferenceSampler:
         case BoundaryPolicy.Constant(value) =>
           Right(Sample(value, Validity.Outside))
 
-  private def interpolateLinear[
+  private def interpolateLinearTo[
       F <: Frame[D],
       D <: Dim,
       A,
+      B,
       Sem,
       S <: SampleSpace[F, D],
       R <: AnyRank
@@ -186,11 +283,12 @@ object ReferenceSampler:
       image: Sampled[S, A, Sem, R],
       continuousIndex: Vector[Double],
       nonSpatialIndex: Vector[Int],
-      boundary: BoundaryPolicy[A]
+      boundary: BoundaryPolicy[A],
+      output: LinearOutput[B]
   )(using
       dimension: Dimension[D],
       linear: LinearSampling[A, Sem]
-  ): Either[ImageError, Sample[A]] =
+  ): Either[ImageError, Sample[B]] =
     val lower =
       continuousIndex.map(math.floor(_).toInt)
     val fraction =
@@ -199,7 +297,7 @@ object ReferenceSampler:
         .map { case (coordinate, base) => coordinate - base.toDouble }
     val cornerCount = 1 << dimension.rank
     var corner = 0
-    var total = linear.interpolation.zero
+    var total = 0.0
     var insideWeight = 0.0
     var rejected = false
     var failure: Option[ImageError] = None
@@ -220,8 +318,7 @@ object ReferenceSampler:
         if contains(image.grid.shape, index) then
           image.valueAt(index, nonSpatialIndex) match
             case Right(value) =>
-              total =
-                linear.interpolation.addScaled(total, value, weight)
+              total += linear.interpolation.toDouble(value) * weight
               insideWeight += weight
             case Left(error) =>
               failure = Some(error)
@@ -230,8 +327,7 @@ object ReferenceSampler:
             case BoundaryPolicy.Reject =>
               rejected = true
             case BoundaryPolicy.Constant(value) =>
-              total =
-                linear.interpolation.addScaled(total, value, weight)
+              total += linear.interpolation.toDouble(value) * weight
       corner += 1
 
     failure match
@@ -239,13 +335,13 @@ object ReferenceSampler:
       case None if rejected =>
         Left(ImageError.OutsideGrid(continuousIndex))
       case None if insideWeight >= 1.0 - 1e-12 =>
-        Right(Sample(total, Validity.Full))
+        Right(Sample(output.fromDouble(total), Validity.Full))
       case None if insideWeight <= 1e-12 =>
-        Right(Sample(total, Validity.Outside))
+        Right(Sample(output.fromDouble(total), Validity.Outside))
       case None =>
         PartialWeight
           .from(insideWeight)
-          .map(weight => Sample(total, Validity.Partial(weight)))
+          .map(weight => Sample(output.fromDouble(total), Validity.Partial(weight)))
 
   private def contains(
       shape: Vector[Int],

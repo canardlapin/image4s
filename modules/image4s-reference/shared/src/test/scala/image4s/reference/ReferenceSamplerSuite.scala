@@ -45,9 +45,34 @@ final class ReferenceSamplerSuite extends FunSuite:
         )
       )
     val point = geometryRight(Point.in(frame)(0.25, 1.5))
-    val result = imageRight(ReferenceSampler.linear(sampled, point))
+    val result = imageRight(ReferenceSampler.linearToDouble(sampled, point))
 
     assertEqualsDouble(result.value, 6.0, 1e-12)
+    assertEquals(result.validity, Validity.Full)
+
+  test("linear reference sampling requires an explicit Float or Double output"):
+    val frame = geometryRight(Frame.named[D2]("affine-float-output"))
+    val grid =
+      geometryRight(Grid.in(frame)(Vector(3, 3), Affine.identity[D2]))
+    val values =
+      for
+        i <- 0 until 3
+        j <- 0 until 3
+      yield 2.0 * i.toDouble + 3.0 * j.toDouble + 1.0
+    val sampled =
+      imageRight(
+        Sampled.continuous(
+          grid,
+          NonSpatialAxes.empty,
+          NDArray.fromSeq(Shape(3, 3), values)
+        )
+      )
+    val point = geometryRight(Point.in(frame)(0.25, 1.5))
+
+    val result =
+      imageRight(ReferenceSampler.linearToFloat(sampled, point))
+
+    assertEquals(result.value, 6.0f)
     assertEquals(result.validity, Validity.Full)
 
   test("linear reference sampling reproduces a D3 affine scalar field"):
@@ -69,7 +94,7 @@ final class ReferenceSamplerSuite extends FunSuite:
         )
       )
     val point = geometryRight(Point.in(frame)(0.25, 1.5, 0.5))
-    val result = imageRight(ReferenceSampler.linear(sampled, point))
+    val result = imageRight(ReferenceSampler.linearToDouble(sampled, point))
 
     assertEqualsDouble(result.value, 6.75, 1e-12)
     assertEquals(result.validity, Validity.Full)
@@ -136,10 +161,51 @@ def invalid[F <: Frame[D2], S <: SampleSpace[F, D2]](
   image: Sampled[S, Double, Categorical, AnyRank],
   point: Point[F, D2]
 ): Unit =
-  ReferenceSampler.linear(image, point)
+  ReferenceSampler.linearToDouble(image, point)
 """
     )
     assert(errors.nonEmpty)
+
+  test("linear reference sampling exposes no implicit or integral output"):
+    val missingImplicitOutput = typeCheckErrors(
+      """
+import image4s.*
+import image4s.reference.ReferenceSampler
+import ravel.DType.given
+import ravel.NDArray
+import image4s.geometry.*
+val frame = Frame.named[D2]("implicit-output").toOption.get
+val grid = Grid.in(frame)(Vector(2, 2), Affine.identity[D2]).toOption.get
+val image = Sampled.continuous(
+  grid,
+  NonSpatialAxes.empty,
+  NDArray.zeros[Double](2, 2)
+).toOption.get
+val point = Point.in(frame)(0.5, 0.5).toOption.get
+ReferenceSampler.linear(image, point)
+"""
+    )
+    val integralOutput = typeCheckErrors(
+      """
+import image4s.*
+import image4s.reference.ReferenceSampler
+import ravel.DType.given
+import ravel.NDArray
+import image4s.geometry.*
+val frame = Frame.named[D2]("integral-output").toOption.get
+val grid = Grid.in(frame)(Vector(2, 2), Affine.identity[D2]).toOption.get
+val image = Sampled.continuous(
+  grid,
+  NonSpatialAxes.empty,
+  NDArray.zeros[Double](2, 2)
+).toOption.get
+val point = Point.in(frame)(0.5, 0.5).toOption.get
+ReferenceSampler.linearToInt(image, point)
+"""
+    )
+
+    assert(missingImplicitOutput.nonEmpty)
+    assert(integralOutput.nonEmpty)
 
   test("downstream semantics may opt into linear reference sampling"):
     sealed trait Probability
@@ -169,7 +235,7 @@ def invalid[F <: Frame[D2], S <: SampleSpace[F, D2]](
         )
       )
     val point = geometryRight(Point.in(frame)(0.5, 0.5))
-    val result = imageRight(ReferenceSampler.linear(sampled, point))
+    val result = imageRight(ReferenceSampler.linearToDouble(sampled, point))
 
     assertEqualsDouble(result.value, 0.5, 1e-12)
     assertEquals(result.validity, Validity.Full)
@@ -192,7 +258,7 @@ def invalid[F <: Frame[D2], S <: SampleSpace[F, D2]](
     val partialPoint = geometryRight(Point.in(frame)(-0.25, 0.5))
     val partial =
       imageRight(
-        ReferenceSampler.linear(
+        ReferenceSampler.linearToDouble(
           sampled,
           partialPoint,
           boundary = BoundaryPolicy.Constant(0.0)
@@ -207,7 +273,7 @@ def invalid[F <: Frame[D2], S <: SampleSpace[F, D2]](
     val outsidePoint = geometryRight(Point.in(frame)(-2.0, -2.0))
     val outside =
       imageRight(
-        ReferenceSampler.linear(
+        ReferenceSampler.linearToDouble(
           sampled,
           outsidePoint,
           boundary = BoundaryPolicy.Constant(0.0)
@@ -230,7 +296,7 @@ def invalid[F <: Frame[D2], S <: SampleSpace[F, D2]](
       )
     val point = geometryRight(Point.in(frame)(-0.25, 0.5))
 
-    ReferenceSampler.linear(sampled, point) match
+    ReferenceSampler.linearToDouble(sampled, point) match
       case Left(ImageError.OutsideGrid(index)) =>
         assertEquals(index, Vector(-0.25, 0.5))
       case other =>

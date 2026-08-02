@@ -2,12 +2,14 @@ package image4s.nifti
 
 import image4s.ImageError
 import image4s.SomeSampled
+import image4s.ValueEncoding
 import image4s.ValueSemantics
 import image4s.geometry.Affine
 import image4s.geometry.CoordinateConvention
 import image4s.geometry.D3
 import image4s.geometry.GeometryError
 import image4s.geometry.LengthUnit
+import ravel.{UInt8 as RavelUInt8}
 
 enum NiftiByteOrder derives CanEqual:
   case LittleEndian, BigEndian
@@ -48,13 +50,9 @@ sealed trait NiftiRaw
 object NiftiRaw:
   given [A]: ValueSemantics[A, NiftiRaw] with {}
 
-/** Exact raw image cases for the supported NIfTI-1 datatype subset.
-  *
-  * Unsigned bytes use `Short` because Ravel deliberately has no unsigned
-  * primitive dtype.
-  */
+/** Exact raw image cases for the supported NIfTI-1 datatype subset. */
 enum NiftiRawImage:
-  case UInt8(image: SomeSampled[Short, NiftiRaw])
+  case UInt8(image: SomeSampled[RavelUInt8, NiftiRaw])
   case Int16(image: SomeSampled[Short, NiftiRaw])
   case Int32(image: SomeSampled[Int, NiftiRaw])
   case Float32(image: SomeSampled[Float, NiftiRaw])
@@ -67,6 +65,106 @@ enum NiftiRawImage:
       case Int32(_)   => NiftiDatatype.Int32
       case Float32(_) => NiftiDatatype.Float32
       case Float64(_) => NiftiDatatype.Float64
+
+/** Native NIfTI storage codes plus their structural interpretation.
+  *
+  * This is the dynamic boundary for header-selected storage dtypes. The
+  * following decode task can replace each case's `SomeSampled` payload with an
+  * existential `EncodedSampled` without changing the public datatype switch.
+  */
+enum NiftiScalarStored:
+  case UInt8(
+      codes: SomeSampled[RavelUInt8, NiftiRaw],
+      encoding: ValueEncoding[RavelUInt8, RavelUInt8]
+  )
+  case Int16(
+      codes: SomeSampled[Short, NiftiRaw],
+      encoding: ValueEncoding[Short, Short]
+  )
+  case Int32(
+      codes: SomeSampled[Int, NiftiRaw],
+      encoding: ValueEncoding[Int, Int]
+  )
+  case Float32(
+      codes: SomeSampled[Float, NiftiRaw],
+      encoding: ValueEncoding[Float, Float]
+  )
+  case Float64(
+      codes: SomeSampled[Double, NiftiRaw],
+      encoding: ValueEncoding[Double, Double]
+  )
+
+  def datatype: NiftiDatatype =
+    this match
+      case UInt8(_, _)   => NiftiDatatype.UInt8
+      case Int16(_, _)   => NiftiDatatype.Int16
+      case Int32(_, _)   => NiftiDatatype.Int32
+      case Float32(_, _) => NiftiDatatype.Float32
+      case Float64(_, _) => NiftiDatatype.Float64
+
+object NiftiScalarStored:
+  def fromRaw(raw: NiftiRawImage): NiftiScalarStored =
+    raw match
+      case NiftiRawImage.UInt8(codes) =>
+        NiftiScalarStored.UInt8(
+          codes,
+          ValueEncoding.Identity[RavelUInt8]()
+        )
+      case NiftiRawImage.Int16(codes) =>
+        NiftiScalarStored.Int16(codes, ValueEncoding.Identity[Short]())
+      case NiftiRawImage.Int32(codes) =>
+        NiftiScalarStored.Int32(codes, ValueEncoding.Identity[Int]())
+      case NiftiRawImage.Float32(codes) =>
+        NiftiScalarStored.Float32(codes, ValueEncoding.Identity[Float]())
+      case NiftiRawImage.Float64(codes) =>
+        NiftiScalarStored.Float64(codes, ValueEncoding.Identity[Double]())
+
+/** Native integer label codes plus their exact storage interpretation.
+  *
+  * This deliberately excludes floating NIfTI payloads and headers that apply
+  * a non-identity scaling. Use [[NiftiScalarStored]] or [[Nifti.readLabels]]
+  * when those interpretations are required.
+  */
+enum NiftiLabelStored:
+  case UInt8(
+      codes: SomeSampled[RavelUInt8, NiftiRaw],
+      encoding: ValueEncoding[RavelUInt8, RavelUInt8]
+  )
+  case Int16(
+      codes: SomeSampled[Short, NiftiRaw],
+      encoding: ValueEncoding[Short, Short]
+  )
+  case Int32(
+      codes: SomeSampled[Int, NiftiRaw],
+      encoding: ValueEncoding[Int, Int]
+  )
+
+  def datatype: NiftiDatatype =
+    this match
+      case UInt8(_, _) => NiftiDatatype.UInt8
+      case Int16(_, _) => NiftiDatatype.Int16
+      case Int32(_, _) => NiftiDatatype.Int32
+
+object NiftiLabelStored:
+  def fromRaw(raw: NiftiRawImage): Either[NiftiError, NiftiLabelStored] =
+    raw match
+      case NiftiRawImage.UInt8(codes) =>
+        Right(
+          NiftiLabelStored.UInt8(
+            codes,
+            ValueEncoding.Identity[RavelUInt8]()
+          )
+        )
+      case NiftiRawImage.Int16(codes) =>
+        Right(
+          NiftiLabelStored.Int16(codes, ValueEncoding.Identity[Short]())
+        )
+      case NiftiRawImage.Int32(codes) =>
+        Right(NiftiLabelStored.Int32(codes, ValueEncoding.Identity[Int]()))
+      case NiftiRawImage.Float32(_) =>
+        Left(NiftiError.NativeLabelDatatypeMustBeIntegral(NiftiDatatype.Float32))
+      case NiftiRawImage.Float64(_) =>
+        Left(NiftiError.NativeLabelDatatypeMustBeIntegral(NiftiDatatype.Float64))
 
 enum NiftiFloatPrecision derives CanEqual:
   case RejectLossy
@@ -581,6 +679,19 @@ object NiftiError:
   ) extends NiftiError:
     val message: String =
       s"NIfTI label output requires UInt8, Int16, or Int32 storage, got $datatype"
+
+  final case class NativeLabelDatatypeMustBeIntegral(
+      datatype: NiftiDatatype
+  ) extends NiftiError:
+    val message: String =
+      s"native NIfTI labels require UInt8, Int16, or Int32 storage, got $datatype"
+
+  final case class NativeLabelRequiresIdentityScale(
+      slope: Double,
+      intercept: Double
+  ) extends NiftiError:
+    val message: String =
+      s"native NIfTI labels require identity scaling, got slope=$slope intercept=$intercept"
 
   case object LabelWriteRequiresExactIntegerConversion
       extends NiftiError:

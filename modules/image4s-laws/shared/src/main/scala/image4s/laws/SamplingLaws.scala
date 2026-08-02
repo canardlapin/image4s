@@ -62,7 +62,7 @@ object SamplingLaws:
       boundary: BoundaryPolicy[Double] = BoundaryPolicy.Reject
   )(using Dimension[D]): Either[ImageError, Boolean] =
     ReferenceSampler
-      .linear(image, point, boundary = boundary)
+      .linearToDouble(image, point, boundary = boundary)
       .map(result =>
         math.abs(result.value - expected) <= tolerance
       )

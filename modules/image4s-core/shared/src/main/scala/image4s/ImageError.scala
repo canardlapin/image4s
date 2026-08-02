@@ -7,6 +7,12 @@ sealed trait ImageError derives CanEqual:
   def message: String
 
 object ImageError:
+  final case class ValueEncoding(
+      cause: EncodingError
+  ) extends ImageError:
+    val message: String =
+      cause.message
+
   final case class NumericConversion(
       cause: ravel.ConversionError
   ) extends ImageError:

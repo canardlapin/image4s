@@ -211,7 +211,7 @@ final class ImageRepresentationPerformanceSuite extends FunSuite:
           f"nsPerSample=$nanosPerSample%.3f, " +
           f"sum=${receipt.signature.sum}%.6f, " +
           f"weightedSum=${receipt.signature.weightedSum}%.6f, " +
-          s"ravel=f804ba51242aae3a1442b3855a20bd896ffa8b64, " +
+          s"ravel=52cea553b8b0e8f57ce000f32167ad56436da8a0, " +
           s"revision=$revision"
       )
     }

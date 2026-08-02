@@ -1,7 +1,7 @@
 # Ravel capability gate for production resampling
 
 `AC-006` is green at the immutable Ravel revision
-`f804ba51242aae3a1442b3855a20bd896ffa8b64`. The build resolves that revision
+`52cea553b8b0e8f57ce000f32167ad56436da8a0`. The build resolves that revision
 directly from the Ravel Git repository.
 
 The revision provides the facilities required by the production kernel and

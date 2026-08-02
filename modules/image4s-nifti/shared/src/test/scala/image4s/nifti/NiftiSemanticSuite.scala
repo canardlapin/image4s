@@ -20,6 +20,7 @@ import org.scalacheck.Prop.forAll
 import ravel.DType.given
 import ravel.NDArray
 import ravel.Shape
+import ravel.UInt8
 
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -173,6 +174,91 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
         sampledValues(rounded.image),
         expectedScaled.map(_.toFloat)
       )
+
+  test("scalar stored and scalar double surfaces retain explicit interpretation"):
+    val path = "/scalar-stored-uint8.nii"
+    writeFixture(
+      path,
+      dimensions = Vector(3, 1, 1),
+      datatype = NiftiDatatype.UInt8,
+      slope = 2.0,
+      intercept = 1.0,
+      values = Vector(0.0, 17.0, 255.0)
+    )
+
+    val stored = niftiRight(api.readScalarStored(path))
+    stored.image match
+      case NiftiScalarStored.UInt8(codes, encoding) =>
+        assertEquals(
+          codes.value.data.elementsIterator.map(_.toInt).toList,
+          List(0, 17, 255)
+        )
+        assertEquals(
+          encoding.decode(UInt8.unsafe(255), Vector.empty).map(_.toInt),
+          Right(255)
+        )
+      case other =>
+        fail(s"expected UInt8 stored scalar, got $other")
+
+    val scalar = niftiRight(api.readScalar(path))
+    assertEquals(sampledValues(scalar.image), Vector(1.0, 35.0, 511.0))
+    val float = niftiRight(
+      api.readScalarAs(
+        path,
+        NiftiValueConversion.ScaledFloat(
+          NiftiFloatPrecision.RejectLossy
+        )
+      )
+    )
+    assertEquals(sampledValues(float.image), Vector(1.0f, 35.0f, 511.0f))
+
+  test("native labels retain integer codes and reject scaled or floating input"):
+    val cases =
+      Vector(
+        NiftiDatatype.UInt8 -> Vector(0.0, 128.0, 255.0),
+        NiftiDatatype.Int16 -> Vector(-32768.0, 0.0, 32767.0),
+        NiftiDatatype.Int32 ->
+          Vector(Int.MinValue.toDouble, 0.0, Int.MaxValue.toDouble)
+      )
+
+    cases.zipWithIndex.foreach { case ((datatype, values), index) =>
+      val path = s"/native-labels-$index.nii"
+      writeFixture(
+        path,
+        dimensions = Vector(3, 1, 1),
+        datatype = datatype,
+        slope = 0.0,
+        intercept = 99.0,
+        values = values
+      )
+      val labels = niftiRight(api.readLabelsNative(path))
+      assertEquals(labels.image.datatype, datatype)
+      assertEquals(nativeLabelCodes(labels.image), values.map(_.toLong))
+    }
+
+    writeFixture(
+      "/native-labels-scaled.nii",
+      dimensions = Vector(1, 1, 1),
+      datatype = NiftiDatatype.Int16,
+      slope = 2.0,
+      intercept = 1.0,
+      values = Vector(3.0)
+    )
+    assertEquals(
+      api.readLabelsNative("/native-labels-scaled.nii"),
+      Left(NiftiError.NativeLabelRequiresIdentityScale(2.0, 1.0))
+    )
+
+    writeFixture(
+      "/native-labels-float.nii",
+      dimensions = Vector(1, 1, 1),
+      datatype = NiftiDatatype.Float32,
+      values = Vector(7.0)
+    )
+    assertEquals(
+      api.readLabelsNative("/native-labels-float.nii"),
+      Left(NiftiError.NativeLabelDatatypeMustBeIntegral(NiftiDatatype.Float32))
+    )
 
   test("Float conversion makes rounding, overflow, and readAs policy explicit"):
     val exactPath = "/float32-exact.nii"
@@ -413,6 +499,10 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
     )
     assertEquals(
       sampledValues(niftiRight(api.readLabels(path)).image),
+      Vector(-32768L, 0L, 32767L)
+    )
+    assertEquals(
+      nativeLabelCodes(niftiRight(api.readLabelsNative(path)).image),
       Vector(-32768L, 0L, 32767L)
     )
     assertEquals(
@@ -697,7 +787,7 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
   private def rawAsDoubles(raw: NiftiRawImage): Vector[Double] =
     raw match
       case NiftiRawImage.UInt8(image) =>
-        sampledValues(image).map(_.toDouble)
+        sampledValues(image).map(_.toInt.toDouble)
       case NiftiRawImage.Int16(image) =>
         sampledValues(image).map(_.toDouble)
       case NiftiRawImage.Int32(image) =>
@@ -706,6 +796,17 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
         sampledValues(image).map(_.toDouble)
       case NiftiRawImage.Float64(image) =>
         sampledValues(image)
+
+  private def nativeLabelCodes(
+      labels: NiftiLabelStored
+  ): Vector[Long] =
+    labels match
+      case NiftiLabelStored.UInt8(codes, _) =>
+        sampledValues(codes).map(_.toInt.toLong)
+      case NiftiLabelStored.Int16(codes, _) =>
+        sampledValues(codes).map(_.toLong)
+      case NiftiLabelStored.Int32(codes, _) =>
+        sampledValues(codes).map(_.toLong)
 
   private def writeFixture(
       path: String,

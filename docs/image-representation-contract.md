@@ -22,6 +22,11 @@ wrappers that retain the original `Sampled`; they are not containers. Dense
 not a dense image: its target representation is typed spatial support plus
 compact rank-2 Ravel storage.
 
+`EncodedSampled[S,Stored,Domain,Sem,R]` is likewise a wrapper, not a third
+dense container. It retains a raw `Sampled` owner and one structural
+`ValueEncoding[Stored,Domain]`; decoding is explicit through `valueAt` or
+`materializeTo`. Spatial views retain the same encoding and raw Ravel view.
+
 ## Value semantics and semantic views
 
 The semantic parameter is unbounded so downstream libraries can define their
@@ -38,7 +43,8 @@ an arbitrary tag to `A` without supplying that evidence. The standard tags are
 - `MaskImage` is Boolean logical support (`Sampled[..., Boolean, Mask, ...]`).
 - `Sampled.dtype` forwards Ravel's `DType[A]`; image4s does not invent a
   parallel dtype hierarchy.
-- Linear reference sampling requires `LinearSampling[A,Sem]`. Categorical and
+- Linear reference sampling requires `LinearSampling[A,Sem]` and explicitly
+  returns Float (`linearToFloat`) or Double (`linearToDouble`). Categorical and
   mask values do not receive that capability by default.
 - Nearest-neighbour sampling returns `A` unchanged.
 - Scalar, component, time-series, vector, and tensor structure is not inferred
@@ -191,7 +197,7 @@ different grid. The old rank-only `Index` name is a migration alias only.
 ## Physical layout is not image meaning
 
 The pinned Ravel revision
-`f804ba51242aae3a1442b3855a20bd896ffa8b64` creates canonical C-order arrays:
+`52cea553b8b0e8f57ce000f32167ad56436da8a0` creates canonical C-order arrays:
 the last logical axis is physically fastest. Ravel views may instead have
 positive, negative, broadcast, or permuted strides. All such layouts remain
 valid image storage when their logical shape matches the image axes.

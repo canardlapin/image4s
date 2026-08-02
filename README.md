@@ -38,6 +38,7 @@ they prove a unique declared axis without creating another data container.
 | `image4s-reference` | independent nearest and linear correctness oracles |
 | `image4s-laws` | reusable image laws, representation contracts, and JVM performance court |
 | `image4s-locus` | checked conversion from an image grid to a locus4s finite domain |
+| `image4s-intaglio` | display-only lowering of D2 continuous images into Intaglio fields and rasters |
 
 `image4s-core` has no filesystem, format, or filter catalogue API. Ops modules
 depend on core; core never depends on ops. The Scala.js NIfTI artifact targets
@@ -63,28 +64,90 @@ rounding and reject, clamp, or explicit low-level wrap behavior. Ravel performs
 the successful conversion in primitive storage; image4s does not construct a
 boxed value collection.
 
+## Linear filtering
+
+`image4s-filter` preserves `Float` or `Double` storage when the input already
+uses a floating dtype:
+
+```scala
+import image4s.filter.*
+import image4s.ops.*
+
+val sigma = SpatialSigma.samples[D2](1.5)
+val blurred = sigma.flatMap(image.gaussianBlur(_))
+```
+
+Integer-backed continuous images require an explicit floating output:
+
+```scala
+val blurredFloat = sigma.flatMap(image.gaussianBlurTo[Float](_))
+```
+
+The preserving method is unavailable for integer storage, so filtering cannot
+silently truncate into `Byte`, `Short`, `Int`, or `Long`. Both methods process
+non-spatial axes independently and preserve the exact grid for `Same` extent.
+Sample-space sigma always produces a separable Gaussian. Frame-space sigma is
+also separable for axis-aligned grids and for isotropic kernels on orthogonal
+grids; anisotropic rotated or sheared cases return `OpError.InvalidScale`.
+
+Call `Gaussian.prepare` or `Gaussian.prepareTo` when applying the same filter
+to several images in the same live `SampleSpace`. The returned sequential plan
+reuses its primitive destination workspace and Ravel address schedule. Each
+`run` still returns a fresh immutable image, so later runs cannot change
+earlier results. Create one plan per concurrent caller.
+
+## Encoded values
+
+`EncodedSampled` retains one Ravel buffer plus a structural `ValueEncoding`.
+It does not introduce another image storage type. `valueAt` decodes a domain
+value on demand; `materializeTo` creates a regular `Sampled` when downstream
+code needs decoded storage.
+
+The v1 encodings are `Identity`, `UniformAffine`, `PerAxisAffine`, and a
+deterministic string `Codebook`. Encodings contain only data, expose stable
+fingerprints, and never accept user callbacks. Spatial crops remain zero-copy
+and retain the same encoding; `PerAxisAffine` coefficients remain aligned to
+their declared non-spatial axis.
+
 ## NIfTI semantic reads
 
 NIfTI decoding makes storage conversion explicit:
 
 ```scala
-val raw     = Nifti.readRaw(path)
-val floats  = Nifti.readScaledFloat(path)
-val doubles = Nifti.readScaledDouble(path)
+val stored  = Nifti.readScalarStored(path)
+val floats  = Nifti.readScalarAs(
+  path,
+  NiftiValueConversion.ScaledFloat(NiftiFloatPrecision.RejectLossy)
+)
+val doubles = Nifti.readScalar(path)
 val labels  = Nifti.readLabels(path)
 ```
 
-`readRaw` returns a `NiftiRawImage` case retaining the supported storage dtype:
-unsigned bytes are represented exactly as `Short`, while Int16, Int32,
-Float32, and Float64 use `Short`, `Int`, `Float`, and `Double`. Scaling is not
-applied. `readAs` accepts an explicit `NiftiValueConversion`; the named Float
-reader rejects precision loss by default and requires
+`readScalarStored` returns a `NiftiScalarStored` case with the native codes and
+their `ValueEncoding`. UInt8, Int16, Int32, Float32, and Float64 use Ravel
+`UInt8`, `Short`, `Int`, `Float`, and `Double` storage with identity
+interpretation. It does not apply the NIfTI
+slope/intercept. The returned `DecodedNifti` retains the header that declares
+that scaling.
+
+`readScalarAs` materializes scaled values at a requested floating precision.
+`readScalar` is the `Double` convenience spelling. `readScaledDouble`,
+`readScaledFloat`, `readAs`, and `readRaw` remain available as compatibility
+names. The Float reader rejects precision loss by default and requires
 `NiftiFloatPrecision.AllowRounding` to narrow deliberately.
+
+Writes require `NiftiWriteOptions.forDatatype(...)`; its slope and intercept
+state the storage encoding instead of inferring one from image values.
 
 `readLabels` applies declared scaling only when every result remains an exact
 finite `Long` category. Fractional, non-finite, or out-of-range labels are
 typed failures. `writeLabels` likewise accepts `Long` categories and integral
 NIfTI storage only.
+
+`readLabelsNative` is stricter. It returns `NiftiLabelStored` with UInt8,
+Int16, or Int32 codes and their encoding receipt, without widening to `Long`.
+It rejects Float32/Float64 payloads and non-identity header scaling. A zero
+header slope is accepted because NIfTI defines it as "do not scale."
 
 The fourth dimension becomes a regular `Time` axis when the header declares
 seconds, milliseconds, or microseconds. Unknown units follow
@@ -110,6 +173,27 @@ buffer, encoded payload, decoded output, and extension region, with typed
 failures before allocation or output when a limit is exceeded. Memory mapping
 and out-of-core storage remain Ravel concerns, not reasons to introduce a
 second image representation.
+
+## Intaglio display bridge
+
+`image4s-intaglio` lowers a D2 continuous `Sampled` image to Intaglio without
+turning display choices into image-processing operations.
+
+```scala
+val plan = DisplayPlan(DisplayWindow.unsafe(0.0, 1.0))
+val field = DisplayBridge.toIntaglioField(image)
+val raster = DisplayBridge.renderRaster(image, plan)
+```
+
+`toIntaglioField` accepts only axis-aligned, separable affines. Reflected axes
+are displayed in increasing Intaglio-axis order; rotated and sheared grids
+return `DisplayBridgeError.NonAxisAlignedField` rather than being silently
+reinterpreted. Resample those grids explicitly with reframe4s, or render a
+raster and place it in an Intaglio scene using the corresponding transform.
+
+`renderRaster` is always available for the D2 scalar surface. It applies the
+window, palette, and pixel-space orientation while directly packing Intaglio's
+primitive RGBA raster. It does not create a transformed `Sampled` image.
 
 ## Logical indexing
 
@@ -162,8 +246,10 @@ stable custom kind and unit identifiers without adding cases to image4s.
 Value structure is separate from axis structure. `Sampled.continuous` is
 generic in its element type and requires a `LinearInterpolable[A]` capability.
 `Sampled.categorical` accepts exact categorical values such as integral label
-codes. The reference sampler requires `LinearSampling[A,Sem]` for linear
-interpolation; nearest-neighbour sampling returns values unchanged.
+codes. `ReferenceSampler.nearest` preserves the stored element type. Linear
+sampling requires `LinearSampling[A,Sem]` and an explicit
+`ReferenceSampler.linearToFloat` or `ReferenceSampler.linearToDouble` call;
+it accumulates in Double and never performs implicit Byte or Short arithmetic.
 
 Downstream libraries may define their own semantic tag and opt into
 `ValueSemantics[A,Sem]` or `LinearSampling[A,Sem]` without extending a closed

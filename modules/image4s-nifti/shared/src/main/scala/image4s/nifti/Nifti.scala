@@ -17,6 +17,7 @@ import ravel.DType
 import ravel.DType.given
 import ravel.NDArray
 import ravel.Shape
+import ravel.{UInt8 as RavelUInt8}
 import image4s.geometry.Affine
 import image4s.geometry.CoordinateConvention
 import image4s.geometry.D3
@@ -57,6 +58,50 @@ private[nifti] final class NiftiApi[P](
       selection <- selectAffine(header, options.affinePolicy)
       decoded <- readRawInPrepared(path, frame, header, selection, options)
     yield DecodedNifti(decoded, header, selection)
+
+  /** Read native storage codes with their structural storage interpretation.
+    *
+    * No NIfTI slope/intercept scaling is applied. The header retained by
+    * [[DecodedNifti]] remains the receipt for that affine interpretation.
+    */
+  def readScalarStored(
+      path: P,
+      options: NiftiReadOptions = NiftiReadOptions.default
+  ): Either[
+    NiftiError,
+    DecodedNifti[NiftiScalarStored]
+  ] =
+    readRaw(path, options).map { decoded =>
+      DecodedNifti(
+        NiftiScalarStored.fromRaw(decoded.image),
+        decoded.header,
+        decoded.affineSelection
+      )
+    }
+
+  /** Read scaled scalar values at caller-selected floating precision. */
+  def readScalarAs[A](
+      path: P,
+      conversion: NiftiValueConversion[A],
+      options: NiftiReadOptions = NiftiReadOptions.default
+  )(using
+      DType[A],
+      ValueSemantics[A, Continuous]
+  ): Either[
+    NiftiError,
+    DecodedNifti[SomeSampled[A, Continuous]]
+  ] =
+    readAs(path, conversion, options)
+
+  /** Double-precision convenience spelling for [[readScalarAs]]. */
+  def readScalar(
+      path: P,
+      options: NiftiReadOptions = NiftiReadOptions.default
+  ): Either[
+    NiftiError,
+    DecodedNifti[SomeSampled[Double, Continuous]]
+  ] =
+    readScalarAs(path, NiftiValueConversion.ScaledDouble, options)
 
   def readAs[A](
       path: P,
@@ -126,6 +171,29 @@ private[nifti] final class NiftiApi[P](
         convertLabel(header)
       )
     yield DecodedNifti(SomeSampled.d3(decoded), header, selection)
+
+  /** Read categorical codes without widening their native integer storage.
+    *
+    * This strict surface accepts only UInt8, Int16, and Int32 inputs whose
+    * header applies no effective scaling. In accordance with the NIfTI
+    * convention, a zero slope means "do not scale" and is accepted regardless
+    * of its intercept.
+    */
+  def readLabelsNative(
+      path: P,
+      options: NiftiReadOptions = NiftiReadOptions.default
+  ): Either[
+    NiftiError,
+    DecodedNifti[NiftiLabelStored]
+  ] =
+    for
+      header <- readHeader(path, options.ioLimits)
+      _ <- validateNativeLabelHeader(header)
+      frame <- freshFrame(path, header, options)
+      selection <- selectAffine(header, options.affinePolicy)
+      raw <- readRawInPrepared(path, frame, header, selection, options)
+      labels <- NiftiLabelStored.fromRaw(raw)
+    yield DecodedNifti(labels, header, selection)
 
   def readRawIn[F <: Frame[D3]](
       path: P,
@@ -290,60 +358,101 @@ private[nifti] final class NiftiApi[P](
   ): Either[NiftiError, NiftiRawImage] =
     header.datatype match
       case NiftiDatatype.UInt8 =>
-        readIn[Short, NiftiRaw](
+        readNativeIn[RavelUInt8, NiftiRaw](
           path,
           frame,
           header,
           selection,
           options,
-          (raw, _) => raw.toShort
+          (buffer, offset) => RavelUInt8.unsafe(buffer.get(offset) & 0xff)
         ).map(image =>
           NiftiRawImage.UInt8(SomeSampled.d3(image))
         )
       case NiftiDatatype.Int16 =>
-        readIn[Short, NiftiRaw](
+        readNativeIn[Short, NiftiRaw](
           path,
           frame,
           header,
           selection,
           options,
-          (raw, _) => raw.toShort
+          (buffer, offset) => buffer.getShort(offset)
         ).map(image =>
           NiftiRawImage.Int16(SomeSampled.d3(image))
         )
       case NiftiDatatype.Int32 =>
-        readIn[Int, NiftiRaw](
+        readNativeIn[Int, NiftiRaw](
           path,
           frame,
           header,
           selection,
           options,
-          (raw, _) => raw.toInt
+          (buffer, offset) => buffer.getInt(offset)
         ).map(image =>
           NiftiRawImage.Int32(SomeSampled.d3(image))
         )
       case NiftiDatatype.Float32 =>
-        readIn[Float, NiftiRaw](
+        readNativeIn[Float, NiftiRaw](
           path,
           frame,
           header,
           selection,
           options,
-          (raw, _) => raw.toFloat
+          (buffer, offset) => buffer.getFloat(offset)
         ).map(image =>
           NiftiRawImage.Float32(SomeSampled.d3(image))
         )
       case NiftiDatatype.Float64 =>
-        readIn[Double, NiftiRaw](
+        readNativeIn[Double, NiftiRaw](
           path,
           frame,
           header,
           selection,
           options,
-          (raw, _) => raw
+          (buffer, offset) => buffer.getDouble(offset)
         ).map(image =>
           NiftiRawImage.Float64(SomeSampled.d3(image))
         )
+
+  private def readNativeIn[
+      A,
+      Sem
+  ](
+      path: P,
+      frame: Frame[D3],
+      header: NiftiHeader,
+      selection: NiftiAffineSelection,
+      options: NiftiReadOptions,
+      decode: (ByteBuffer, Int) => A
+  )(using DType[A], ValueSemantics[A, Sem]): Either[
+    NiftiError,
+    Sampled[
+      ? <: SampleSpace[frame.type, D3],
+      A,
+      Sem,
+      AnyRank
+    ]
+  ] =
+    for
+      axes <- axesFrom(header, options)
+      shape <- Shape
+        .from(header.logicalShape)
+        .left
+        .map(error => NiftiError.InvalidArrayShape(error.toString))
+      logicalData <-
+        readPayloadNative(path, header, shape, decode, options.ioLimits)
+      grid <- Grid
+        .in(frame)(header.spatialShape, selection.affine)
+        .left
+        .map(NiftiError.Geometry.apply)
+      sampled <- Sampled
+        .create[frame.type, D3, A, Sem, AnyRank](
+          grid,
+          axes,
+          logicalData
+        )
+        .left
+        .map(NiftiError.Image.apply)
+    yield sampled
 
   private def readIn[
       A,
@@ -679,6 +788,24 @@ private[nifti] final class NiftiApi[P](
         )
       else scaled.toLong
 
+  private def validateNativeLabelHeader(
+      header: NiftiHeader
+  ): Either[NiftiError, Unit] =
+    header.datatype match
+      case NiftiDatatype.UInt8 | NiftiDatatype.Int16 | NiftiDatatype.Int32 =>
+        if header.slope == 0.0 ||
+            (header.slope == 1.0 && header.intercept == 0.0)
+        then Right(())
+        else
+          Left(
+            NiftiError.NativeLabelRequiresIdentityScale(
+              header.slope,
+              header.intercept
+            )
+          )
+      case datatype =>
+        Left(NiftiError.NativeLabelDatatypeMustBeIntegral(datatype))
+
   private def readValueError(
       logicalIndex: Array[Int],
       raw: Double,
@@ -734,6 +861,75 @@ private[nifti] final class NiftiApi[P](
         limits
       )
     yield data
+
+  private def readPayloadNative[A](
+      path: P,
+      header: NiftiHeader,
+      shape: Shape[AnyRank],
+      decode: (ByteBuffer, Int) => A,
+      limits: NiftiIoLimits
+  )(using dtype: DType[A]): Either[NiftiError, NDArray[A, AnyRank]] =
+    for
+      files <- resolveForRead(path)
+      _ <- validatePayloadResources(
+        shape,
+        header.datatype,
+        dtype,
+        limits = limits
+      )
+      data <- decodePayloadNative(
+        files.payloadPath,
+        header,
+        shape,
+        decode,
+        limits
+      )
+    yield data
+
+  private def decodePayloadNative[A](
+      payloadPath: P,
+      header: NiftiHeader,
+      shape: Shape[AnyRank],
+      decode: (ByteBuffer, Int) => A,
+      limits: NiftiIoLimits
+  )(using DType[A]): Either[NiftiError, NDArray[A, AnyRank]] =
+    val bytesPerValue = header.datatype.bitsPerValue / 8
+    val payloadBytes = shape.size.toLong * bytesPerValue.toLong
+    val workingBytes =
+      alignedWorkingBuffer(limits.workingBufferBytes, bytesPerValue)
+    val dimensions = header.logicalShape
+    val indices = new Array[Int](dimensions.length)
+    var result: Either[NiftiError, Unit] = Right(())
+    val data =
+      NDArray.build[A, AnyRank](shape) { builder =>
+        var fileValueOffset = 0
+        result = fileSystem.readChunks(
+          payloadPath,
+          NiftiOperation.ReadPayload,
+          header.voxelOffset.toLong,
+          payloadBytes,
+          workingBytes
+        ) { (bytes, length) =>
+          val buffer =
+            ByteBuffer
+              .wrap(bytes, 0, length)
+              .order(javaOrder(header.byteOrder))
+          var byteOffset = 0
+          while byteOffset < length do
+            decodeFirstAxisFastest(
+              fileValueOffset,
+              dimensions,
+              indices
+            )
+            val logicalOffset =
+              lastAxisFastestOffset(indices, dimensions)
+            builder.writeLinear(logicalOffset, decode(buffer, byteOffset))
+            fileValueOffset += 1
+            byteOffset += bytesPerValue
+          Right(())
+        }
+      }
+    result.map(_ => data)
 
   private def decodePayloadAs[A](
       payloadPath: P,

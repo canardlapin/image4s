@@ -2,6 +2,8 @@ package image4s
 
 import scala.annotation.unused
 import ravel.IntegralDType
+import ravel.UInt16
+import ravel.UInt8
 
 /** Standard semantics for values that admit linear interpolation.
   *
@@ -47,33 +49,47 @@ object ValueSemantics:
 
   given mask: ValueSemantics[Boolean, Mask] with {}
 
-/** Codomain algebra required by linear interpolation. */
+/** Primitive-to-Double widening required by linear interpolation.
+  *
+  * Interpolation always accumulates into an explicit Float or Double output.
+  * Integer storage is therefore admissible as an input but is never silently
+  * truncated back into its source dtype.
+  */
 trait LinearInterpolable[A]:
-  def zero: A
-  def addScaled(accumulator: A, value: A, weight: Double): A
+  def toDouble(value: A): Double
 
 object LinearInterpolable:
   given LinearInterpolable[Double] with
-    def zero: Double =
-      0.0
-
-    def addScaled(
-        accumulator: Double,
-        value: Double,
-        weight: Double
-    ): Double =
-      accumulator + value * weight
+    def toDouble(value: Double): Double =
+      value
 
   given LinearInterpolable[Float] with
-    def zero: Float =
-      0.0f
+    def toDouble(value: Float): Double =
+      value.toDouble
 
-    def addScaled(
-        accumulator: Float,
-        value: Float,
-        weight: Double
-    ): Float =
-      (accumulator.toDouble + value.toDouble * weight).toFloat
+  given LinearInterpolable[Byte] with
+    def toDouble(value: Byte): Double =
+      value.toDouble
+
+  given LinearInterpolable[UInt8] with
+    def toDouble(value: UInt8): Double =
+      value.toInt.toDouble
+
+  given LinearInterpolable[Short] with
+    def toDouble(value: Short): Double =
+      value.toDouble
+
+  given LinearInterpolable[UInt16] with
+    def toDouble(value: UInt16): Double =
+      value.toInt.toDouble
+
+  given LinearInterpolable[Int] with
+    def toDouble(value: Int): Double =
+      value.toDouble
+
+  given LinearInterpolable[Long] with
+    def toDouble(value: Long): Double =
+      value.toDouble
 
 /** Evidence that linear interpolation is legal for this semantic tag.
   *
@@ -88,6 +104,24 @@ object LinearSampling:
   ): LinearSampling[A, Continuous] with
     val interpolation: LinearInterpolable[A] =
       values
+
+/** Explicit floating output representation for linear sampling.
+  *
+  * This type is deliberately closed: reference linear interpolation accumulates
+  * in Double and may return only Float or Double. It never performs implicit
+  * byte or short arithmetic.
+  */
+sealed trait LinearOutput[A]:
+  private[image4s] def fromDouble(value: Double): A
+
+object LinearOutput:
+  given float: LinearOutput[Float] with
+    private[image4s] def fromDouble(value: Double): Float =
+      value.toFloat
+
+  given double: LinearOutput[Double] with
+    private[image4s] def fromDouble(value: Double): Double =
+      value
 
 /** Evidence that nearest-neighbour sampling may return `A` unchanged. */
 trait NearestInterpolable[A]
