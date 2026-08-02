@@ -1,6 +1,6 @@
 # image4s
 
-[CI workflow](.github/workflows/ci.yml) · [Representation contract](docs/image-representation-contract.md) · [Versioning policy](docs/versioning-policy.md)
+[Guide](site-docs/README.md) · [CI workflow](.github/workflows/ci.yml) · [Representation contract](docs/image-representation-contract.md) · [Versioning policy](docs/versioning-policy.md)
 
 image4s is a typed Scala 3 library for multidimensional images that keeps
 values aligned with their spatial geometry, declared non-spatial sampling
@@ -154,6 +154,13 @@ The [canonical image representation contract](docs/image-representation-contract
 is the normative description of these boundaries.
 
 ## Documentation and evidence
+
+Start with the [reader-facing guide](site-docs/README.md). Build the
+executable Laika/mdoc site from a checkout with:
+
+```text
+sbt -batch docs/tlSite
+```
 
 - [Canonical image representation contract](docs/image-representation-contract.md)
   — ownership, axes, geometry, identity, views, and failure behavior.
