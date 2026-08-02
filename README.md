@@ -7,6 +7,10 @@ non-spatial axes, metadata, validity, and proven value semantics. `S` is the
 complete live sample-space owner, so exact pointwise compatibility can be
 proved once and reused.
 
+> **Maturity:** `0.1-development` / pre-release. The sampled-image core and
+> its extraction boundaries are under active development; APIs and package
+> ownership may change, and no stable support promise is implied.
+
 Repository boundaries are deliberately strict:
 
 - Ravel owns dense storage, shapes, strides, layouts, views, builders, and
