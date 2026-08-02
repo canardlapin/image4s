@@ -187,6 +187,19 @@ lazy val root =
       publish / skip := true
     )
 
+lazy val docs =
+  project
+    .in(file("site"))
+    .dependsOn(image4sCore.jvm, image4sFilter.jvm)
+    .enablePlugins(org.typelevel.sbt.TypelevelSitePlugin)
+    .settings(
+      name := "image4s-site",
+      publish / skip := true,
+      mdocIn := (ThisBuild / baseDirectory).value / "site-docs",
+      tlSitePublishBranch := None,
+      tlSitePublishTags := false
+    )
+
 addCommandAlias("compileAll", ";root/compile")
 addCommandAlias(
   "imageOpsVisualQaJVM",

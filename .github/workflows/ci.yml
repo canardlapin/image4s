@@ -38,6 +38,20 @@ jobs:
             **/target/scala-*/test-reports/**
           if-no-files-found: ignore
 
+  docs:
+    name: Executable Laika guide
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: sbt
+      - uses: sbt/setup-sbt@v1
+      - name: Compile mdoc examples and render Laika site
+        run: sbt -batch docs/tlSite
+
   optimized-scalajs:
     name: Optimized Scala.js and Node NIfTI
     runs-on: ubuntu-latest
