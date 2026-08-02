@@ -14,10 +14,13 @@ import image4s.geometry.Grid
 import image4s.ops.Border
 import image4s.ops.Convolution
 import image4s.ops.Correlation
+import image4s.ops.ExecutionPolicy
 import image4s.ops.FilterExtent
+import image4s.ops.FilterMethod
 import image4s.ops.Kernel
 import image4s.ops.Offset
 import image4s.ops.OpError
+import image4s.ops.SelectedMethod
 import image4s.ops.SpatialSigma
 import image4s.ops.Support
 import munit.FunSuite
@@ -155,17 +158,24 @@ final class FilterSuite extends FunSuite:
       opsRight(Kernel.sparse(separable.support, denseWeights))
     val extent = FilterExtent.same(Border.ReflectWithEdge)
     val outputs =
-      Vector(dense, sparse, separable).map { kernel =>
+      Vector(
+        (dense, FilterMethod.Direct),
+        (sparse, FilterMethod.Direct),
+        (separable, FilterMethod.Separable)
+      ).map { case (kernel, method) =>
         opsRight(
           LinearFilter.correlate(
             image,
-            Correlation[D2, Double](kernel, extent)
+            Correlation[D2, Double](kernel, extent),
+            ExecutionPolicy(method = method)
           )
         ).data.elementsIterator.toVector
       }
 
     assertEquals(outputs(0), outputs(1))
-    assertEquals(outputs(0), outputs(2))
+    outputs(0).zip(outputs(2)).foreach { case (expected, actual) =>
+      assertEqualsDouble(actual, expected, 1.0e-12)
+    }
 
   test("Double Gaussian supports D3"):
     val frame = geometryRight(Frame.named[D3]("d3-filter"))
@@ -181,14 +191,23 @@ final class FilterSuite extends FunSuite:
     val image =
       imageRight(Sampled.continuous[Double, Rank[3]](space, data))
     val sigma = opsRight(SpatialSigma.samples[D3](1.0))
-    val output =
+    val plan =
       opsRight(
-        image.gaussianBlur(
+        Gaussian.prepare(
+          image,
           sigma,
           FilterExtent.same(Border.Constant(0.0))
         )
       )
+    val output =
+      opsRight(
+        plan.run(
+          image
+        )
+      )
 
+    assertEquals(plan.report.method, SelectedMethod.Separable)
+    assertEquals(plan.report.passes, 3)
     assertEqualsDouble(output.data.elementsIterator.sum, 1.0, 1.0e-12)
 
   test("frame-space Gaussian converts axis-aligned physical scales"):
@@ -228,7 +247,14 @@ final class FilterSuite extends FunSuite:
         Vector(9, 9)
       )
     val sigma = opsRight(SpatialSigma.samples[D2](1.0))
-    val plan = opsRight(Gaussian.prepare(image, sigma))
+    val plan =
+      opsRight(
+        Gaussian.prepare(
+          image,
+          sigma,
+          policy = ExecutionPolicy(method = FilterMethod.Direct)
+        )
+      )
     val first = opsRight(plan.run(image))
     val firstValues = first.data.elementsIterator.toVector
     val next =
@@ -249,6 +275,83 @@ final class FilterSuite extends FunSuite:
     )
     assertEquals(plan.report.passes, 1)
     assert(plan.report.workspaceBytes > 0L)
+
+  test("separable Gaussian uses reusable ping-pong workspaces"):
+    val image =
+      doubleImage(
+        Vector.tabulate(81)(index => (index % 13).toDouble),
+        Vector(9, 9)
+      )
+    val sigma = opsRight(SpatialSigma.samples[D2](Vector(1.0, 1.5)))
+    val direct =
+      opsRight(
+        Gaussian.prepare(
+          image,
+          sigma,
+          policy = ExecutionPolicy(method = FilterMethod.Direct)
+        )
+      )
+    val separable =
+      opsRight(
+        Gaussian.prepare(
+          image,
+          sigma,
+          policy = ExecutionPolicy(method = FilterMethod.Separable)
+        )
+      )
+    val directOutput = opsRight(direct.run(image))
+    val separableOutput = opsRight(separable.run(image))
+
+    assertEquals(separable.report.method, SelectedMethod.Separable)
+    assertEquals(separable.report.passes, 2)
+    assertEquals(
+      separable.report.workspaceBytes,
+      direct.report.workspaceBytes * 2L
+    )
+    directOutput.data.elementsIterator
+      .zip(separableOutput.data.elementsIterator)
+      .foreach { case (expected, actual) =>
+        assertEqualsDouble(actual, expected, 1.0e-10)
+      }
+
+  test("separable filtering supports strided inputs"):
+    val canonical =
+      doubleImage(
+        Vector.tabulate(81)(index => (index % 17).toDouble),
+        Vector(9, 9)
+      )
+    val image =
+      imageRight(
+        Sampled.continuous[Double, Rank[2]](
+          canonical.sampleSpace,
+          canonical.data.reverse(0)
+        )
+      )
+    val sigma = opsRight(SpatialSigma.samples[D2](Vector(1.0, 1.5)))
+    val direct =
+      opsRight(
+        Gaussian.prepare(
+          image,
+          sigma,
+          policy = ExecutionPolicy(method = FilterMethod.Direct)
+        )
+      )
+    val separable =
+      opsRight(
+        Gaussian.prepare(
+          image,
+          sigma,
+          policy = ExecutionPolicy(method = FilterMethod.Separable)
+        )
+      )
+    val directOutput = opsRight(direct.run(image))
+    val separableOutput = opsRight(separable.run(image))
+
+    directOutput.data.elementsIterator
+      .zip(separableOutput.data.elementsIterator)
+      .foreach { case (expected, actual) =>
+        assertEqualsDouble(actual, expected, 1.0e-10)
+      }
 
   test("anisotropic frame Gaussian rejects a non-separable sheared grid"):
     val frame = geometryRight(Frame.named[D2]("sheared"))

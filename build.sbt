@@ -24,7 +24,7 @@ ThisBuild / scalacOptions ++= Seq(
 ThisBuild / Test / parallelExecution := false
 Global / concurrentRestrictions += Tags.limit(Tags.Test, 1)
 
-lazy val ravelRevision = "89cbc557dfa467dd3f88bcb8098bceb4c85834b3"
+lazy val ravelRevision = "a2ca081325cf43ec69bb3b985a4fa90bf8c2b8f6"
 lazy val ravelBuild =
   sys.props
     .get("image4s.ravel.build")

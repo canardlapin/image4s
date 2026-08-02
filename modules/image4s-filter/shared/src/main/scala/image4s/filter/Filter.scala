@@ -14,7 +14,9 @@ import image4s.ops.AxisKernel
 import image4s.ops.Border
 import image4s.ops.Convolution
 import image4s.ops.Correlation
+import image4s.ops.ExecutionPolicy
 import image4s.ops.FilterExtent
+import image4s.ops.FilterMethod
 import image4s.ops.Kernel
 import image4s.ops.OpError
 import image4s.ops.OutputGrid
@@ -40,6 +42,17 @@ private[filter] trait PreparedPrimitiveFilter[A, R <: AnyRank]:
       destination: MutableNDArray[A, R]
   ): Unit
 
+  def runMutable(
+      source: MutableNDArray[A, R],
+      destination: MutableNDArray[A, R]
+  ): Unit
+
+private[filter] trait PreparedFilterExecution[
+    A,
+    R <: AnyRank
+]:
+  def run(source: NDArray[A, R]): MutableNDArray[A, R]
+
 /** Closed primitive output family for linear filters.
   *
   * Dispatch happens once while preparing the pass. Float and Double reducers
@@ -49,6 +62,7 @@ sealed trait FilterOutput[A]:
   private[filter] def zero: A
   private[filter] def one: A
   private[filter] def fromDouble(value: Double): A
+  private[filter] def add(left: A, right: A): A
   private[filter] def multiply(left: A, right: A): A
   private[filter] def bytesPerElement: Int
 
@@ -70,6 +84,14 @@ sealed trait FilterOutput[A]:
       constant: A
   ): PreparedPrimitiveFilter[A, R]
 
+  private[filter] def prepareMutable[R <: AnyRank](
+      source: MutableNDArray[A, R],
+      destination: MutableNDArray[A, R],
+      spec: NeighborhoodSpec,
+      weights: Vector[A],
+      constant: A
+  ): PreparedPrimitiveFilter[A, R]
+
 object FilterOutput:
   given float: FilterOutput[Float] with
     private[filter] val zero: Float = 0.0f
@@ -78,6 +100,9 @@ object FilterOutput:
 
     private[filter] def fromDouble(value: Double): Float =
       value.toFloat
+
+    private[filter] def add(left: Float, right: Float): Float =
+      left + right
 
     private[filter] def multiply(left: Float, right: Float): Float =
       left * right
@@ -118,6 +143,64 @@ object FilterOutput:
             constant
           )
 
+        def runMutable(
+            nextSource: MutableNDArray[Float, R],
+            nextDestination: MutableNDArray[Float, R]
+        ): Unit =
+          prepared.runFloat(
+            nextSource,
+            nextDestination,
+            reducer,
+            constant
+          )
+
+    private[filter] def prepareMutable[R <: AnyRank](
+        source: MutableNDArray[Float, R],
+        destination: MutableNDArray[Float, R],
+        spec: NeighborhoodSpec,
+        weights: Vector[Float],
+        constant: Float
+    ): PreparedPrimitiveFilter[Float, R] =
+      val primitiveWeights = weights.toArray
+      val reducer = new FloatNeighborhoodReducer:
+        def zero: Float =
+          0.0f
+
+        def accumulate(
+            accumulator: Float,
+            value: Float,
+            offsetIndex: Int
+        ): Float =
+          accumulator + value * primitiveWeights(offsetIndex)
+
+        def finish(accumulator: Float): Float =
+          accumulator
+
+      val prepared =
+        DirectNeighborhoodExecutor.prepare(source, destination, spec)
+      new PreparedPrimitiveFilter[Float, R]:
+        def run(
+            nextSource: NDArray[Float, R],
+            nextDestination: MutableNDArray[Float, R]
+        ): Unit =
+          prepared.runFloat(
+            nextSource,
+            nextDestination,
+            reducer,
+            constant
+          )
+
+        def runMutable(
+            nextSource: MutableNDArray[Float, R],
+            nextDestination: MutableNDArray[Float, R]
+        ): Unit =
+          prepared.runFloat(
+            nextSource,
+            nextDestination,
+            reducer,
+            constant
+          )
+
   given double: FilterOutput[Double] with
     private[filter] val zero: Double = 0.0
     private[filter] val one: Double = 1.0
@@ -125,6 +208,9 @@ object FilterOutput:
 
     private[filter] def fromDouble(value: Double): Double =
       value
+
+    private[filter] def add(left: Double, right: Double): Double =
+      left + right
 
     private[filter] def multiply(left: Double, right: Double): Double =
       left * right
@@ -165,6 +251,64 @@ object FilterOutput:
             constant
           )
 
+        def runMutable(
+            nextSource: MutableNDArray[Double, R],
+            nextDestination: MutableNDArray[Double, R]
+        ): Unit =
+          prepared.runDouble(
+            nextSource,
+            nextDestination,
+            reducer,
+            constant
+          )
+
+    private[filter] def prepareMutable[R <: AnyRank](
+        source: MutableNDArray[Double, R],
+        destination: MutableNDArray[Double, R],
+        spec: NeighborhoodSpec,
+        weights: Vector[Double],
+        constant: Double
+    ): PreparedPrimitiveFilter[Double, R] =
+      val primitiveWeights = weights.toArray
+      val reducer = new DoubleNeighborhoodReducer:
+        def zero: Double =
+          0.0
+
+        def accumulate(
+            accumulator: Double,
+            value: Double,
+            offsetIndex: Int
+        ): Double =
+          accumulator + value * primitiveWeights(offsetIndex)
+
+        def finish(accumulator: Double): Double =
+          accumulator
+
+      val prepared =
+        DirectNeighborhoodExecutor.prepare(source, destination, spec)
+      new PreparedPrimitiveFilter[Double, R]:
+        def run(
+            nextSource: NDArray[Double, R],
+            nextDestination: MutableNDArray[Double, R]
+        ): Unit =
+          prepared.runDouble(
+            nextSource,
+            nextDestination,
+            reducer,
+            constant
+          )
+
+        def runMutable(
+            nextSource: MutableNDArray[Double, R],
+            nextDestination: MutableNDArray[Double, R]
+        ): Unit =
+          prepared.runDouble(
+            nextSource,
+            nextDestination,
+            reducer,
+            constant
+          )
+
 /** Sequential reusable filter schedule.
   *
   * The plan owns one mutable primitive workspace and reuses Ravel's prepared
@@ -182,8 +326,7 @@ final class PreparedLinearFilter[
 ] private[filter] (
     expectedSpace: S,
     outputGrid: Grid[F, D],
-    workspace: MutableNDArray[B, R],
-    pass: PreparedPrimitiveFilter[B, R],
+    execution: PreparedFilterExecution[B, R],
     convert: NDArray[A, R] => NDArray[B, R],
     val report: PlanReport
 )(using semantics: ValueSemantics[B, Continuous]):
@@ -201,7 +344,7 @@ final class PreparedLinearFilter[
       )
     else
       val source = convert(input.data)
-      pass.run(source, workspace)
+      val workspace = execution.run(source)
       Sampled
         .continuous(
           outputGrid,
@@ -219,7 +362,8 @@ object LinearFilter:
       R <: AnyRank
   ](
       input: Sampled[S, A, Continuous, R],
-      operation: Correlation[input.sampleSpace.D, A]
+      operation: Correlation[input.sampleSpace.D, A],
+      policy: ExecutionPolicy = ExecutionPolicy()
   )(using
       dimension: Dimension[input.sampleSpace.D],
       target: FilterOutput[A],
@@ -243,7 +387,8 @@ object LinearFilter:
       operation.extent,
       reverse = false,
       inputMaterialized = false,
-      identity
+      identity,
+      policy
     )
 
   def prepareCorrelationTo[
@@ -253,7 +398,8 @@ object LinearFilter:
       R <: AnyRank
   ](
       input: Sampled[S, A, Continuous, R],
-      operation: Correlation[input.sampleSpace.D, B]
+      operation: Correlation[input.sampleSpace.D, B],
+      policy: ExecutionPolicy = ExecutionPolicy()
   )(using
       dimension: Dimension[input.sampleSpace.D],
       source: NumericDType[A],
@@ -279,7 +425,8 @@ object LinearFilter:
       operation.extent,
       reverse = false,
       inputMaterialized = true,
-      _.cast[B]
+      _.cast[B],
+      policy
     )
 
   def correlate[
@@ -288,7 +435,8 @@ object LinearFilter:
       R <: AnyRank
   ](
       input: Sampled[S, A, Continuous, R],
-      operation: Correlation[input.sampleSpace.D, A]
+      operation: Correlation[input.sampleSpace.D, A],
+      policy: ExecutionPolicy = ExecutionPolicy()
   )(using
       dimension: Dimension[input.sampleSpace.D],
       target: FilterOutput[A],
@@ -302,7 +450,7 @@ object LinearFilter:
       R
     ]
   ] =
-    prepareCorrelation(input, operation).flatMap(_.run(input))
+    prepareCorrelation(input, operation, policy).flatMap(_.run(input))
 
   def convolve[
       S <: SampleSpace[?, ?],
@@ -310,7 +458,8 @@ object LinearFilter:
       R <: AnyRank
   ](
       input: Sampled[S, A, Continuous, R],
-      operation: Convolution[input.sampleSpace.D, A]
+      operation: Convolution[input.sampleSpace.D, A],
+      policy: ExecutionPolicy = ExecutionPolicy()
   )(using
       dimension: Dimension[input.sampleSpace.D],
       target: FilterOutput[A],
@@ -324,7 +473,14 @@ object LinearFilter:
       R
     ]
   ] =
-    execute(input, input.data, operation.kernel, operation.extent, reverse = true)
+    execute(
+      input,
+      input.data,
+      operation.kernel,
+      operation.extent,
+      reverse = true,
+      policy
+    )
 
   def correlateTo[
       S <: SampleSpace[?, ?],
@@ -333,7 +489,8 @@ object LinearFilter:
       R <: AnyRank
   ](
       input: Sampled[S, A, Continuous, R],
-      operation: Correlation[input.sampleSpace.D, B]
+      operation: Correlation[input.sampleSpace.D, B],
+      policy: ExecutionPolicy = ExecutionPolicy()
   )(using
       dimension: Dimension[input.sampleSpace.D],
       source: NumericDType[A],
@@ -348,7 +505,7 @@ object LinearFilter:
       R
     ]
   ] =
-    prepareCorrelationTo(input, operation).flatMap(_.run(input))
+    prepareCorrelationTo(input, operation, policy).flatMap(_.run(input))
 
   def convolveTo[
       S <: SampleSpace[?, ?],
@@ -357,7 +514,8 @@ object LinearFilter:
       R <: AnyRank
   ](
       input: Sampled[S, A, Continuous, R],
-      operation: Convolution[input.sampleSpace.D, B]
+      operation: Convolution[input.sampleSpace.D, B],
+      policy: ExecutionPolicy = ExecutionPolicy()
   )(using
       dimension: Dimension[input.sampleSpace.D],
       source: NumericDType[A],
@@ -372,7 +530,14 @@ object LinearFilter:
       R
     ]
   ] =
-    execute(input, input.data.cast[B], operation.kernel, operation.extent, reverse = true)
+    execute(
+      input,
+      input.data.cast[B],
+      operation.kernel,
+      operation.extent,
+      reverse = true,
+      policy
+    )
 
   private def execute[
       S <: SampleSpace[?, ?],
@@ -384,7 +549,8 @@ object LinearFilter:
       source: NDArray[B, R],
       kernel: Kernel[input.sampleSpace.D, B],
       extent: FilterExtent[B],
-      reverse: Boolean
+      reverse: Boolean,
+      policy: ExecutionPolicy
   )(using
       dimension: Dimension[input.sampleSpace.D],
       target: FilterOutput[B],
@@ -405,10 +571,96 @@ object LinearFilter:
       extent,
       reverse,
       inputMaterialized = source.asInstanceOf[AnyRef] ne input.data.asInstanceOf[AnyRef],
-      _ => source
+      _ => source,
+      policy
     ).flatMap(_.run(input))
 
   private def prepare[
+      S <: SampleSpace[?, ?],
+      A,
+      B,
+      R <: AnyRank
+  ](
+      input: Sampled[S, A, Continuous, R],
+      source: NDArray[B, R],
+      kernel: Kernel[input.sampleSpace.D, B],
+      extent: FilterExtent[B],
+      reverse: Boolean,
+      inputMaterialized: Boolean,
+      convert: NDArray[A, R] => NDArray[B, R],
+      policy: ExecutionPolicy
+  )(using
+      dimension: Dimension[input.sampleSpace.D],
+      target: FilterOutput[B],
+      floating: FloatingDType[B],
+      semantics: ValueSemantics[B, Continuous]
+  ): Either[
+    OpError,
+    PreparedLinearFilter[
+      input.sampleSpace.D,
+      input.sampleSpace.F,
+      S,
+      A,
+      B,
+      R
+    ]
+  ] =
+    policy.method match
+      case FilterMethod.Fft =>
+        Left(OpError.InvalidArgument("FFT filtering is not implemented"))
+      case FilterMethod.Direct =>
+        prepareDirect(
+          input,
+          source,
+          kernel,
+          extent,
+          reverse,
+          inputMaterialized,
+          convert
+        )
+      case FilterMethod.Auto =>
+        kernel match
+          case separable: Kernel.Separable[input.sampleSpace.D, B]
+              if extent.isInstanceOf[FilterExtent.Same[?]] =>
+            prepareSeparable(
+              input,
+              source,
+              separable,
+              extent,
+              reverse,
+              inputMaterialized,
+              convert
+            )
+          case _ =>
+            prepareDirect(
+              input,
+              source,
+              kernel,
+              extent,
+              reverse,
+              inputMaterialized,
+              convert
+            )
+      case FilterMethod.Separable =>
+        kernel match
+          case separable: Kernel.Separable[input.sampleSpace.D, B] =>
+            prepareSeparable(
+              input,
+              source,
+              separable,
+              extent,
+              reverse,
+              inputMaterialized,
+              convert
+            )
+          case _ =>
+            Left(
+              OpError.InvalidArgument(
+                "ExecutionPolicy.Separable requires Kernel.Separable"
+              )
+            )
+
+  private def prepareDirect[
       S <: SampleSpace[?, ?],
       A,
       B,
@@ -453,6 +705,10 @@ object LinearFilter:
       workspace = MutableNDArray.zeros[B, R](shape)
       pass =
         target.prepare(source, workspace, spec, weights, border._2)
+      execution = new PreparedFilterExecution[B, R]:
+        def run(nextSource: NDArray[B, R]): MutableNDArray[B, R] =
+          pass.run(nextSource, workspace)
+          workspace
       plan = new PreparedLinearFilter[
         input.sampleSpace.D,
         input.sampleSpace.F,
@@ -463,8 +719,7 @@ object LinearFilter:
       ](
         input.sampleSpace,
         outputGrid,
-        workspace,
-        pass,
+        execution,
         convert,
         PlanReport(
           method = SelectedMethod.Direct,
@@ -476,6 +731,179 @@ object LinearFilter:
         )
       )
     yield plan
+
+  private def prepareSeparable[
+      S <: SampleSpace[?, ?],
+      A,
+      B,
+      R <: AnyRank
+  ](
+      input: Sampled[S, A, Continuous, R],
+      source: NDArray[B, R],
+      kernel: Kernel.Separable[input.sampleSpace.D, B],
+      extent: FilterExtent[B],
+      reverse: Boolean,
+      inputMaterialized: Boolean,
+      convert: NDArray[A, R] => NDArray[B, R]
+  )(using
+      dimension: Dimension[input.sampleSpace.D],
+      target: FilterOutput[B],
+      floating: FloatingDType[B],
+      semantics: ValueSemantics[B, Continuous]
+  ): Either[
+    OpError,
+    PreparedLinearFilter[
+      input.sampleSpace.D,
+      input.sampleSpace.F,
+      S,
+      A,
+      B,
+      R
+    ]
+  ] =
+    extent match
+      case FilterExtent.Same(sameBorder) =>
+        for
+          outputGrid <- OutputGrid.grid(input.grid, kernel.support, extent)
+          shape <- outputShape(input, outputGrid)
+          firstWorkspace = MutableNDArray.zeros[B, R](shape)
+          secondWorkspace = MutableNDArray.zeros[B, R](shape)
+          border = borderValue(sameBorder)
+          execution <- separableExecution(
+            source,
+            firstWorkspace,
+            secondWorkspace,
+            kernel.axes,
+            reverse,
+            border
+          )
+        yield new PreparedLinearFilter[
+          input.sampleSpace.D,
+          input.sampleSpace.F,
+          S,
+          A,
+          B,
+          R
+        ](
+          input.sampleSpace,
+          outputGrid,
+          execution,
+          convert,
+          PlanReport(
+            method = SelectedMethod.Separable,
+            passes = dimension.rank,
+            inputMaterialized = inputMaterialized,
+            outputShape = Vector.tabulate(shape.rank)(shape.apply),
+            workspaceBytes =
+              shape.size.toLong * target.bytesPerElement.toLong * 2L
+          )
+        )
+      case _ =>
+        Left(
+          OpError.InvalidArgument(
+            "optimized separable execution currently requires FilterExtent.Same"
+          )
+        )
+
+  private def separableExecution[
+      D <: Dim,
+      B,
+      R <: AnyRank
+  ](
+      source: NDArray[B, R],
+      firstWorkspace: MutableNDArray[B, R],
+      secondWorkspace: MutableNDArray[B, R],
+      axes: Vector[AxisKernel[B]],
+      reverse: Boolean,
+      border: (BorderMode, B)
+  )(using
+      dimension: Dimension[D],
+      target: FilterOutput[B]
+  ): Either[OpError, PreparedFilterExecution[B, R]] =
+    val rank = source.rank
+    if axes.length != dimension.rank then
+      Left(
+        OpError.InvalidKernel(
+          s"separable kernel has ${axes.length} factors for spatial rank ${dimension.rank}"
+        )
+      )
+    else
+      val orders =
+        Vector.tabulate(dimension.rank)(axis => axisOrder(rank, axis))
+      val specs =
+        axes.zipWithIndex.map { case (axis, factorAxis) =>
+          NeighborhoodSpec(
+            spatialAxes = 1,
+            offsets =
+              axis.weights.indices.map { index =>
+                val offset = index - axis.anchor
+                Vector(if reverse then -offset else offset)
+              }.toVector,
+            border = border._1,
+            outputOrigin = Vector(0),
+            outputSpatialShape = Vector(source.shape(factorAxis))
+          )
+        }
+      val constants =
+        axes.scanLeft(border._2) { (constant, axis) =>
+          target.multiply(constant, sumWeights(axis.weights))
+        }.dropRight(1)
+      val firstPass =
+        target.prepare(
+          source.permuteAxes(orders(0)*),
+          firstWorkspace.permuteAxes(orders(0)*),
+          specs(0),
+          axes(0).weights,
+          constants(0)
+        )
+      val remaining =
+        Vector.tabulate(dimension.rank - 1) { index =>
+          val axis = index + 1
+          val sourceWorkspace =
+            if axis % 2 == 1 then firstWorkspace else secondWorkspace
+          val destinationWorkspace =
+            if axis % 2 == 1 then secondWorkspace else firstWorkspace
+          target.prepareMutable(
+            sourceWorkspace.permuteAxes(orders(axis)*),
+            destinationWorkspace.permuteAxes(orders(axis)*),
+            specs(axis),
+            axes(axis).weights,
+            constants(axis)
+          )
+        }
+      Right(new PreparedFilterExecution[B, R]:
+        def run(nextSource: NDArray[B, R]): MutableNDArray[B, R] =
+          firstPass.run(
+            nextSource.permuteAxes(orders(0)*),
+            firstWorkspace.permuteAxes(orders(0)*)
+          )
+          var current = firstWorkspace
+          var axis = 1
+          while axis < dimension.rank do
+            val destination =
+              if current eq firstWorkspace then secondWorkspace
+              else firstWorkspace
+            remaining(axis - 1).runMutable(
+              current.permuteAxes(orders(axis)*),
+              destination.permuteAxes(orders(axis)*)
+            )
+            current = destination
+            axis += 1
+          current
+      )
+
+  private def axisOrder(rank: Int, leadingAxis: Int): Vector[Int] =
+    leadingAxis +: (0 until rank).filter(_ != leadingAxis).toVector
+
+  private def sumWeights[A](
+      weights: Vector[A]
+  )(using target: FilterOutput[A]): A =
+    var sum = target.zero
+    var index = 0
+    while index < weights.length do
+      sum = target.add(sum, weights(index))
+      index += 1
+    sum
 
   private def weightedOffsets[D <: Dim, A](
       kernel: Kernel[D, A],
@@ -585,7 +1013,8 @@ object Gaussian:
       input: Sampled[S, A, Continuous, R],
       sigma: SpatialSigma[input.sampleSpace.D],
       extent: FilterExtent[A] = FilterExtent.same(Border.reflect),
-      truncate: Double = 3.0
+      truncate: Double = 3.0,
+      policy: ExecutionPolicy = ExecutionPolicy()
   )(using
       dimension: Dimension[input.sampleSpace.D],
       target: FilterOutput[A],
@@ -607,7 +1036,11 @@ object Gaussian:
       kernel <-
         gaussianKernel[input.sampleSpace.D, A](sampleSigmas, truncate)
       plan <-
-        LinearFilter.prepareCorrelation(input, Correlation(kernel, extent))
+        LinearFilter.prepareCorrelation(
+          input,
+          Correlation(kernel, extent),
+          policy
+        )
     yield plan
 
   def prepareTo[
@@ -619,7 +1052,8 @@ object Gaussian:
       input: Sampled[S, A, Continuous, R],
       sigma: SpatialSigma[input.sampleSpace.D],
       extent: FilterExtent[B] = FilterExtent.same(Border.reflect),
-      truncate: Double = 3.0
+      truncate: Double = 3.0,
+      policy: ExecutionPolicy = ExecutionPolicy()
   )(using
       dimension: Dimension[input.sampleSpace.D],
       source: NumericDType[A],
@@ -644,7 +1078,8 @@ object Gaussian:
       plan <-
         LinearFilter.prepareCorrelationTo(
           input,
-          Correlation(kernel, extent)
+          Correlation(kernel, extent),
+          policy
         )
     yield plan
 
@@ -656,7 +1091,8 @@ object Gaussian:
       input: Sampled[S, A, Continuous, R],
       sigma: SpatialSigma[input.sampleSpace.D],
       extent: FilterExtent[A] = FilterExtent.same(Border.reflect),
-      truncate: Double = 3.0
+      truncate: Double = 3.0,
+      policy: ExecutionPolicy = ExecutionPolicy()
   )(using
       dimension: Dimension[input.sampleSpace.D],
       target: FilterOutput[A],
@@ -670,7 +1106,7 @@ object Gaussian:
       R
     ]
   ] =
-    prepare(input, sigma, extent, truncate).flatMap(_.run(input))
+    prepare(input, sigma, extent, truncate, policy).flatMap(_.run(input))
 
   def blurTo[
       S <: SampleSpace[?, ?],
@@ -681,7 +1117,8 @@ object Gaussian:
       input: Sampled[S, A, Continuous, R],
       sigma: SpatialSigma[input.sampleSpace.D],
       extent: FilterExtent[B] = FilterExtent.same(Border.reflect),
-      truncate: Double = 3.0
+      truncate: Double = 3.0,
+      policy: ExecutionPolicy = ExecutionPolicy()
   )(using
       dimension: Dimension[input.sampleSpace.D],
       source: NumericDType[A],
@@ -696,7 +1133,7 @@ object Gaussian:
       R
     ]
   ] =
-    prepareTo(input, sigma, extent, truncate).flatMap(_.run(input))
+    prepareTo(input, sigma, extent, truncate, policy).flatMap(_.run(input))
 
   private def gaussianKernel[D <: Dim, A](
       sigmas: Vector[Double],
@@ -821,7 +1258,8 @@ extension [
   def gaussianBlur(
       sigma: SpatialSigma[input.sampleSpace.D],
       extent: FilterExtent[A] = FilterExtent.same(Border.reflect),
-      truncate: Double = 3.0
+      truncate: Double = 3.0,
+      policy: ExecutionPolicy = ExecutionPolicy()
   )(using
       Dimension[input.sampleSpace.D],
       FilterOutput[A],
@@ -835,12 +1273,13 @@ extension [
       R
     ]
   ] =
-    Gaussian.blur(input, sigma, extent, truncate)
+    Gaussian.blur(input, sigma, extent, truncate, policy)
 
   def gaussianBlurTo[B](
       sigma: SpatialSigma[input.sampleSpace.D],
       extent: FilterExtent[B] = FilterExtent.same(Border.reflect),
-      truncate: Double = 3.0
+      truncate: Double = 3.0,
+      policy: ExecutionPolicy = ExecutionPolicy()
   )(using
       Dimension[input.sampleSpace.D],
       NumericDType[A],
@@ -855,4 +1294,4 @@ extension [
       R
     ]
   ] =
-    Gaussian.blurTo(input, sigma, extent, truncate)
+    Gaussian.blurTo(input, sigma, extent, truncate, policy)

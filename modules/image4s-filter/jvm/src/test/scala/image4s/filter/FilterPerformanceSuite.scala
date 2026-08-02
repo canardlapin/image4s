@@ -12,7 +12,9 @@ import image4s.geometry.Frame
 import image4s.geometry.GeometryError
 import image4s.geometry.Grid
 import image4s.ops.Border
+import image4s.ops.ExecutionPolicy
 import image4s.ops.FilterExtent
+import image4s.ops.FilterMethod
 import image4s.ops.OpError
 import image4s.ops.SpatialSigma
 import munit.FunSuite
@@ -54,13 +56,32 @@ final class FilterPerformanceSuite extends FunSuite:
     val extent = FilterExtent.same(Border.Replicate)
     val preserving = () =>
       retained =
-        opsRight(floatImage.gaussianBlur(sigma, extent)).asInstanceOf[AnyRef]
+        opsRight(
+          floatImage.gaussianBlur(
+            sigma,
+            extent,
+            policy = ExecutionPolicy(method = FilterMethod.Direct)
+          )
+        ).asInstanceOf[AnyRef]
     val promoting = () =>
       retained =
-        opsRight(byteImage.gaussianBlurTo[Float](sigma, extent))
+        opsRight(
+          byteImage.gaussianBlurTo[Float](
+            sigma,
+            extent,
+            policy = ExecutionPolicy(method = FilterMethod.Direct)
+          )
+        )
           .asInstanceOf[AnyRef]
     val preparedPlan =
-      opsRight(Gaussian.prepare(floatImage, sigma, extent))
+      opsRight(
+        Gaussian.prepare(
+          floatImage,
+          sigma,
+          extent,
+          policy = ExecutionPolicy(method = FilterMethod.Separable)
+        )
+      )
     val prepared = () =>
       retained = opsRight(preparedPlan.run(floatImage)).asInstanceOf[AnyRef]
 

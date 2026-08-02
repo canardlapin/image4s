@@ -91,10 +91,16 @@ also separable for axis-aligned grids and for isotropic kernels on orthogonal
 grids; anisotropic rotated or sheared cases return `OpError.InvalidScale`.
 
 Call `Gaussian.prepare` or `Gaussian.prepareTo` when applying the same filter
-to several images in the same live `SampleSpace`. The returned sequential plan
-reuses its primitive destination workspace and Ravel address schedule. Each
-`run` still returns a fresh immutable image, so later runs cannot change
-earlier results. Create one plan per concurrent caller.
+to several images in the same live `SampleSpace`. With the default
+`ExecutionPolicy.Auto`, `Same`-extent separable kernels use one primitive
+ping-pong pass per spatial axis; use `ExecutionPolicy(method =
+FilterMethod.Direct)` to request the dense path or `FilterMethod.Separable` to
+require the optimized path. `Valid` and `Full` extents currently use the direct
+path under `Auto`.
+
+The returned sequential plan reuses its primitive workspaces and Ravel address
+schedules. Each `run` still returns a fresh immutable image, so later runs
+cannot change earlier results. Create one plan per concurrent caller.
 
 ## Encoded values
 
