@@ -1,6 +1,6 @@
 # image4s
 
-[Guide](site-docs/README.md) · [CI workflow](.github/workflows/ci.yml) · [Representation contract](docs/image-representation-contract.md) · [Versioning policy](docs/versioning-policy.md)
+[Guide](https://canardlapin.github.io/image4s/) · [Guide source](site-docs/README.md) · [CI workflow](.github/workflows/ci.yml) · [Representation contract](docs/image-representation-contract.md) · [Versioning policy](docs/versioning-policy.md)
 
 image4s is a typed Scala 3 library for multidimensional images that keeps
 values aligned with their spatial geometry, declared non-spatial sampling
@@ -155,8 +155,9 @@ is the normative description of these boundaries.
 
 ## Documentation and evidence
 
-Start with the [reader-facing guide](site-docs/README.md). Build the
-executable Laika/mdoc site from a checkout with:
+Start with the [published reader-facing guide](https://canardlapin.github.io/image4s/),
+or inspect its [Laika/mdoc source](site-docs/README.md). Build the executable
+site from a checkout with:
 
 ```text
 sbt -batch docs/tlSite
