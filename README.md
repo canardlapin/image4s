@@ -390,7 +390,7 @@ Use `LatticeIndex` for an unbounded integer coordinate and a grid-created
 
 ```text
 sbt compileAll
-sbt testAll
+sbt image4sTestAll
 ```
 
 The build uses Scala 3.7.4 and cross-publishes every artifact for the JVM and

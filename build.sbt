@@ -24,7 +24,7 @@ ThisBuild / scalacOptions ++= Seq(
 ThisBuild / Test / parallelExecution := false
 Global / concurrentRestrictions += Tags.limit(Tags.Test, 1)
 
-lazy val ravelRevision = "a2ca081325cf43ec69bb3b985a4fa90bf8c2b8f6"
+lazy val ravelRevision = "5a8821d2691b046f595b091d3cc774bc00653b90"
 lazy val ravelBuild =
   sys.props
     .get("image4s.ravel.build")
@@ -186,6 +186,6 @@ lazy val root =
 
 addCommandAlias("compileAll", ";root/compile")
 addCommandAlias(
-  "testAll",
-  ";image4s-geometryJVM/test;image4s-geometryJS/test;image4s-coreJVM/test;image4s-coreJS/test;image4s-niftiJVM/test;image4s-niftiJS/test;image4s-referenceJVM/test;image4s-referenceJS/test;image4s-lawsJVM/test;image4s-lawsJS/test;image4s-locusJVM/test;image4s-locusJS/test;image4s-ops-coreJVM/test;image4s-ops-coreJS/test;image4s-filterJVM/test;image4s-filterJS/test;image4s-morphologyJVM/test;image4s-morphologyJS/test;image4s-ops-lawsJVM/test;image4s-ops-lawsJS/test"
+  "image4sTestAll",
+  ";image4s-geometryJVM/test;image4s-geometryJS/test;image4s-coreJVM/test;image4s-coreJS/test;image4s-niftiJVM/test;image4s-niftiJS/test;image4s-referenceJVM/test;image4s-referenceJS/test;image4s-lawsJVM/test;image4s-lawsJS/test;image4s-locusJVM/test;image4s-locusJS/test;image4s-intaglioJVM/test;image4s-intaglioJS/test;image4s-ops-coreJVM/test;image4s-ops-coreJS/test;image4s-filterJVM/test;image4s-filterJS/test;image4s-morphologyJVM/test;image4s-morphologyJS/test;image4s-ops-lawsJVM/test;image4s-ops-lawsJS/test"
 )

@@ -27,7 +27,7 @@ jobs:
           -Dimage4s.revision=${{ github.sha }}
           -J-Xmx4G
           compileAll
-          testAll
+          image4sTestAll
       - name: Preserve test and fuzz reproductions
         if: always()
         uses: actions/upload-artifact@v4
@@ -107,3 +107,7 @@ jobs:
           "image4s-coreJVM / Test / testOnly image4s.LatticeMapAllocationSuite"
           "image4s-niftiJVM / Test / testOnly image4s.nifti.NiftiProductionJvmSuite"
           "image4s-locusJVM / Test / testOnly image4s.locus.GridDomainAllocationSuite"
+          "image4s-filterJVM / Test / testOnly image4s.filter.FilterPerformanceSuite"
+          "image4s-morphologyJVM / Test / testOnly image4s.morphology.MorphologyPerformanceSuite"
+          "image4s-ops-lawsJVM / Test / testOnly image4s.ops.laws.OpsPerformanceCourtSuite"
+          "image4s-intaglioJVM / Test / testOnly image4s.intaglio.DisplayBridgePerformanceSuite"
