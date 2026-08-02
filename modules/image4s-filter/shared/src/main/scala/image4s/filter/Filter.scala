@@ -62,6 +62,7 @@ sealed trait FilterOutput[A]:
   private[filter] def zero: A
   private[filter] def one: A
   private[filter] def fromDouble(value: Double): A
+  private[filter] def toDouble(value: A): Double
   private[filter] def add(left: A, right: A): A
   private[filter] def multiply(left: A, right: A): A
   private[filter] def bytesPerElement: Int
@@ -100,6 +101,9 @@ object FilterOutput:
 
     private[filter] def fromDouble(value: Double): Float =
       value.toFloat
+
+    private[filter] def toDouble(value: Float): Double =
+      value.toDouble
 
     private[filter] def add(left: Float, right: Float): Float =
       left + right
@@ -207,6 +211,9 @@ object FilterOutput:
     private[filter] val bytesPerElement: Int = 8
 
     private[filter] def fromDouble(value: Double): Double =
+      value
+
+    private[filter] def toDouble(value: Double): Double =
       value
 
     private[filter] def add(left: Double, right: Double): Double =

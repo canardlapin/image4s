@@ -5,11 +5,14 @@ import _root_.intaglio.RasterImage
 import _root_.intaglio.RegularGridAxis
 import _root_.intaglio.ScalarColorizer
 import _root_.intaglio.ScalarField2D
+import image4s.Categorical
 import image4s.Continuous
 import image4s.LinearInterpolable
+import image4s.MaskImage
 import image4s.SampleSpace
 import image4s.Sampled
 import image4s.geometry.D2
+import image4s.geometry.D3
 import ravel.Rank
 
 /** Lowers D2 continuous images to Intaglio display intermediates.
@@ -94,6 +97,121 @@ object DisplayBridge:
         sourceIndexY(x, y, sourceWidth, sourceHeight, orientation)
       colorizer.color(values.toDouble(image.data(sourceX, sourceY)))
     }
+
+  /** Render a scalar D2 raster with a Boolean mask composited in the same
+    * display coordinate mapping as the base raster.
+    */
+  def renderRasterWithMask[
+      S <: SampleSpace[?, D2],
+      A,
+      MS <: SampleSpace[?, D2]
+  ](
+      image: Sampled[S, A, Continuous, Rank[2]],
+      mask: MaskImage[MS, Rank[2]],
+      plan: DisplayPlan,
+      overlay: MaskOverlay
+  )(using values: LinearInterpolable[A]): Either[DisplayBridgeError, RasterImage] =
+    if image.logicalShape != mask.logicalShape then
+      Left(
+        DisplayBridgeError.IncompatibleOverlay(
+          image.logicalShape,
+          mask.logicalShape
+        )
+      )
+    else
+      val sourceWidth = image.grid.shape(0)
+      val sourceHeight = image.grid.shape(1)
+      val orientation = plan.orientation
+      val dimensions =
+        RasterDimensions.unsafe(
+          orientation.outputWidth(sourceWidth, sourceHeight),
+          orientation.outputHeight(sourceWidth, sourceHeight)
+        )
+      val colorizer = ScalarColorizer(plan.window, plan.palette)
+      Right(
+        RasterImage.tabulate(dimensions) { (x, y) =>
+          val sourceX =
+            sourceIndexX(x, y, sourceWidth, sourceHeight, orientation)
+          val sourceY =
+            sourceIndexY(x, y, sourceWidth, sourceHeight, orientation)
+          val base = colorizer.color(values.toDouble(image.data(sourceX, sourceY)))
+          if mask.data(sourceX, sourceY) then
+            overlay.blend.composite(base, overlay.foreground, overlay.opacity)
+          else base
+        }
+      )
+
+  /** Render integer labels with a deterministic code-to-color palette. */
+  def renderLabels[
+      S <: SampleSpace[?, D2]
+  ](
+      labels: Sampled[S, Int, Categorical, Rank[2]],
+      palette: LabelPalette = LabelPalette(),
+      orientation: DisplayOrientation = DisplayOrientation.Identity
+  ): RasterImage =
+    val sourceWidth = labels.grid.shape(0)
+    val sourceHeight = labels.grid.shape(1)
+    val dimensions =
+      RasterDimensions.unsafe(
+        orientation.outputWidth(sourceWidth, sourceHeight),
+        orientation.outputHeight(sourceWidth, sourceHeight)
+      )
+    RasterImage.tabulate(dimensions) { (x, y) =>
+      val sourceX =
+        sourceIndexX(x, y, sourceWidth, sourceHeight, orientation)
+      val sourceY =
+        sourceIndexY(x, y, sourceWidth, sourceHeight, orientation)
+      palette.color(labels.data(sourceX, sourceY))
+    }
+
+  /** Lower one orthogonal D3 slice directly to an Intaglio raster.
+    *
+    * Slice axes are source-grid axes. This method owns only extraction and
+    * pixel packing; it does not resample oblique slices or interpret affine
+    * geometry as a display transform.
+    */
+  def renderSliceRaster[
+      S <: SampleSpace[?, D3],
+      A
+  ](
+      image: Sampled[S, A, Continuous, Rank[3]],
+      axis: SliceAxis,
+      index: Int,
+      plan: DisplayPlan
+  )(using values: LinearInterpolable[A]): Either[DisplayBridgeError, RasterImage] =
+    val fixedAxis =
+      axis match
+        case SliceAxis.X => 0
+        case SliceAxis.Y => 1
+        case SliceAxis.Z => 2
+    val extent = image.grid.shape(fixedAxis)
+    if index < 0 || index >= extent then
+      Left(DisplayBridgeError.InvalidSliceIndex(axis, index, extent))
+    else
+      val sourceAxes = (0 until 3).filter(_ != fixedAxis).toVector
+      val sourceWidth = image.grid.shape(sourceAxes(0))
+      val sourceHeight = image.grid.shape(sourceAxes(1))
+      val orientation = plan.orientation
+      val dimensions =
+        RasterDimensions.unsafe(
+          orientation.outputWidth(sourceWidth, sourceHeight),
+          orientation.outputHeight(sourceWidth, sourceHeight)
+        )
+      val colorizer = ScalarColorizer(plan.window, plan.palette)
+      Right(
+        RasterImage.tabulate(dimensions) { (x, y) =>
+          val sourceX =
+            sourceIndexX(x, y, sourceWidth, sourceHeight, orientation)
+          val sourceY =
+            sourceIndexY(x, y, sourceWidth, sourceHeight, orientation)
+          val scalar =
+            fixedAxis match
+              case 0 => values.toDouble(image.data(index, sourceX, sourceY))
+              case 1 => values.toDouble(image.data(sourceX, index, sourceY))
+              case _ => values.toDouble(image.data(sourceX, sourceY, index))
+          colorizer.color(scalar)
+        }
+      )
 
   private final case class FieldGeometry(
       originX: Double,
