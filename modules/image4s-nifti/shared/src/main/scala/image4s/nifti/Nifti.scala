@@ -320,7 +320,7 @@ private[nifti] final class NiftiApi[P](
       options: NiftiWriteOptions = NiftiWriteOptions.default,
       extensions: Vector[NiftiExtension] = Vector.empty
   ): Either[NiftiError, NiftiFiles[P]] =
-    writeValues(path, image, options, extensions, identity)
+    writeValues(path, image, options, extensions, WriteValueSource.double)
 
   def writeLabels[
       F <: Frame[D3],
@@ -343,7 +343,7 @@ private[nifti] final class NiftiApi[P](
         case NiftiDatatype.UInt8 |
             NiftiDatatype.Int16 |
             NiftiDatatype.Int32 =>
-          writeValues(path, image, options, extensions, _.toDouble)
+          writeValues(path, image, options, extensions, WriteValueSource.long)
         case datatype =>
           Left(NiftiError.LabelDatatypeMustBeIntegral(datatype))
 
@@ -1495,7 +1495,7 @@ private[nifti] final class NiftiApi[P](
       image: Sampled[S, A, Sem, R],
       options: NiftiWriteOptions,
       extensions: Vector[NiftiExtension],
-      asDouble: A => Double
+      source: WriteValueSource[A]
   ): Either[NiftiError, NiftiFiles[P]] =
     for
       files <- resolveFiles(path)
@@ -1504,7 +1504,7 @@ private[nifti] final class NiftiApi[P](
         image,
         options,
         extensions,
-        asDouble
+        source
       )
     yield result
 
@@ -1519,7 +1519,7 @@ private[nifti] final class NiftiApi[P](
       image: Sampled[S, A, Sem, R],
       options: NiftiWriteOptions,
       extensions: Vector[NiftiExtension],
-      asDouble: A => Double
+      source: WriteValueSource[A]
   ): Either[NiftiError, NiftiFiles[P]] =
     val dimensions = image.logicalShape
     if dimensions.length < 3 || dimensions.length > 7 then
@@ -1588,7 +1588,7 @@ private[nifti] final class NiftiApi[P](
           dimensions,
           image,
           options,
-          asDouble
+          source
         )
         workingBytes = alignedWorkingBuffer(
           limits.workingBufferBytes,
@@ -1611,7 +1611,7 @@ private[nifti] final class NiftiApi[P](
                     dimensions,
                     image,
                     options,
-                    asDouble
+                    source
                   )
                 }
                 .map(_ => NiftiFiles.SingleFile(files.headerPath))
@@ -1630,7 +1630,7 @@ private[nifti] final class NiftiApi[P](
                     dimensions,
                     image,
                     options,
-                    asDouble
+                    source
                   )
                 }
                 _ <- fileSystem.writeBytes(files.headerPath, header)
@@ -1755,7 +1755,7 @@ private[nifti] final class NiftiApi[P](
       dimensions: Vector[Int],
       image: Sampled[S, A, Sem, R],
       options: NiftiWriteOptions,
-      asDouble: A => Double
+      source: WriteValueSource[A]
   ): Either[NiftiError, Unit] =
     val buffer =
       ByteBuffer
@@ -1768,8 +1768,7 @@ private[nifti] final class NiftiApi[P](
     var failure: Option[NiftiError] = None
     while byteOffset < length && failure.isEmpty do
       decodeFirstAxisFastest(fileIndex, dimensions, indices)
-      val value =
-        asDouble(readImageValue(image.data, indices))
+      val value = source.read(image.data, indices)
       try
         writeEncodedValue(
           buffer,
@@ -1795,7 +1794,7 @@ private[nifti] final class NiftiApi[P](
       dimensions: Vector[Int],
       image: Sampled[S, A, Sem, R],
       options: NiftiWriteOptions,
-      asDouble: A => Double
+      source: WriteValueSource[A]
   ): Either[NiftiError, Unit] =
     val bytes = new Array[Byte](8)
     val buffer =
@@ -1807,8 +1806,7 @@ private[nifti] final class NiftiApi[P](
     var failure: Option[NiftiError] = None
     while fileIndex < image.data.size && failure.isEmpty do
       decodeFirstAxisFastest(fileIndex, dimensions, indices)
-      val value =
-        asDouble(readImageValue(image.data, indices))
+      val value = source.read(image.data, indices)
       try
         writeEncodedValue(
           buffer,
@@ -1823,17 +1821,45 @@ private[nifti] final class NiftiApi[P](
           failure = Some(conversion.error)
     failure.toLeft(())
 
-  private def readImageValue[A, R <: AnyRank](
-      data: NDArray[A, R],
-      indices: Array[Int]
-  ): A =
-    indices.length match
-      case 3 =>
-        data(indices(0), indices(1), indices(2))
-      case 4 =>
-        data(indices(0), indices(1), indices(2), indices(3))
-      case _ =>
-        data.at(IArray.unsafeFromArray(indices))
+  /** Concrete write sources preserve primitive Ravel access in both the
+    * validation and emission passes. Keeping the element type abstract here
+    * would route rank-specific reads through the generic boxed fallback on
+    * some JVMs.
+    */
+  private trait WriteValueSource[A]:
+    def read[R <: AnyRank](
+        data: NDArray[A, R],
+        indices: Array[Int]
+    ): Double
+
+  private object WriteValueSource:
+    val double: WriteValueSource[Double] =
+      new WriteValueSource[Double]:
+        def read[R <: AnyRank](
+            data: NDArray[Double, R],
+            indices: Array[Int]
+        ): Double =
+          indices.length match
+            case 3 =>
+              data(indices(0), indices(1), indices(2))
+            case 4 =>
+              data(indices(0), indices(1), indices(2), indices(3))
+            case _ =>
+              data.at(IArray.unsafeFromArray(indices))
+
+    val long: WriteValueSource[Long] =
+      new WriteValueSource[Long]:
+        def read[R <: AnyRank](
+            data: NDArray[Long, R],
+            indices: Array[Int]
+        ): Double =
+          indices.length match
+            case 3 =>
+              data(indices(0), indices(1), indices(2)).toDouble
+            case 4 =>
+              data(indices(0), indices(1), indices(2), indices(3)).toDouble
+            case _ =>
+              data.at(IArray.unsafeFromArray(indices)).toDouble
 
   private def writeEncodedValue(
       buffer: ByteBuffer,
