@@ -50,6 +50,10 @@ final class DisplayBridgePerformanceSuite extends FunSuite:
       median <= outputBytes + 64L * 1024L,
       s"raster pack allocated $median bytes; output requires $outputBytes bytes"
     )
+    println(
+      s"IMG-INTAGLIO JVM allocation: case=raster-pack, pixels=${width * height}, " +
+        s"allocated=$median B, output=$outputBytes B"
+    )
     assertEquals(retained.width, width)
     assertEquals(retained.height, height)
 

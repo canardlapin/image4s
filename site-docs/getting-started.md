@@ -5,8 +5,9 @@ selects the sample at 0.5 seconds, crops it, and applies a Gaussian blur. Using
 two spatial dimensions keeps the difference between spatial geometry and time
 visible in the types and shapes.
 
-The `checked` helper is only for executable documentation. Application code
-should keep each `Either` and handle or compose its error.
+The example composes operations that can fail with `Either`. Each section
+converts failure to an exception once so mdoc stops if the example becomes
+invalid. Application code should instead report or recover from the error.
 
 ```scala mdoc:silent
 import image4s.*
@@ -15,11 +16,6 @@ import image4s.geometry.*
 import image4s.ops.SpatialSigma
 import ravel.DType.given
 import ravel.NDArray
-
-def checked[A](value: Either[?, A]): A =
-  value match
-    case Right(result) => result
-    case Left(error)   => throw new IllegalArgumentException(error.toString)
 ```
 
 ## 1. Declare a spatial grid
@@ -29,17 +25,21 @@ second. Its identity affine maps index `(x, y)` to the same coordinates in the
 named frame.
 
 ```scala mdoc:silent
-val frame =
-  checked(
-    Frame.named[D2](
+val frameAndGrid =
+  for
+    frame <- Frame.named[D2](
       "scanner-plane",
       unit = LengthUnit.Millimeter,
       convention = CoordinateConvention.RAS
     )
-  )
+    grid <- Grid.in(frame)(Vector(6, 5), Affine.identity[D2])
+  yield (frame, grid)
 
-val grid =
-  checked(Grid.in(frame)(Vector(6, 5), Affine.identity[D2]))
+val (frame, grid) =
+  frameAndGrid.fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
+  )
 ```
 
 ## 2. Declare time coordinates
@@ -48,9 +48,9 @@ The time axis has coordinates 0.0, 0.5, and 1.0 seconds. It is not merely a
 trailing array dimension.
 
 ```scala mdoc:silent
-val time =
-  checked(
-    Axis.regular(
+val timeAndAxes =
+  for
+    time <- Axis.regular(
       "time",
       AxisKind.Time,
       extent = 3,
@@ -58,9 +58,14 @@ val time =
       step = 0.5,
       unit = AxisUnit.Seconds
     )
-  )
+    axes <- NonSpatialAxes.from(Vector(time))
+  yield (time, axes)
 
-val axes = checked(NonSpatialAxes.from(Vector(time)))
+val (time, axes) =
+  timeAndAxes.fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
+  )
 ```
 
 ## 3. Attach values
@@ -74,23 +79,35 @@ val values =
     x.toDouble + 10.0 * y + 100.0 * t
   }
 
-val image = checked(Image.continuous(grid, axes, values))
+val image =
+  Image.continuous(grid, axes, values).fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
+  )
 
 assert(image.logicalShape == Vector(6, 5, 3))
 ```
 
 ## 4. Select the sample at 0.5 seconds
 
-`atTime(1)` selects index 1 from the sole declared time axis. The
-coordinate-returning form proves what that index means.
+`atTime(1)` selects index 1 from the sole declared time axis. The axis itself
+reports the coordinate attached to that index.
 
 ```scala mdoc:silent
-val (selectedCoordinate, selected) =
-  checked(image.selectNonSpatialWithCoordinate(axis = 0, index = 1))
-val atHalfSecond = checked(image.atTime(1))
+val selectedAtHalfSecond =
+  for
+    coordinate <- time.coordinateAt(1)
+    selected <- image.atTime(1)
+  yield (coordinate, selected)
+
+val (selectedCoordinate, atHalfSecond) =
+  selectedAtHalfSecond.fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
+  )
 
 assert(selectedCoordinate == AxisCoordinate.Numeric(0.5, AxisUnit.Seconds))
-assert(selected.logicalShape == Vector(6, 5))
+assert(atHalfSecond.logicalShape == Vector(6, 5))
 assert(atHalfSecond(2, 3) == image(2, 3, 1))
 ```
 
@@ -102,12 +119,15 @@ at index `(1, 1)` in the source.
 
 ```scala mdoc:silent
 val crop =
-  checked(
-    atHalfSecond.crop(
+  atHalfSecond
+    .crop(
       origin = Vector(1, 1),
       shape = Vector(4, 3)
     )
-  )
+    .fold(
+      error => throw new IllegalArgumentException(error.toString),
+      identity
+    )
 
 assert(crop.logicalShape == Vector(4, 3))
 assert(crop(0, 0) == atHalfSecond(1, 1))
@@ -121,8 +141,17 @@ The default `Same` extent keeps the crop grid and shape. The output values are
 newly computed.
 
 ```scala mdoc:silent
-val sigma = checked(SpatialSigma.samples[D2](0.8))
-val blurred = checked(crop.gaussianBlur(sigma))
+val blurredResult =
+  for
+    sigma <- SpatialSigma.samples[D2](0.8)
+    blurred <- crop.gaussianBlur(sigma)
+  yield blurred
+
+val blurred =
+  blurredResult.fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
+  )
 
 assert(blurred.logicalShape == crop.logicalShape)
 assert(blurred.grid.sameRuntimeOwnerAs(crop.grid))

@@ -26,14 +26,17 @@ import ravel.DType.given
 import ravel.NDArray
 import ravel.Shape
 
-def checked[A](value: Either[?, A]): A =
-  value match
-    case Right(result) => result
-    case Left(error)   => throw new IllegalArgumentException(error.toString)
+val liveObjects =
+  for
+    liveFrame <- Frame.named[D2]("live")
+    liveGrid <- Grid.in(liveFrame)(Vector(2, 2), Affine.identity[D2])
+  yield (liveFrame, liveGrid)
 
-val liveFrame = checked(Frame.named[D2]("live"))
-val liveGrid =
-  checked(Grid.in(liveFrame)(Vector(2, 2), Affine.identity[D2]))
+val (liveFrame, liveGrid) =
+  liveObjects.fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
+  )
 val liveSpace = SampleSpace.create(liveGrid, NonSpatialAxes.empty)
 
 assert(liveSpace.sameRuntimeSpaceAs(liveSpace))
@@ -48,24 +51,27 @@ Persistent frames and grids carry validated keys. Independently constructed
 objects can have the same key while retaining different live owner tokens.
 
 ```scala mdoc:silent
-val frameId = checked(FrameId.parse("scanner-frame"))
-val leftFrame =
-  checked(
-    Frame.persistentNamed[D2](
+val persistentFrames =
+  for
+    frameId <- FrameId.parse("scanner-frame")
+    leftFrame <- Frame.persistentNamed[D2](
       frameId,
       "scanner",
       LengthUnit.Millimeter,
       CoordinateConvention.RAS
     )
-  )
-val rightFrame =
-  checked(
-    Frame.persistentNamed[D2](
+    rightFrame <- Frame.persistentNamed[D2](
       frameId,
       "scanner restored elsewhere",
       LengthUnit.Millimeter,
       CoordinateConvention.RAS
     )
+  yield (leftFrame, rightFrame)
+
+val (leftFrame, rightFrame) =
+  persistentFrames.fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
   )
 
 assert(!leftFrame.sameRuntimeOwnerAs(rightFrame))
@@ -89,27 +95,38 @@ grids with different persistent grid IDs can still sample exactly the same
 points in aligned frames.
 
 ```scala mdoc:silent
-val leftGrid =
-  checked(
-    Grid.createPersistent(
-      checked(GridId.parse("left-grid")),
+val persistentSpaces =
+  for
+    leftGridId <- GridId.parse("left-grid")
+    leftGrid <- Grid.createPersistent(
+      leftGridId,
       leftFrame
     )(Vector(2, 2), Affine.identity[D2])
-  )
-val rightGrid =
-  checked(
-    Grid.createPersistent(
-      checked(GridId.parse("right-grid")),
+    rightGridId <- GridId.parse("right-grid")
+    rightGrid <- Grid.createPersistent(
+      rightGridId,
       rightFrame
     )(Vector(2, 2), Affine.identity[D2])
+    leftSpace = SampleSpace.create(leftGrid, NonSpatialAxes.empty)
+    rightSpace = SampleSpace.create(rightGrid, NonSpatialAxes.empty)
+  yield (leftGrid, rightGrid, leftSpace, rightSpace)
+
+val (leftGrid, rightGrid, leftSpace, rightSpace) =
+  persistentSpaces.fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
   )
-val leftSpace = SampleSpace.create(leftGrid, NonSpatialAxes.empty)
-val rightSpace = SampleSpace.create(rightGrid, NonSpatialAxes.empty)
-val exact = checked(leftSpace.alignExact(rightSpace))
+val exact =
+  leftSpace
+    .alignExact(rightSpace)
+    .fold(
+      error => throw new IllegalArgumentException(error.toString),
+      identity
+    )
 
 assert(!leftGrid.samePersistentKeyAs(rightGrid))
-assert(exact.left eq leftSpace)
-assert(exact.right eq rightSpace)
+assert(exact.left.eq(leftSpace))
+assert(exact.right.eq(rightSpace))
 ```
 
 `alignExact` requires aligned frames, equal spatial shape, identical affine
@@ -118,16 +135,19 @@ coefficients, and equal ordered non-spatial axis records. The resulting
 
 ```scala mdoc:silent
 val rightImage =
-  checked(
-    Image.continuous(
+  Image
+    .continuous(
       rightSpace,
       NDArray.fromSeq(Shape(2, 2), Vector(1.0, 2.0, 3.0, 4.0))
     )
-  )
+    .fold(
+      error => throw new IllegalArgumentException(error.toString),
+      identity
+    )
 val rebound = rightImage.rebind(exact.reverse)
 
-assert(rebound.data eq rightImage.data)
-assert(rebound.sampleSpace eq leftSpace)
+assert(rebound.data.eq(rightImage.data))
+assert(rebound.sampleSpace.eq(leftSpace))
 ```
 
 Rebinding changes the live owner recorded by the sampled value after the proof;
@@ -139,18 +159,23 @@ Approximate congruence answers whether two affines are numerically close within
 a caller-provided tolerance. Non-spatial axis records remain exact.
 
 ```scala mdoc:silent
-val shiftedAffine =
-  checked(
-    Affine.fromRowMajor[D2](
+val nearResult =
+  for
+    shiftedAffine <- Affine.fromRowMajor[D2](
       Vector(
         1.0, 0.0, 1.0e-7,
         0.0, 1.0, 0.0,
         0.0, 0.0, 1.0
       )
     )
-  )
+    nearGrid <- Grid.in(rightFrame)(Vector(2, 2), shiftedAffine)
+  yield nearGrid
+
 val nearGrid =
-  checked(Grid.in(rightFrame)(Vector(2, 2), shiftedAffine))
+  nearResult.fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
+  )
 val nearSpace = SampleSpace.create(nearGrid, NonSpatialAxes.empty)
 
 assert(leftSpace.alignExact(nearSpace).isLeft)

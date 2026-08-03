@@ -5,6 +5,7 @@ import _root_.intaglio.RasterImage
 import _root_.intaglio.RegularGridAxis
 import _root_.intaglio.ScalarColorizer
 import _root_.intaglio.ScalarField2D
+import _root_.intaglio.toPackedInt
 import image4s.Categorical
 import image4s.Continuous
 import image4s.LinearInterpolable
@@ -69,9 +70,9 @@ object DisplayBridge:
 
   /** Render a D2 scalar image into a visual-top-row raster.
     *
-    * The source is not copied or reoriented before packing. The one primitive `Array[Int]` is
-    * allocated by Intaglio's `RasterImage.tabulate`; source lookup, windowing, palette lookup, and
-    * orientation all occur in its pixel loop.
+    * The source is not copied or reoriented before packing. The bridge allocates one primitive
+    * `Array[Int]`, fills it with source lookup, windowing, palette lookup, and orientation in one
+    * loop, then transfers exclusive ownership to Intaglio.
     */
   def renderRaster[
       S <: SampleSpace[?, D2],
@@ -90,13 +91,16 @@ object DisplayBridge:
       )
     val colorizer = ScalarColorizer(plan.window, plan.palette)
 
-    RasterImage.tabulate(dimensions) { (x, y) =>
-      val sourceX =
-        sourceIndexX(x, y, sourceWidth, sourceHeight, orientation)
-      val sourceY =
-        sourceIndexY(x, y, sourceWidth, sourceHeight, orientation)
-      colorizer.color(values.toDouble(image.data(sourceX, sourceY)))
-    }
+    packRaster(
+      dimensions,
+      new PackedPixelAt:
+        def apply(x: Int, y: Int): Int =
+          val sourceX =
+            sourceIndexX(x, y, sourceWidth, sourceHeight, orientation)
+          val sourceY =
+            sourceIndexY(x, y, sourceWidth, sourceHeight, orientation)
+          colorizer.color(values.read2(image.data, sourceX, sourceY)).toPackedInt
+    )
 
   /** Render a scalar D2 raster with a Boolean mask composited in the same display coordinate
     * mapping as the base raster.
@@ -129,16 +133,21 @@ object DisplayBridge:
         )
       val colorizer = ScalarColorizer(plan.window, plan.palette)
       Right(
-        RasterImage.tabulate(dimensions) { (x, y) =>
-          val sourceX =
-            sourceIndexX(x, y, sourceWidth, sourceHeight, orientation)
-          val sourceY =
-            sourceIndexY(x, y, sourceWidth, sourceHeight, orientation)
-          val base = colorizer.color(values.toDouble(image.data(sourceX, sourceY)))
-          if mask.data(sourceX, sourceY) then
-            overlay.blend.composite(base, overlay.foreground, overlay.opacity)
-          else base
-        }
+        packRaster(
+          dimensions,
+          new PackedPixelAt:
+            def apply(x: Int, y: Int): Int =
+              val sourceX =
+                sourceIndexX(x, y, sourceWidth, sourceHeight, orientation)
+              val sourceY =
+                sourceIndexY(x, y, sourceWidth, sourceHeight, orientation)
+              val base = colorizer.color(values.read2(image.data, sourceX, sourceY))
+              val pixel =
+                if mask.data(sourceX, sourceY) then
+                  overlay.blend.composite(base, overlay.foreground, overlay.opacity)
+                else base
+              pixel.toPackedInt
+        )
       )
 
   /** Render integer labels with a deterministic code-to-color palette. */
@@ -156,13 +165,16 @@ object DisplayBridge:
         orientation.outputWidth(sourceWidth, sourceHeight),
         orientation.outputHeight(sourceWidth, sourceHeight)
       )
-    RasterImage.tabulate(dimensions) { (x, y) =>
-      val sourceX =
-        sourceIndexX(x, y, sourceWidth, sourceHeight, orientation)
-      val sourceY =
-        sourceIndexY(x, y, sourceWidth, sourceHeight, orientation)
-      palette.color(labels.data(sourceX, sourceY))
-    }
+    packRaster(
+      dimensions,
+      new PackedPixelAt:
+        def apply(x: Int, y: Int): Int =
+          val sourceX =
+            sourceIndexX(x, y, sourceWidth, sourceHeight, orientation)
+          val sourceY =
+            sourceIndexY(x, y, sourceWidth, sourceHeight, orientation)
+          palette.color(labels.data(sourceX, sourceY)).toPackedInt
+    )
 
   /** Lower one orthogonal D3 slice directly to an Intaglio raster.
     *
@@ -198,19 +210,40 @@ object DisplayBridge:
         )
       val colorizer = ScalarColorizer(plan.window, plan.palette)
       Right(
-        RasterImage.tabulate(dimensions) { (x, y) =>
-          val sourceX =
-            sourceIndexX(x, y, sourceWidth, sourceHeight, orientation)
-          val sourceY =
-            sourceIndexY(x, y, sourceWidth, sourceHeight, orientation)
-          val scalar =
-            fixedAxis match
-              case 0 => values.toDouble(image.data(index, sourceX, sourceY))
-              case 1 => values.toDouble(image.data(sourceX, index, sourceY))
-              case _ => values.toDouble(image.data(sourceX, sourceY, index))
-          colorizer.color(scalar)
-        }
+        packRaster(
+          dimensions,
+          new PackedPixelAt:
+            def apply(x: Int, y: Int): Int =
+              val sourceX =
+                sourceIndexX(x, y, sourceWidth, sourceHeight, orientation)
+              val sourceY =
+                sourceIndexY(x, y, sourceWidth, sourceHeight, orientation)
+              val scalar =
+                fixedAxis match
+                  case 0 => values.read3(image.data, index, sourceX, sourceY)
+                  case 1 => values.read3(image.data, sourceX, index, sourceY)
+                  case _ => values.read3(image.data, sourceX, sourceY, index)
+              colorizer.color(scalar).toPackedInt
+        )
       )
+
+  private trait PackedPixelAt:
+    def apply(x: Int, y: Int): Int
+
+  private def packRaster(
+      dimensions: RasterDimensions,
+      pixelAt: PackedPixelAt
+  ): RasterImage =
+    val pixels = new Array[Int](dimensions.pixelCount)
+    var y = 0
+    while y < dimensions.height do
+      val rowOffset = y * dimensions.width
+      var x = 0
+      while x < dimensions.width do
+        pixels(rowOffset + x) = pixelAt(x, y)
+        x += 1
+      y += 1
+    RasterImage.unsafeFromOwnedPackedArray(dimensions, pixels)
 
   private final case class FieldGeometry(
       originX: Double,

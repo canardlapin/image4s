@@ -12,16 +12,11 @@ import image4s.geometry.*
 import ravel.DType.given
 import ravel.NDArray
 
-def checked[A](value: Either[?, A]): A =
-  value match
-    case Right(result) => result
-    case Left(error)   => throw new IllegalArgumentException(error.toString)
-
-val frame = checked(Frame.named[D2]("view-plane"))
-val grid = checked(Grid.in(frame)(Vector(4, 3), Affine.identity[D2]))
-val time =
-  checked(
-    Axis.regular(
+val setup =
+  for
+    frame <- Frame.named[D2]("view-plane")
+    grid <- Grid.in(frame)(Vector(4, 3), Affine.identity[D2])
+    time <- Axis.regular(
       "time",
       AxisKind.Time,
       extent = 2,
@@ -29,21 +24,23 @@ val time =
       step = 1.0,
       unit = AxisUnit.Seconds
     )
-  )
-val channel =
-  checked(
-    Axis.categorical(
+    channel <- Axis.categorical(
       "channel",
       AxisKind.Channel,
       Vector("magnitude", "phase")
     )
+    axes <- NonSpatialAxes.from(Vector(time, channel))
+    values = NDArray.tabulate[Double](4, 3, 2, 2) { (x, y, t, c) =>
+      x + 10.0 * y + 100.0 * t + 1000.0 * c
+    }
+    image <- Image.continuous(grid, axes, values)
+  yield (frame, grid, time, channel, image)
+
+val (frame, grid, time, channel, image) =
+  setup.fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
   )
-val axes = checked(NonSpatialAxes.from(Vector(time, channel)))
-val values =
-  NDArray.tabulate[Double](4, 3, 2, 2) { (x, y, t, c) =>
-    x + 10.0 * y + 100.0 * t + 1000.0 * c
-  }
-val image = checked(Image.continuous(grid, axes, values))
 ```
 
 ## Select a declared coordinate
@@ -52,9 +49,18 @@ val image = checked(Image.continuous(grid, axes, values))
 repeated time axis instead of choosing a trailing position by convention.
 
 ```scala mdoc:silent
-val atOneSecond = checked(image.atTime(1))
-val (coordinate, selectedChannel) =
-  checked(image.selectNonSpatialWithCoordinate(axis = 1, index = 0))
+val selections =
+  for
+    atOneSecond <- image.atTime(1)
+    coordinate <- image.nonSpatialAxes.coordinateAt(axis = 1, index = 0)
+    selectedChannel <- image.selectNonSpatial(axis = 1, index = 0)
+  yield (atOneSecond, coordinate, selectedChannel)
+
+val (atOneSecond, coordinate, selectedChannel) =
+  selections.fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
+  )
 
 assert(atOneSecond.logicalShape == Vector(4, 3, 2))
 assert(coordinate == AxisCoordinate.Categorical("magnitude"))
@@ -62,16 +68,25 @@ assert(selectedChannel.logicalShape == Vector(4, 3, 2))
 ```
 
 Use `selectNonSpatial(axis, index)` when the axis position is already known.
-Use `selectNonSpatialWithCoordinate` when downstream code or a receipt must
-retain the declared coordinate that was selected.
+Query `nonSpatialAxes.coordinateAt(axis, index)` as well when downstream code
+or a receipt must retain the declared coordinate that was selected.
 
 ## Change the spatial lattice exactly
 
 ```scala mdoc:silent
-val crop = checked(image.crop(Vector(1, 0), Vector(2, 3)))
-val flipped = checked(image.flipSpatial(axis = 0))
-val transposed = checked(image.permuteSpatial(Vector(1, 0)))
-val strided = checked(image.strideSpatial(Vector(2, 1)))
+val spatialViews =
+  for
+    crop <- image.crop(Vector(1, 0), Vector(2, 3))
+    flipped <- image.flipSpatial(axis = 0)
+    transposed <- image.permuteSpatial(Vector(1, 0))
+    strided <- image.strideSpatial(Vector(2, 1))
+  yield (crop, flipped, transposed, strided)
+
+val (crop, flipped, transposed, strided) =
+  spatialViews.fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
+  )
 
 assert(crop.logicalShape == Vector(2, 3, 2, 2))
 assert(crop(0, 0, 0, 0) == image(1, 0, 0, 0))
@@ -94,7 +109,13 @@ an arbitrary rotation, shear, or nonlinear transform is a storage view.
 axes.
 
 ```scala mdoc:silent
-val channelThenTime = checked(image.permuteNonSpatial(Vector(1, 0)))
+val channelThenTime =
+  image
+    .permuteNonSpatial(Vector(1, 0))
+    .fold(
+      error => throw new IllegalArgumentException(error.toString),
+      identity
+    )
 
 assert(channelThenTime.nonSpatialAxes.records ==
   Vector(channel.record, time.record))

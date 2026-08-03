@@ -22,23 +22,24 @@ import ravel.NDArray
 import ravel.Rank
 import ravel.Shape
 
-def checked[A](value: Either[?, A]): A =
-  value match
-    case Right(result) => result
-    case Left(error)   => throw new IllegalArgumentException(error.toString)
-
-val frame = checked(Frame.named[D2]("display-plane"))
-val grid = checked(Grid.in(frame)(Vector(3, 2), Affine.identity[D2]))
-val space = SampleSpace.create(grid, NonSpatialAxes.empty)
-val image =
-  checked(
-    Sampled.continuous[Double, Rank[2]](
+val setup =
+  for
+    frame <- Frame.named[D2]("display-plane")
+    grid <- Grid.in(frame)(Vector(3, 2), Affine.identity[D2])
+    space = SampleSpace.create(grid, NonSpatialAxes.empty)
+    image <- Sampled.continuous[Double, Rank[2]](
       space,
       NDArray.fromSeq(
         Shape(3, 2),
         Vector(0.0, 1.0, 2.0, 3.0, 4.0, 5.0)
       )
     )
+  yield (frame, space, image)
+
+val (frame, space, image) =
+  setup.fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
   )
 
 val plan =
@@ -62,7 +63,13 @@ source `Sampled` value and its grid do not change.
 ## Lower an axis-aligned regular field
 
 ```scala mdoc:silent
-val field = checked(DisplayBridge.toIntaglioField(image))
+val field =
+  DisplayBridge
+    .toIntaglioField(image)
+    .fold(
+      error => throw new IllegalArgumentException(error.toString),
+      identity
+    )
 
 assert(field.xAxis.coordinate(0).contains(0.0))
 assert(field.yAxis.coordinate(0).contains(0.0))
@@ -75,24 +82,31 @@ reversing display values so Intaglio axes remain increasing.
 A rotated or sheared grid is not a regular axis-aligned field:
 
 ```scala mdoc:silent
-val shearedAffine =
-  checked(
-    Affine.fromRowMajor[D2](
+val shearedGridResult =
+  for
+    shearedAffine <- Affine.fromRowMajor[D2](
       Vector(
         1.0, 0.25, 0.0,
         0.0, 1.0, 0.0,
         0.0, 0.0, 1.0
       )
     )
+    shearedGrid <- Grid.in(frame)(Vector(3, 2), shearedAffine)
+  yield shearedGrid
+
+val shearedGrid =
+  shearedGridResult.fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
   )
-val shearedGrid = checked(Grid.in(frame)(Vector(3, 2), shearedAffine))
+val shearedSpace = SampleSpace.create(shearedGrid, NonSpatialAxes.empty)
 val sheared =
-  checked(
-    Sampled.continuous[Double, Rank[2]](
-      SampleSpace.create(shearedGrid, NonSpatialAxes.empty),
-      image.data
+  Sampled
+    .continuous[Double, Rank[2]](shearedSpace, image.data)
+    .fold(
+      error => throw new IllegalArgumentException(error.toString),
+      identity
     )
-  )
 
 assert(DisplayBridge.toIntaglioField(sheared).isLeft)
 ```
@@ -104,23 +118,27 @@ discard off-diagonal affine terms.
 ## Overlay a mask
 
 ```scala mdoc:silent
-val mask =
-  checked(
-    Sampled.mask(
+val overlayResult =
+  for
+    mask <- Sampled.mask(
       space,
       NDArray.fromSeq(
         Shape(3, 2),
         Vector(false, true, false, false, true, false)
       )
     )
-  )
-val overlay =
-  MaskOverlay(
-    foreground = Rgba32.unsafe(255, 0, 0),
-    opacity = DisplayOpacity.Opaque
-  )
+    overlay = MaskOverlay(
+      foreground = Rgba32.unsafe(255, 0, 0),
+      opacity = DisplayOpacity.Opaque
+    )
+    overlaid <- DisplayBridge.renderRasterWithMask(image, mask, plan, overlay)
+  yield overlaid
+
 val overlaid =
-  checked(DisplayBridge.renderRasterWithMask(image, mask, plan, overlay))
+  overlayResult.fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
+  )
 
 assert(overlaid.width == raster.width)
 assert(overlaid.height == raster.height)
@@ -135,12 +153,15 @@ alignment before display rather than treating shape equality as proof.
 
 ```scala mdoc:silent
 val labels =
-  checked(
-    Sampled.categorical[Int, Rank[2]](
+  Sampled
+    .categorical[Int, Rank[2]](
       space,
       NDArray.fromSeq(Shape(3, 2), Vector(0, 7, 7, 11, 7, 11))
     )
-  )
+    .fold(
+      error => throw new IllegalArgumentException(error.toString),
+      identity
+    )
 val labelRaster = DisplayBridge.renderLabels(labels, LabelPalette())
 
 assert(labelRaster.pixel(1, 0) == labelRaster.pixel(2, 0))
@@ -153,26 +174,42 @@ opaque color regardless of traversal order or process lifetime.
 ## Render an orthogonal D3 slice
 
 ```scala mdoc:silent
-val frame3 = checked(Frame.named[D3]("display-volume"))
-val grid3 = checked(Grid.in(frame3)(Vector(2, 3, 2), Affine.identity[D3]))
+val volumeGridResult =
+  for
+    frame3 <- Frame.named[D3]("display-volume")
+    grid3 <- Grid.in(frame3)(Vector(2, 3, 2), Affine.identity[D3])
+  yield grid3
+
+val grid3 =
+  volumeGridResult.fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
+  )
+val volumeSpace = SampleSpace.create(grid3, NonSpatialAxes.empty)
 val volume =
-  checked(
-    Sampled.continuous[Double, Rank[3]](
-      SampleSpace.create(grid3, NonSpatialAxes.empty),
+  Sampled
+    .continuous[Double, Rank[3]](
+      volumeSpace,
       NDArray.tabulate[Double](2, 3, 2) { (x, y, z) =>
         x + 2.0 * y + 6.0 * z
       }
     )
-  )
+    .fold(
+      error => throw new IllegalArgumentException(error.toString),
+      identity
+    )
 val slice =
-  checked(
-    DisplayBridge.renderSliceRaster(
+  DisplayBridge
+    .renderSliceRaster(
       volume,
       axis = SliceAxis.Z,
       index = 1,
       plan = DisplayPlan(DisplayWindow.unsafe(0.0, 11.0))
     )
-  )
+    .fold(
+      error => throw new IllegalArgumentException(error.toString),
+      identity
+    )
 
 assert(slice.width == 2)
 assert(slice.height == 3)

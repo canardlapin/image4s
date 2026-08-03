@@ -14,34 +14,41 @@ import ravel.DType.given
 import ravel.NDArray
 import ravel.Shape
 
-def checked[A](value: Either[?, A]): A =
-  value match
-    case Right(result) => result
-    case Left(error)   => throw new IllegalArgumentException(error.toString)
+val gridResult =
+  for
+    frame <- Frame.named[D2]("pointwise")
+    grid <- Grid.in(frame)(Vector(2, 2), Affine.identity[D2])
+  yield grid
 
-val frame = checked(Frame.named[D2]("pointwise"))
-val grid = checked(Grid.in(frame)(Vector(2, 2), Affine.identity[D2]))
+val grid =
+  gridResult.fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
+  )
 val leftSpace = SampleSpace.create(grid, NonSpatialAxes.empty)
 
-val left =
-  checked(
-    Image.continuous(
+val sharedInputs =
+  for
+    left <- Image.continuous(
       leftSpace,
       NDArray.fromSeq(Shape(2, 2), Vector(1.0, 2.0, 3.0, 4.0))
     )
-  )
-val right =
-  checked(
-    Image.continuous(
+    right <- Image.continuous(
       leftSpace,
       NDArray.fromSeq(Shape(2, 2), Vector.fill(4)(10.0))
     )
+  yield (left, right)
+
+val (left, right) =
+  sharedInputs.fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
   )
 
 val sum = left.zipWith(right)(_ + _)
 
 assert(sum(1, 1) == 14.0)
-assert(sum.sampleSpace eq leftSpace)
+assert(sum.sampleSpace.eq(leftSpace))
 ```
 
 The shared singleton type of `leftSpace` is the proof. `zipWith` computes new
@@ -57,20 +64,25 @@ the resulting `SamplingAlignment`.
 ```scala mdoc:silent
 val reconstructedSpace =
   SampleSpace.create(grid, NonSpatialAxes.empty)
-val reconstructed =
-  checked(
-    Image.continuous(
+val alignedInputs =
+  for
+    reconstructed <- Image.continuous(
       reconstructedSpace,
       NDArray.fromSeq(Shape(2, 2), Vector.fill(4)(20.0))
     )
-  )
+    alignment <- left.sampleSpace.alignExact(reconstructedSpace)
+  yield (reconstructed, alignment)
 
-val alignment = checked(leftSpace.alignExact(reconstructedSpace))
+val (reconstructed, alignment) =
+  alignedInputs.fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
+  )
 val checkedSum =
   left.zipWithAligned(reconstructed, alignment)(_ + _)
 
 assert(checkedSum(1, 1) == 24.0)
-assert(checkedSum.sampleSpace eq leftSpace)
+assert(checkedSum.sampleSpace.eq(leftSpace))
 ```
 
 `alignExact` checks exact grid congruence and equality of the ordered axis
@@ -87,7 +99,7 @@ owner.
 val rebound = reconstructed.rebind(alignment.reverse)
 val reboundSum = left.zipWith(rebound)(_ + _)
 
-assert(rebound.data eq reconstructed.data)
+assert(rebound.data.eq(reconstructed.data))
 assert(reboundSum(0, 0) == 21.0)
 ```
 

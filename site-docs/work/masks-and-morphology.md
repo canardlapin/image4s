@@ -15,16 +15,11 @@ import image4s.ops.*
 import ravel.DType.given
 import ravel.NDArray
 
-def checked[A](value: Either[?, A]): A =
-  value match
-    case Right(result) => result
-    case Left(error)   => throw new IllegalArgumentException(error.toString)
-
-val frame = checked(Frame.named[D2]("mask-plane"))
-val grid = checked(Grid.in(frame)(Vector(7, 7), Affine.identity[D2]))
-val time =
-  checked(
-    Axis.regular(
+val setup =
+  for
+    frame <- Frame.named[D2]("mask-plane")
+    grid <- Grid.in(frame)(Vector(7, 7), Affine.identity[D2])
+    time <- Axis.regular(
       "time",
       AxisKind.Time,
       extent = 2,
@@ -32,20 +27,22 @@ val time =
       step = 1.0,
       unit = AxisUnit.Seconds
     )
-  )
-val axes = checked(NonSpatialAxes.from(Vector(time)))
-val image =
-  checked(
-    Image.continuous(
+    axes <- NonSpatialAxes.from(Vector(time))
+    image <- Image.continuous(
       grid,
       axes,
       NDArray.tabulate[Float](7, 7, 2) { (x, y, t) =>
         if x == 3 && y == 3 then 4.0f + t else 0.0f
       }
     )
-  )
+    mask <- image.threshold(2.0f)
+  yield (grid, image, mask)
 
-val mask = checked(image.threshold(2.0f))
+val (grid, image, mask) =
+  setup.fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
+  )
 
 assert(mask.logicalShape == image.logicalShape)
 assert(mask.grid.sameRuntimeOwnerAs(image.grid))
@@ -61,15 +58,23 @@ semantic role.
 ## Choose a radius and structuring element
 
 ```scala mdoc:silent
-val oneSample = checked(Radius.samples(1))
-val box = StructuringElement.box[D2](oneSample)
-val cross = StructuringElement.cross[D2](oneSample)
-val disk = StructuringElement.disk[D2](oneSample)
+val morphology =
+  for
+    oneSample <- Radius.samples(1)
+    box = StructuringElement.box[D2](oneSample)
+    cross = StructuringElement.cross[D2](oneSample)
+    disk = StructuringElement.disk[D2](oneSample)
+    dilated <- mask.dilate(box)
+    eroded <- dilated.erode(cross)
+    opened <- mask.open(disk)
+    closed <- mask.close(disk)
+  yield (disk, dilated, eroded, opened, closed)
 
-val dilated = checked(mask.dilate(box))
-val eroded = checked(dilated.erode(cross))
-val opened = checked(mask.open(disk))
-val closed = checked(mask.close(disk))
+val (disk, dilated, eroded, opened, closed) =
+  morphology.fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
+  )
 
 assert(dilated.logicalShape == mask.logicalShape)
 assert(eroded.logicalShape == mask.logicalShape)
@@ -93,15 +98,18 @@ element is used.
 ## Express radius in frame units
 
 ```scala mdoc:silent
-val twoMillimetres =
-  checked(
-    Radius.frame(
+val physicalDilation =
+  (for
+    twoMillimetres <- Radius.frame(
       2.0,
       unit = Some(LengthUnit.Millimeter)
     )
+    physicalDisk = StructuringElement.disk[D2](twoMillimetres)
+    result <- mask.dilate(physicalDisk)
+  yield result).fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
   )
-val physicalDisk = StructuringElement.disk[D2](twoMillimetres)
-val physicalDilation = checked(mask.dilate(physicalDisk))
 
 assert(physicalDilation.logicalShape == mask.logicalShape)
 assert(Radius.samples(-1).isLeft)
@@ -125,9 +133,18 @@ lowers the element once and reuses internal workspace for repeated sequential
 calls with the same live sample-space owner.
 
 ```scala mdoc:silent
-val openPlan = checked(BinaryMorphology.prepareOpen(mask, disk))
-val firstOpen = checked(openPlan.run(mask))
-val secondOpen = checked(openPlan.run(mask))
+val preparedRuns =
+  for
+    openPlan <- BinaryMorphology.prepareOpen(mask, disk)
+    firstOpen <- openPlan.run(mask)
+    secondOpen <- openPlan.run(mask)
+  yield (openPlan, firstOpen, secondOpen)
+
+val (openPlan, firstOpen, secondOpen) =
+  preparedRuns.fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
+  )
 
 assert(firstOpen.sameValuesAs(secondOpen)(_ == _))
 assert(openPlan.support.offsets.nonEmpty)
