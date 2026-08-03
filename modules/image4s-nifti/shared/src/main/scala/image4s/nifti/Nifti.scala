@@ -89,7 +89,7 @@ private[nifti] final class NiftiApi[P](
       ValueSemantics[A, Continuous]
   ): Either[
     NiftiError,
-    DecodedNifti[SomeSampled[A, Continuous]]
+    DecodedNifti[SomeSampled.D3Case[A, Continuous]]
   ] =
     readAs(path, conversion, options)
 
@@ -99,7 +99,7 @@ private[nifti] final class NiftiApi[P](
       options: NiftiReadOptions = NiftiReadOptions.default
   ): Either[
     NiftiError,
-    DecodedNifti[SomeSampled[Double, Continuous]]
+    DecodedNifti[SomeSampled.D3Case[Double, Continuous]]
   ] =
     readScalarAs(path, NiftiValueConversion.ScaledDouble, options)
 
@@ -112,7 +112,7 @@ private[nifti] final class NiftiApi[P](
       ValueSemantics[A, Continuous]
   ): Either[
     NiftiError,
-    DecodedNifti[SomeSampled[A, Continuous]]
+    DecodedNifti[SomeSampled.D3Case[A, Continuous]]
   ] =
     for
       header <- readHeader(path, options.ioLimits)
@@ -134,7 +134,7 @@ private[nifti] final class NiftiApi[P](
       options: NiftiReadOptions = NiftiReadOptions.default
   ): Either[
     NiftiError,
-    DecodedNifti[SomeSampled[Float, Continuous]]
+    DecodedNifti[SomeSampled.D3Case[Float, Continuous]]
   ] =
     readAs(
       path,
@@ -147,7 +147,7 @@ private[nifti] final class NiftiApi[P](
       options: NiftiReadOptions = NiftiReadOptions.default
   ): Either[
     NiftiError,
-    DecodedNifti[SomeSampled[Double, Continuous]]
+    DecodedNifti[SomeSampled.D3Case[Double, Continuous]]
   ] =
     readAs(path, NiftiValueConversion.ScaledDouble, options)
 
@@ -156,7 +156,7 @@ private[nifti] final class NiftiApi[P](
       options: NiftiReadOptions = NiftiReadOptions.default
   ): Either[
     NiftiError,
-    DecodedNifti[SomeSampled[Long, Categorical]]
+    DecodedNifti[SomeSampled.D3Case[Long, Categorical]]
   ] =
     for
       header <- readHeader(path, options.ioLimits)

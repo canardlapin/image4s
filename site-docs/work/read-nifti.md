@@ -22,12 +22,12 @@ val path = Path.of("subject01_bold.nii.gz")
 
 val doubles: Either[
   NiftiError,
-  DecodedNifti[SomeSampled[Double, Continuous]]
+  DecodedNifti[SomeSampled.D3Case[Double, Continuous]]
 ] = Nifti.readScalar(path)
 
 val floats: Either[
   NiftiError,
-  DecodedNifti[SomeSampled[Float, Continuous]]
+  DecodedNifti[SomeSampled.D3Case[Float, Continuous]]
 ] = Nifti.readScaledFloat(
   path,
   precision = NiftiFloatPrecision.RejectLossy
@@ -38,6 +38,23 @@ Both methods apply the effective NIfTI slope and intercept. `readScalar` uses
 `Double`. `readScaledFloat` defaults to `RejectLossy`; choose
 `AllowRounding` only when the application accepts values that cannot be
 represented exactly as `Float`.
+
+Fresh-frame NIfTI reads expose a truthful `D3Case`, so rank-safe operations do
+not require a spatial-dimension fold. Selection can retain the decode receipt:
+
+```scala mdoc:compile-only
+import image4s.nifti.*
+import java.nio.file.Path
+
+val selectedVolume =
+  Nifti
+    .readScalar(Path.of("subject01_bold.nii.gz"))
+    .map(_.traverseImage(_.atTime(1)))
+```
+
+The outer `Either` reports decode failures. The inner `Either` reports the
+typed image-selection failure. `traverseImage` preserves the exact parsed
+header and affine-selection objects around the selected `Sampled` value.
 
 ## Retain native stored codes
 
@@ -75,7 +92,7 @@ val path = Path.of("atlas_labels.nii.gz")
 
 val labels: Either[
   NiftiError,
-  DecodedNifti[SomeSampled[Long, Categorical]]
+  DecodedNifti[SomeSampled.D3Case[Long, Categorical]]
 ] = Nifti.readLabels(path)
 
 val nativeLabels: Either[
@@ -109,11 +126,13 @@ val receipt = decoded.map { result =>
 }
 ```
 
-`SomeSampled` hides rank-dependent details selected from the file header while
-retaining the typed element and semantic role. The parsed `NiftiHeader` remains
-available for provenance. `NiftiAffineSelection` records whether sform, qform,
-fallback, or an explicit affine supplied the grid and retains disagreement
-diagnostics.
+`SomeSampled.D3Case` retains header-selected storage rank and frame ownership
+while exposing the known NIfTI spatial dimension. It supports metadata and
+value mapping, checked value access, time/channel/direction selection, exact
+crop/flip/permute/stride views, and explicit rank refinement without copying.
+The parsed `NiftiHeader` remains available for provenance.
+`NiftiAffineSelection` records whether sform, qform, fallback, or an explicit
+affine supplied the grid and retains disagreement diagnostics.
 
 ## Choose affine and temporal-unit policies
 

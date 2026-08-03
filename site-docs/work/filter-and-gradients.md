@@ -8,31 +8,30 @@ that describes the samples actually produced.
 ## Build a small continuous image
 
 ```scala mdoc:silent
-import image4s.*
+import image4s.prelude.*
 import image4s.filter.*
-import image4s.geometry.*
 import image4s.ops.*
-import ravel.DType.given
 import ravel.NDArray
 
+val sampling =
+  SamplingSpec[D2](
+    FrameSpec.named("filter-plane", unit = LengthUnit.Millimeter),
+    GridSpec.identity
+  )
 val setup =
-  for
-    frame <- Frame.named[D2]("filter-plane")
-    grid <- Grid.in(frame)(Vector(9, 9), Affine.identity[D2])
-    impulse <- Image.continuous(
-      grid,
-      NonSpatialAxes.empty,
-      NDArray.tabulate[Double](9, 9) { (x, y) =>
-        if x == 4 && y == 4 then 1.0 else 0.0
-      }
-    )
-  yield (grid, impulse)
+  Image.continuous(
+    NDArray.tabulate[Double](9, 9) { (x, y) =>
+      if x == 4 && y == 4 then 1.0 else 0.0
+    },
+    sampling
+  )
 
-val (grid, impulse) =
+val impulse =
   setup.fold(
     error => throw new IllegalArgumentException(error.toString),
     identity
   )
+val grid = impulse.grid
 ```
 
 ## Choose the scale's coordinate system
@@ -44,16 +43,12 @@ affine.
 ```scala mdoc:silent
 val scaledBlurs =
   for
-    oneSample <- SpatialSigma.samples[D2](1.0)
-    twoMillimetres <- SpatialSigma.frame[D2](
-      2.0,
-      unit = Some(LengthUnit.Millimeter)
-    )
-    sampleBlur <- impulse.gaussianBlur(oneSample)
-    frameBlur <- impulse.gaussianBlur(twoMillimetres)
-  yield (oneSample, sampleBlur, frameBlur)
+    sampleBlur <- impulse.gaussianBlurSamples(1.0)
+    frameBlur <-
+      impulse.gaussianBlurFrame(2.0, LengthUnit.Millimeter)
+  yield (sampleBlur, frameBlur)
 
-val (oneSample, sampleBlur, frameBlur) =
+val (sampleBlur, frameBlur) =
   scaledBlurs.fold(
     error => throw new IllegalArgumentException(error.toString),
     identity
@@ -62,6 +57,10 @@ val (oneSample, sampleBlur, frameBlur) =
 assert(sampleBlur.logicalShape == impulse.logicalShape)
 assert(frameBlur.logicalShape == impulse.logicalShape)
 ```
+
+The `...ByAxis` variants accept one sigma per spatial axis. They retain the
+same explicit sample-versus-frame naming and reject a vector whose length does
+not match `D`.
 
 An isotropic frame sigma can remain separable on a rotated grid. An anisotropic
 frame sigma requires grid axes that map separately to frame axes; otherwise the
@@ -73,16 +72,16 @@ approximating a non-separable kernel.
 ```scala mdoc:silent
 val extents =
   for
-    same <- impulse.gaussianBlur(
-      oneSample,
+    same <- impulse.gaussianBlurSamples(
+      1.0,
       extent = FilterExtent.same(Border.reflect)
     )
-    valid <- impulse.gaussianBlur(
-      oneSample,
+    valid <- impulse.gaussianBlurSamples(
+      1.0,
       extent = FilterExtent.valid
     )
-    full <- impulse.gaussianBlur(
-      oneSample,
+    full <- impulse.gaussianBlurSamples(
+      1.0,
       extent = FilterExtent.full(Border.Constant(0.0))
     )
   yield (same, valid, full)
@@ -112,6 +111,11 @@ Gaussian results are generally fractional. An integer-backed continuous image
 therefore uses `gaussianBlurTo[Float]` or `gaussianBlurTo[Double]`.
 
 ```scala mdoc:silent
+val oneSample =
+  SpatialSigma.samples[D2](1.0).fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
+  )
 val promotedResult =
   for
     integerImage <- Image.continuous(
@@ -133,6 +137,10 @@ assert(promoted.logicalShape == integerImage.logicalShape)
 
 There is no preserving `gaussianBlur` overload for integer storage. The API
 does not silently truncate computed values back to integers.
+
+The explicit `SpatialSigma` value remains the reusable route for promotion and
+prepared execution. The convenience methods do not introduce a second scale
+representation.
 
 ## State the gradient coordinate domain
 

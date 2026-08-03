@@ -38,6 +38,7 @@ final class SamplingAlignmentSuite extends FunSuite:
       )
     val combined =
       left.zipWithAs[Continuous, Double, Continuous](right)(_ + _)
+    val exact = imageRight(left.zipWithExact(right)(_ + _))
 
     assert(left.sameRuntimeSpaceAs(right))
     assertEquals(
@@ -46,6 +47,8 @@ final class SamplingAlignmentSuite extends FunSuite:
     )
     assert(combined.sampleSpace eq space)
     assertEquals(combined(1, 1), 12.0)
+    assert(exact.sampleSpace eq space)
+    assertEquals(exact.data.elementsIterator.toVector, combined.data.elementsIterator.toVector)
 
   test("different static owners cannot use total zipWith"):
     val errors = typeCheckErrors(
@@ -163,6 +166,7 @@ def invalid[
         Double,
         Continuous
       ](right, alignmentAB)(_ - _)
+    val oneShot = imageRight(left.zipWithExact(right)(_ + _))
 
     assert(spaceA ne spaceB)
     assertEquals(spaceA.persistentRelationTo(spaceB), PersistentSpaceComparison.Same)
@@ -191,6 +195,11 @@ def invalid[
       difference.data.elementsIterator.toVector,
       Vector.fill(8)(-10.0)
     )
+    assertEquals(
+      oneShot.data.elementsIterator.toVector,
+      combined.data.elementsIterator.toVector
+    )
+    assert(oneShot.sampleSpace eq spaceA)
 
   test("persistent identity and exact congruence are distinct relations"):
     val frame =
@@ -240,8 +249,16 @@ def invalid[
       geometryRight(Grid.in(frame)(Vector(2, 2), shifted))
     val left = SampleSpace.create(leftGrid, NonSpatialAxes.empty)
     val right = SampleSpace.create(rightGrid, NonSpatialAxes.empty)
+    val leftImage =
+      imageRight(Sampled.continuous(left, NDArray.zeros[Double](2, 2)))
+    val rightImage =
+      imageRight(Sampled.continuous(right, NDArray.zeros[Double](2, 2)))
 
     assert(left.alignExact(right).isLeft)
+    assertEquals(
+      leftImage.zipWithExact(rightImage)(_ + _).left.toOption,
+      left.alignExact(right).left.toOption
+    )
     assert(left.approximatelyCongruentTo(right, 1e-7).isLeft)
     assertEquals(
       imageRight(left.approximatelyCongruentTo(right, 1e-5)).tolerance,

@@ -14,45 +14,35 @@ import ravel.Shape
 
 final class ApproachableApiSuite extends FunSuite:
   test("ordinary construction, time selection, crop, and map stay concise"):
-    val frame =
-      geometryRight(
-        Frame.named[D3](
+    val sampling =
+      SamplingSpec[D3](
+        frame = FrameSpec.named(
           "native",
           unit = LengthUnit.Millimeter,
           convention = CoordinateConvention.RAS
+        ),
+        grid = GridSpec.identity,
+        axes = AxesSpec(
+          AxisSpec.timeRegular(
+            origin = 0.0,
+            step = 0.8,
+            unit = AxisUnit.Seconds
+          )
         )
       )
-    val grid =
-      geometryRight(
-        Grid.in(frame)(
-          Vector(6, 7, 5),
-          Affine.identity[D3]
-        )
-      )
-    val time =
-      imageRight(
-        Axis.regular(
-          "time",
-          AxisKind.Time,
-          extent = 4,
-          origin = 0.0,
-          step = 0.8,
-          unit = AxisUnit.Seconds
-        )
-      )
-    val axes = imageRight(NonSpatialAxes.from(Vector(time)))
     val values =
       NDArray.tabulate[Double](6, 7, 5, 4)((i, j, k, t) => 1000.0 * i + 100.0 * j + 10.0 * k + t)
-    val bold = imageRight(Image.continuous(grid, axes, values))
-    val volume = imageRight(bold.atTime(2))
-    val crop =
-      imageRight(
-        volume.crop(
+
+    val result =
+      for
+        bold <- Image.continuous(values, sampling)
+        volume <- bold.atTime(2)
+        crop <- volume.crop(
           origin = Vector(1, 2, 1),
           shape = Vector(3, 4, 2)
         )
-      )
-    val centered = crop.mapValues(_ - 1000.0)
+      yield (bold, volume, crop, crop.mapValues(_ - 1000.0))
+    val (bold, volume, crop, centered) = imageRight(result)
 
     assertEquals(bold.logicalShape, Vector(6, 7, 5, 4))
     assertEquals(volume.logicalShape, Vector(6, 7, 5))
@@ -106,10 +96,12 @@ final class ApproachableApiSuite extends FunSuite:
     val rebound = reconstructed.rebind(alignment.reverse)
     val aligned = left.zipWith(rebound)(_ + _)
     val checked = left.zipWithAligned(reconstructed, alignment)(_ + _)
+    val exact = imageRight(left.zipWithExact(reconstructed)(_ + _))
 
     assertEquals(direct(1, 1, 1), 17.0)
     assertEquals(aligned(1, 1, 1), 27.0)
     assertEquals(checked(1, 1, 1), 27.0)
+    assertEquals(exact(1, 1, 1), 27.0)
     assert(rebound.data eq reconstructed.data)
     assert(checked.sampleSpace eq leftSpace)
 

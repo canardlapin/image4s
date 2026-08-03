@@ -74,6 +74,25 @@ object ImageError:
     val message: String =
       s"non-spatial axis name $name occurs more than once"
 
+  final case class SamplingSpecificationRankMismatch(
+      spatialRank: Int,
+      axisCount: Int,
+      actualRank: Int
+  ) extends ImageError:
+    val message: String =
+      s"sampling specification requires storage rank ${spatialRank + axisCount} " +
+        s"($spatialRank spatial and $axisCount non-spatial), got $actualRank"
+
+  final case class AxisSpecificationExtentMismatch(
+      axis: Int,
+      name: String,
+      declaredExtent: Int,
+      boundExtent: Int
+  ) extends ImageError:
+    val message: String =
+      s"non-spatial axis $axis ($name) declares extent $declaredExtent but " +
+        s"the corresponding storage extent is $boundExtent"
+
   final case class SampledShapeMismatch(
       expected: Vector[Int],
       actual: Vector[Int]

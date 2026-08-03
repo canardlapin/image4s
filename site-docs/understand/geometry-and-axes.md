@@ -9,6 +9,48 @@ Four objects describe where image samples belong. Each has one job:
 | `Axis` | Declare coordinates for one non-spatial dimension |
 | `SampleSpace` | Bind one grid to an ordered collection of axes |
 
+## Use a create-only request for ordinary construction
+
+When one image is being created from an array shape, `SamplingSpec` states the
+same information without manually threading four successful constructors:
+
+```scala mdoc:silent
+import image4s.*
+import image4s.geometry.*
+
+val request =
+  SamplingSpec[D2](
+    frame = FrameSpec.named(
+      "scanner-plane",
+      unit = LengthUnit.Millimeter,
+      convention = CoordinateConvention.RAS
+    ),
+    grid = GridSpec.axisAligned(
+      origin = Vector(10.0, 20.0),
+      spacing = Vector(2.0, 2.0)
+    ),
+    axes = AxesSpec(
+      AxisSpec.timeRegular(
+        origin = 0.0,
+        step = 0.5,
+        unit = AxisUnit.Seconds
+      )
+    )
+  )
+
+val requestedSpace = request.buildFor(Vector(6, 5, 3))
+assert(requestedSpace.map(_.logicalShape) == Right(Vector(6, 5, 3)))
+```
+
+Building validates the request and creates the canonical objects in the table
+above. A request is reusable, but each build creates a fresh live owner. Build
+once and pass the resulting `SampleSpace` to several image constructors when
+those images must combine through the same-owner `zipWith` route.
+
+Use `FrameSpec.persistent` when reconstruction must carry a persistent frame
+key. It still creates a fresh live owner; persistent identity authorizes an
+exact comparison, not automatic aliasing.
+
 ## A frame names the coordinate system
 
 A frame records spatial rank, length unit, and coordinate convention. Two
@@ -21,9 +63,6 @@ This affine gives each sample a spacing of 2 millimetres and places index
 `(0, 0)` at frame coordinate `(10, 20)`.
 
 ```scala mdoc:silent
-import image4s.*
-import image4s.geometry.*
-
 val geometry =
   for
     frame <- Frame.named[D2](

@@ -1187,6 +1187,115 @@ Sampled.create[
 
     assertEquals(ranks, 3 -> 4)
 
+  test("SomeSampled lifts rank-preserving metadata, maps, and exact views"):
+    val frame = geometryRight(Frame.named[D3]("dynamic-operations"))
+    val grid =
+      geometryRight(Grid.in(frame)(Vector(3, 4, 2), Affine.identity[D3]))
+    val time = imageRight(Axis.create("time", 2, AxisKind.Time))
+    val axes = imageRight(NonSpatialAxes.from(Vector(time)))
+    val sampled =
+      imageRight(
+        Sampled.continuous(
+          grid,
+          axes,
+          NDArray.tabulate[Double](3, 4, 2, 2) { (i, j, k, t) =>
+            1000.0 * i + 100.0 * j + 10.0 * k + t
+          }
+        )
+      )
+    val discovered = SomeSampled.d3(sampled)
+
+    assert(discovered.sampleSpace eq sampled.sampleSpace)
+    assert(discovered.grid eq sampled.grid)
+    assert(discovered.data eq sampled.data)
+    assertEquals(discovered.logicalShape, Vector(3, 4, 2, 2))
+    assertEquals(discovered.nonSpatialAxes.records, axes.records)
+    assertEquals(discovered.valueAt(Vector(2, 3, 1), Vector(1)), Right(2311.0))
+
+    val named = discovered.withMetadata(ImageMetadata.named("named"))
+    assertEquals(named.metadata, ImageMetadata.named("named"))
+    assert(named.data eq sampled.data)
+
+    val centered = discovered.mapValues(_ - 1000.0)
+    assertEquals(centered.valueAt(Vector(2, 3, 1), Vector(1)), Right(1311.0))
+    assert(centered.sampleSpace eq sampled.sampleSpace)
+
+    val mask: SomeSampled[Boolean, Mask] =
+      discovered.mapValuesAs[Boolean, Mask](_ >= 1000.0)
+    assertEquals(mask.valueAt(Vector(0, 0, 0), Vector(0)), Right(false))
+    assertEquals(mask.valueAt(Vector(2, 0, 0), Vector(0)), Right(true))
+
+    val crop = imageRight(
+      discovered.crop(origin = Vector(1, 1, 0), shape = Vector(2, 2, 2))
+    )
+    assertEquals(crop.logicalShape, Vector(2, 2, 2, 2))
+    crop.fold(
+      _ => fail("expected D3 crop"),
+      d3 =>
+        assert(d3.value.frame eq frame)
+        assert(!d3.value.data.isCanonicalLayout)
+        assertEquals(d3.valueAt(Vector(0, 0, 0), Vector(1)), Right(1101.0))
+    )
+
+  test("SomeSampled hides initial drop evidence while preserving the lowered rank"):
+    val frame = geometryRight(Frame.named[D3]("dynamic-selection"))
+    val grid =
+      geometryRight(Grid.in(frame)(Vector(2, 2, 2), Affine.identity[D3]))
+    val time = imageRight(Axis.create("time", 3, AxisKind.Time))
+    val axes = imageRight(NonSpatialAxes.from(Vector(time)))
+    val sampled =
+      imageRight(
+        Sampled.continuous(
+          grid,
+          axes,
+          NDArray.zeros[Double, Rank[4]](Shape(2, 2, 2, 3))
+        )
+      )
+    val discovered = SomeSampled.d3(sampled)
+
+    val selected: Sampled[
+      ? <: SampleSpace[discovered.F, D3],
+      Double,
+      Continuous,
+      Rank[3]
+    ] = imageRight(discovered.atTime(1))
+
+    assertEquals(selected.logicalShape, Vector(2, 2, 2))
+    assertEquals(selected.data.shape.rank, 3)
+    assert(selected.frame eq frame)
+
+    val dynamicSampled =
+      imageRight(
+        Sampled.continuous(
+          grid,
+          axes,
+          NDArray.zeros[Double, AnyRank](dynamicShape(2, 2, 2, 3))
+        )
+      )
+    val dynamic = SomeSampled.d3(dynamicSampled)
+    val dynamicSelected = imageRight(dynamic.atTime(2))
+
+    assertEquals(dynamicSelected.logicalShape, Vector(2, 2, 2))
+    assertEquals(dynamicSelected.data.shape.rank, 3)
+
+  test("SomeSampled packaging requires honest drop-axis evidence"):
+    val errors = typeCheckErrors(
+      """
+import image4s.*
+import image4s.geometry.*
+import ravel.AnyRank
+
+def packageUnknown[
+  F <: Frame[D3],
+  S <: SampleSpace[F, D3],
+  R <: AnyRank
+](sampled: Sampled[S, Double, Continuous, R]) =
+  SomeSampled.d3(sampled)
+"""
+    )
+
+    assert(errors.exists(_.message.contains("CanDropAxis")))
+
   test("SomeSampled constructors reject the wrong spatial dimension"):
     val errors = typeCheckErrors(
       """
