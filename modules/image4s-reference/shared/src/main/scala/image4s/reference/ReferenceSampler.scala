@@ -16,12 +16,11 @@ import image4s.geometry.Dimension
 import image4s.geometry.Frame
 import image4s.geometry.Point
 
-/**
- * Small, allocation-tolerant correctness oracle for sampling semantics.
- *
- * This API deliberately does not compile or cache a resampling plan. Production
- * resampling lives in `reframe4s-resample` after its Ravel capability gate.
- */
+/** Small, allocation-tolerant correctness oracle for sampling semantics.
+  *
+  * This API deliberately does not compile or cache a resampling plan. Production resampling lives
+  * in `reframe4s-resample` after its Ravel capability gate.
+  */
 object ReferenceSampler:
   def nearest[
       F <: Frame[D],
@@ -241,8 +240,7 @@ object ReferenceSampler:
       .left
       .map(ImageError.Geometry.apply)
       .flatMap(
-        _.pointToLeft(point)
-          .left
+        _.pointToLeft(point).left
           .map(ImageError.Geometry.apply)
       )
 
@@ -348,6 +346,4 @@ object ReferenceSampler:
       index: Vector[Int]
   ): Boolean =
     index.length == shape.length &&
-      index.indices.forall(axis =>
-        index(axis) >= 0 && index(axis) < shape(axis)
-      )
+      index.indices.forall(axis => index(axis) >= 0 && index(axis) < shape(axis))

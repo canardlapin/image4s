@@ -42,9 +42,7 @@ final class ApproachableApiSuite extends FunSuite:
       )
     val axes = imageRight(NonSpatialAxes.from(Vector(time)))
     val values =
-      NDArray.tabulate[Double](6, 7, 5, 4)((i, j, k, t) =>
-        1000.0 * i + 100.0 * j + 10.0 * k + t
-      )
+      NDArray.tabulate[Double](6, 7, 5, 4)((i, j, k, t) => 1000.0 * i + 100.0 * j + 10.0 * k + t)
     val bold = imageRight(Image.continuous(grid, axes, values))
     val volume = imageRight(bold.atTime(2))
     val crop =
@@ -120,11 +118,11 @@ final class ApproachableApiSuite extends FunSuite:
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def imageRight[A](
       value: Either[ImageError, A]
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)

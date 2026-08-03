@@ -80,8 +80,7 @@ final class RegistryConcurrencySuite extends FunSuite:
       }
       assertEquals(firstFrame.registry.size, 1)
       assertEquals(firstGrid.registry.size, 1)
-    finally
-      executor.shutdownNow(): Unit
+    finally executor.shutdownNow(): Unit
 
   test("concurrent conflicting restores fail deterministically without mutation"):
     val id = geometryRight(FrameId.parse("concurrent-conflict"))
@@ -133,12 +132,11 @@ final class RegistryConcurrencySuite extends FunSuite:
       val restored =
         geometryRight(Frame.restore[D2](baselineRecord, registry))
       assertEquals(restored.registry.size, 1)
-    finally
-      executor.shutdownNow(): Unit
+    finally executor.shutdownNow(): Unit
 
   private def geometryRight[A](
       value: Either[GeometryError, A]
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)

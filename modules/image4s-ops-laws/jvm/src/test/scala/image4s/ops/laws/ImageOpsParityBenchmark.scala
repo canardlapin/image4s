@@ -41,9 +41,9 @@ import ravel.Rank
 
 /** JVM-side parity oracle and wall-clock baseline for the SciPy harness.
   *
-  * The companion Python script owns the external reference implementation.
-  * This class deliberately writes plain TSV rather than a Scala-specific
-  * serialization so the comparison remains inspectable and language-neutral.
+  * The companion Python script owns the external reference implementation. This class deliberately
+  * writes plain TSV rather than a Scala-specific serialization so the comparison remains
+  * inspectable and language-neutral.
   */
 object ImageOpsParityBenchmark:
   private val Small2D = Vector(17, 13)
@@ -471,9 +471,8 @@ object ImageOpsParityBenchmark:
     imageRight(
       Sampled.continuous[Double, Rank[3]](
         space,
-        NDArray.tabulate[Double](shape(0), shape(1), shape(2)) {
-          (x, y, z) =>
-            ((x + 2 * y + 3 * z) % 31).toDouble / 31.0
+        NDArray.tabulate[Double](shape(0), shape(1), shape(2)) { (x, y, z) =>
+          ((x + 2 * y + 3 * z) % 31).toDouble / 31.0
         }
       )
     )
@@ -502,11 +501,10 @@ object ImageOpsParityBenchmark:
     while iteration < options.iterations do
       val started = System.nanoTime()
       runRepeated(benchmark.run, options.innerRepetitions)
-      timings(iteration) =
-        math.max(
-          1L,
-          (System.nanoTime() - started) / options.innerRepetitions.toLong
-        )
+      timings(iteration) = math.max(
+        1L,
+        (System.nanoTime() - started) / options.innerRepetitions.toLong
+      )
       iteration += 1
     val sorted = timings.sorted
     val median = sorted(sorted.length / 2)
@@ -593,10 +591,9 @@ object ImageOpsParityBenchmark:
         case unknown =>
           throw new IllegalArgumentException(s"unknown argument: $unknown")
       index += 1
-    if
-      options.warmups < 0 ||
-        options.iterations <= 0 ||
-        options.innerRepetitions <= 0
+    if options.warmups < 0 ||
+      options.iterations <= 0 ||
+      options.innerRepetitions <= 0
     then
       throw new IllegalArgumentException(
         "warmups must be non-negative, iterations and inner-repetitions must be positive"
@@ -621,14 +618,14 @@ object ImageOpsParityBenchmark:
   private def opsRight[A](value: Either[OpError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => throw new IllegalStateException(error.message)
+      case Left(error) => throw new IllegalStateException(error.message)
 
   private def geometryRight[A](value: Either[GeometryError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => throw new IllegalStateException(error.message)
+      case Left(error) => throw new IllegalStateException(error.message)
 
   private def imageRight[A](value: Either[ImageError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => throw new IllegalStateException(error.message)
+      case Left(error) => throw new IllegalStateException(error.message)

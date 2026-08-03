@@ -7,13 +7,12 @@ import image4s.geometry.Dim
 import image4s.geometry.Dimension
 import image4s.geometry.Frame
 
-/** A sampled image whose spatial dimension, frame owner, and storage rank were
-  * discovered at runtime.
+/** A sampled image whose spatial dimension, frame owner, and storage rank were discovered at
+  * runtime.
   *
-  * `SomeSampled` contains the original [[Sampled]] value. It does not copy its
-  * data or define another image representation. Use `fold` to recover either a
-  * D2 or D3 case while retaining the hidden frame and rank as path-dependent
-  * type members.
+  * `SomeSampled` contains the original [[Sampled]] value. It does not copy its data or define
+  * another image representation. Use `fold` to recover either a D2 or D3 case while retaining the
+  * hidden frame and rank as path-dependent type members.
   */
 sealed trait SomeSampled[A, Sem]:
   type D <: Dim
@@ -36,8 +35,7 @@ sealed trait SomeSampled[A, Sem]:
   ): B
 
 object SomeSampled:
-  sealed trait D2Case[A, Sem]
-      extends SomeSampled[A, Sem]:
+  sealed trait D2Case[A, Sem] extends SomeSampled[A, Sem]:
     final type D = D2
 
     final def fold[B](
@@ -46,8 +44,7 @@ object SomeSampled:
     ): B =
       onD2(this)
 
-  sealed trait D3Case[A, Sem]
-      extends SomeSampled[A, Sem]:
+  sealed trait D3Case[A, Sem] extends SomeSampled[A, Sem]:
     final type D = D3
 
     final def fold[B](

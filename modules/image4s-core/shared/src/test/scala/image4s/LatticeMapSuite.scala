@@ -17,15 +17,7 @@ final class LatticeMapSuite extends FunSuite:
       geometryRight(
         Affine.fromRowMajor[D2](
           Vector(
-            2.0,
-            0.25,
-            10.0,
-            -0.5,
-            3.0,
-            20.0,
-            0.0,
-            0.0,
-            1.0
+            2.0, 0.25, 10.0, -0.5, 3.0, 20.0, 0.0, 0.0, 1.0
           )
         )
       )
@@ -48,9 +40,7 @@ final class LatticeMapSuite extends FunSuite:
         Sampled.continuous(
           grid,
           axes,
-          NDArray.tabulate[Double](5, 6, 2)((i, j, t) =>
-            100.0 * i + 10.0 * j + t
-          )
+          NDArray.tabulate[Double](5, 6, 2)((i, j, t) => 100.0 * i + 10.0 * j + t)
         )
       )
     val map =
@@ -290,9 +280,7 @@ final class LatticeMapSuite extends FunSuite:
         .mapValuesAs[Double, Continuous](_ + 1.0)
         .mapValuesAs[Double, Continuous](_ * 2.0)
     val composed =
-      source.mapValuesAs[Double, Continuous](value =>
-        (value + 1.0) * 2.0
-      )
+      source.mapValuesAs[Double, Continuous](value => (value + 1.0) * 2.0)
     val categorical =
       source.mapValuesAs[Int, Categorical](_.toInt)
     val replacement =
@@ -309,10 +297,7 @@ final class LatticeMapSuite extends FunSuite:
           ravel.Rank[3]
         ](
           axis = 0,
-          reducedData =
-            NDArray.tabulate[Double](2, 3, 3)((i, j, c) =>
-              1000.0 * i + 100.0 * j + c
-            )
+          reducedData = NDArray.tabulate[Double](2, 3, 3)((i, j, c) => 1000.0 * i + 100.0 * j + c)
         )
       )
 
@@ -355,12 +340,7 @@ final class LatticeMapSuite extends FunSuite:
       LatticeMap.identity[D2](Vector(3)),
       Left(
         ImageError.LatticeMapRankMismatch(
-          2,
-          1,
-          1,
-          2,
-          2,
-          2
+          2, 1, 1, 2, 2, 2
         )
       )
     )
@@ -438,11 +418,11 @@ final class LatticeMapSuite extends FunSuite:
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def imageRight[A](
       value: Either[ImageError, A]
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)

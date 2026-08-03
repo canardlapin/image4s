@@ -63,9 +63,7 @@ object SamplingLaws:
   )(using Dimension[D]): Either[ImageError, Boolean] =
     ReferenceSampler
       .linearToDouble(image, point, boundary = boundary)
-      .map(result =>
-        math.abs(result.value - expected) <= tolerance
-      )
+      .map(result => math.abs(result.value - expected) <= tolerance)
 
   def validityWeightIsBounded(validity: Validity): Boolean =
     validity match

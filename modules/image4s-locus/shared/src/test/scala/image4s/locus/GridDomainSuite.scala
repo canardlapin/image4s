@@ -367,9 +367,7 @@ final class GridDomainSuite extends ScalaCheckSuite:
         Sampled.continuous(
           grid,
           axes,
-          NDArray.tabulate[Double](2, 3, 4)((i, j, t) =>
-            100.0 * i + 10.0 * j + t
-          )
+          NDArray.tabulate[Double](2, 3, 4)((i, j, t) => 100.0 * i + 10.0 * j + t)
         )
       )
     val field = right(bridge.seriesField(image))
@@ -380,9 +378,13 @@ final class GridDomainSuite extends ScalaCheckSuite:
     assertEquals(series.nonSpatialAxes.records, axes.records)
     assertEquals(imageRight(series.valueAt(Vector(3))), 113.0)
     assert(
-      bridge.spatialField(image).left.toOption.contains(
-        GridDomainError.SpatialFieldRequiresNoNonSpatialAxes(1)
-      )
+      bridge
+        .spatialField(image)
+        .left
+        .toOption
+        .contains(
+          GridDomainError.SpatialFieldRequiresNoNonSpatialAxes(1)
+        )
     )
 
   test("exact crop commutes with image values, masks, and selections"):
@@ -413,10 +415,12 @@ final class GridDomainSuite extends ScalaCheckSuite:
           coordinatesOfOrdinal(map.targetShape, targetIndex.ordinal)
         imageRight(targetImage.valueAt(coordinates))
 
-    assert(GridDomainLaws.exactViewCommutesWithField(
-      sourceField,
-      view
-    )(targetField))
+    assert(
+      GridDomainLaws.exactViewCommutesWithField(
+        sourceField,
+        view
+      )(targetField)
+    )
     assertEquals(
       view.injection.toTotalMap.targetOrdinals.toVector,
       Vector(6, 7, 8, 11, 12, 13)
@@ -525,7 +529,7 @@ final class GridDomainSuite extends ScalaCheckSuite:
   private def right[E, A](value: Either[E, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(s"expected Right, found Left($error)")
+      case Left(error) => fail(s"expected Right, found Left($error)")
 
   private def imageRight[A](value: Either[image4s.ImageError, A]): A =
     right(value)

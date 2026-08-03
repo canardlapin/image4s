@@ -272,8 +272,7 @@ final class ImageRepresentationPerformanceSuite extends FunSuite:
           while k < nz do
             var t = 0
             while t < nt do
-              values(cIndex(i, j, k, t)) =
-                legacy(legacyIndex(i, j, k, t))
+              values(cIndex(i, j, k, t)) = legacy(legacyIndex(i, j, k, t))
               t += 1
             k += 1
           j += 1
@@ -281,9 +280,7 @@ final class ImageRepresentationPerformanceSuite extends FunSuite:
       values
 
     private val canonical =
-      NDArray.tabulate[Double](nx, ny, nz, nt)((i, j, k, t) =>
-        legacy(legacyIndex(i, j, k, t))
-      )
+      NDArray.tabulate[Double](nx, ny, nz, nt)((i, j, k, t) => legacy(legacyIndex(i, j, k, t)))
     private val canonicalAccess =
       CanonicalArray.require(canonical)
 
@@ -317,7 +314,7 @@ final class ImageRepresentationPerformanceSuite extends FunSuite:
         traverseCOrder((i, j, k, t) =>
           sampled.valueAt(Vector(i, j, k), Vector(t)) match
             case Right(result) => result
-            case Left(error)   => fail(error.message)
+            case Left(error) => fail(error.message)
         )
 
     val primitiveCanonicalLinear: () => Signature =
@@ -327,19 +324,13 @@ final class ImageRepresentationPerformanceSuite extends FunSuite:
       () => traverseCanonicalLinear(canonicalAccess.readLinear)
 
     val legacyVolumeOrder: () => Signature =
-      () =>
-        traverseVolumeOrder((i, j, k, t) =>
-          legacy(legacyIndex(i, j, k, t))
-        )
+      () => traverseVolumeOrder((i, j, k, t) => legacy(legacyIndex(i, j, k, t)))
 
     val ravelVolumeOrder: () => Signature =
       () => traverseVolumeOrder(canonical.apply)
 
     val legacyZSlices: () => Signature =
-      () =>
-        traverseZSlices((i, j, k, t) =>
-          legacy(legacyIndex(i, j, k, t))
-        )
+      () => traverseZSlices((i, j, k, t) => legacy(legacyIndex(i, j, k, t)))
 
     val ravelZSlices: () => Signature =
       () => traverseZSlices(canonical.apply)
@@ -502,11 +493,13 @@ final class ImageRepresentationPerformanceSuite extends FunSuite:
     val allocatedBytes =
       allocationSamples.map(_._2).sorted.apply(allocationSamples.size / 2)
     val timings =
-      Vector.tabulate(21) { _ =>
-        val started = System.nanoTime()
-        run()
-        System.nanoTime() - started
-      }.sorted
+      Vector
+        .tabulate(21) { _ =>
+          val started = System.nanoTime()
+          run()
+          System.nanoTime() - started
+        }
+        .sorted
     ChecksumReceipt(
       name,
       checksum,
@@ -528,11 +521,13 @@ final class ImageRepresentationPerformanceSuite extends FunSuite:
     val allocatedBytes =
       allocationSamples.map(_._2).sorted.apply(allocationSamples.size / 2)
     val timings =
-      Vector.tabulate(21) { _ =>
-        val started = System.nanoTime()
-        workload.run()
-        System.nanoTime() - started
-      }.sorted
+      Vector
+        .tabulate(21) { _ =>
+          val started = System.nanoTime()
+          workload.run()
+          System.nanoTime() - started
+        }
+        .sorted
     Receipt(
       workload.name,
       workload.samples,
@@ -545,8 +540,7 @@ final class ImageRepresentationPerformanceSuite extends FunSuite:
     val allocationBean =
       ManagementFactory.getThreadMXBean match
         case bean: ThreadMXBean if bean.isThreadAllocatedMemorySupported =>
-          if !bean.isThreadAllocatedMemoryEnabled then
-            bean.setThreadAllocatedMemoryEnabled(true)
+          if !bean.isThreadAllocatedMemoryEnabled then bean.setThreadAllocatedMemoryEnabled(true)
           bean
         case _ =>
           fail("this JVM does not expose per-thread allocation accounting")
@@ -562,11 +556,11 @@ final class ImageRepresentationPerformanceSuite extends FunSuite:
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def imageRight[A](
       value: Either[ImageError, A]
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)

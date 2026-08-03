@@ -65,13 +65,13 @@ final class OpsCoreVocabSuite extends FunSuite:
     val full: FilterExtent[Double] = FilterExtent.full(Border.Replicate)
     same match
       case FilterExtent.Same(_) => ()
-      case _                    => fail("expected Same")
+      case _ => fail("expected Same")
     valid match
       case FilterExtent.Valid => ()
-      case _                  => fail("expected Valid")
+      case _ => fail("expected Valid")
     full match
       case FilterExtent.Full(_) => ()
-      case _                    => fail("expected Full")
+      case _ => fail("expected Full")
 
   test("SpatialSigma and Radius distinguish samples vs frame"):
     val sample = opsRight(SpatialSigma.samples[D3](1.5))
@@ -165,9 +165,9 @@ final class OpsCoreVocabSuite extends FunSuite:
   private def opsRight[A](value: Either[OpError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def geometryRight[A](value: Either[GeometryError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)

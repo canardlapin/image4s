@@ -42,15 +42,7 @@ final class DisplayBridgeSuite extends FunSuite:
       geometryRight(
         Affine.fromRowMajor[D2](
           Vector(
-            -1.0,
-            0.0,
-            1.0,
-            0.0,
-            1.0,
-            0.0,
-            0.0,
-            0.0,
-            1.0
+            -1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0
           )
         )
       )
@@ -66,15 +58,7 @@ final class DisplayBridgeSuite extends FunSuite:
       geometryRight(
         Affine.fromRowMajor[D2](
           Vector(
-            1.0,
-            0.25,
-            0.0,
-            0.0,
-            1.0,
-            0.0,
-            0.0,
-            0.0,
-            1.0
+            1.0, 0.25, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0
           )
         )
       )
@@ -216,18 +200,18 @@ final class DisplayBridgeSuite extends FunSuite:
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def geometryRight[A](
       value: Either[GeometryError, A]
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def imageRight[A](
       value: Either[ImageError, A]
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)

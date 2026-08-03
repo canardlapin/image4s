@@ -6,8 +6,7 @@ import image4s.geometry.GeometryError
 /** Errors from image-aware operations over [[image4s.Sampled]].
   *
   * This module is temporarily hosted in the image4s repository. Extraction to
-  * `canardlapin/image4s-ops` must remain mechanical: `image4s-core` never
-  * depends on `image4s.ops`.
+  * `canardlapin/image4s-ops` must remain mechanical: `image4s-core` never depends on `image4s.ops`.
   */
 sealed trait OpError:
   def message: String

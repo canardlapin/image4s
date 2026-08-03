@@ -141,16 +141,15 @@ final class NiftiSuite extends FunSuite:
       qformPath,
       dimensions = Vector(1, 1, 1),
       spacing = Vector(2.0, 3.0, 4.0),
-      qform =
-        Some(
-          QForm(
-            0.0,
-            0.0,
-            halfSqrt,
-            Vector(10.0, 20.0, 30.0),
-            qfac = -1.0
-          )
-        ),
+      qform = Some(
+        QForm(
+          0.0,
+          0.0,
+          halfSqrt,
+          Vector(10.0, 20.0, 30.0),
+          qfac = -1.0
+        )
+      ),
       values = Vector(7.0)
     )
     val qformDecoded =
@@ -158,34 +157,27 @@ final class NiftiSuite extends FunSuite:
     assertRows(
       qformDecoded.affineSelection.affine.rowMajor,
       Vector(
-        0.0, -3.0, 0.0, 10.0,
-        2.0, 0.0, 0.0, 20.0,
-        0.0, 0.0, -4.0, 30.0,
-        0.0, 0.0, 0.0, 1.0
+        0.0, -3.0, 0.0, 10.0, 2.0, 0.0, 0.0, 20.0, 0.0, 0.0, -4.0, 30.0, 0.0, 0.0, 0.0, 1.0
       )
     )
 
     val sform =
       Vector(
-        -2.0, 0.25, 0.0, 40.0,
-        0.0, 3.0, 0.0, 50.0,
-        0.0, 0.0, 4.0, 60.0,
-        0.0, 0.0, 0.0, 1.0
+        -2.0, 0.25, 0.0, 40.0, 0.0, 3.0, 0.0, 50.0, 0.0, 0.0, 4.0, 60.0, 0.0, 0.0, 0.0, 1.0
       )
     val bothPath = temporaryPath("both-forms.nii")
     writeFixture(
       bothPath,
       dimensions = Vector(1, 1, 1),
-      qform =
-        Some(
-          QForm(
-            0.0,
-            0.0,
-            0.0,
-            Vector(1.0, 2.0, 3.0),
-            qfac = 1.0
-          )
-        ),
+      qform = Some(
+        QForm(
+          0.0,
+          0.0,
+          0.0,
+          Vector(1.0, 2.0, 3.0),
+          qfac = 1.0
+        )
+      ),
       sform = Some(sform),
       values = Vector(1.0)
     )
@@ -206,10 +198,7 @@ final class NiftiSuite extends FunSuite:
     assertRows(
       decoded.affineSelection.affine.rowMajor,
       Vector(
-        2.0, 0.0, 0.0, 0.0,
-        0.0, 3.0, 0.0, 0.0,
-        0.0, 0.0, 4.0, 0.0,
-        0.0, 0.0, 0.0, 1.0
+        2.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 4.0, 0.0, 0.0, 0.0, 0.0, 1.0
       )
     )
 
@@ -260,8 +249,7 @@ final class NiftiSuite extends FunSuite:
     )
     meters.image.fold(
       _ => fail("NIfTI must produce D3"),
-      d3 =>
-        assertEquals(d3.value.frame.unit, LengthUnit.Meter)
+      d3 => assertEquals(d3.value.frame.unit, LengthUnit.Meter)
     )
 
   test("readIn preserves the caller-supplied frame owner"):
@@ -320,10 +308,7 @@ final class NiftiSuite extends FunSuite:
       geometryRight(
         Affine.fromRowMajor[D3](
           Vector(
-            -2.0, 0.25, 0.0, 40.0,
-            0.0, 3.0, 0.0, 50.0,
-            0.0, 0.0, 4.0, 60.0,
-            0.0, 0.0, 0.0, 1.0
+            -2.0, 0.25, 0.0, 40.0, 0.0, 3.0, 0.0, 50.0, 0.0, 0.0, 4.0, 60.0, 0.0, 0.0, 0.0, 1.0
           )
         )
       )
@@ -633,14 +618,13 @@ final class NiftiSuite extends FunSuite:
       decoded.image.fold(
         _ => fail("NIfTI must produce D3"),
         d3 =>
-          Vector(0.0, 1.0, 2.0).zipWithIndex.foreach {
-            case (expectedValue, index) =>
-              assertEquals(
-                imageValue(
-                  d3.value.valueAt(Vector(index, 0, 0))
-                ),
-                expectedValue
-              )
+          Vector(0.0, 1.0, 2.0).zipWithIndex.foreach { case (expectedValue, index) =>
+            assertEquals(
+              imageValue(
+                d3.value.valueAt(Vector(index, 0, 0))
+              ),
+              expectedValue
+            )
           }
       )
 
@@ -743,8 +727,7 @@ final class NiftiSuite extends FunSuite:
           NiftiDatatype.UInt8,
           slope = 1.0,
           intercept = 0.0,
-          integerConversion =
-            NiftiIntegerConversion.RoundToNearestEven
+          integerConversion = NiftiIntegerConversion.RoundToNearestEven
         )
       )
     val quantized =
@@ -1250,7 +1233,7 @@ final class NiftiSuite extends FunSuite:
   private def javaOrder(order: NiftiByteOrder): ByteOrder =
     order match
       case NiftiByteOrder.LittleEndian => ByteOrder.LITTLE_ENDIAN
-      case NiftiByteOrder.BigEndian    => ByteOrder.BIG_ENDIAN
+      case NiftiByteOrder.BigEndian => ByteOrder.BIG_ENDIAN
 
   private def assertRows(
       actual: Vector[Double],
@@ -1267,14 +1250,14 @@ final class NiftiSuite extends FunSuite:
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def geometryRight[A](
       value: Either[GeometryError, A]
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def rasFrame(label: String): Frame[D3] =
     geometryRight(
@@ -1290,25 +1273,25 @@ final class NiftiSuite extends FunSuite:
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def extensionRight(
       value: Either[NiftiExtensionError, NiftiExtension]
   ): NiftiExtension =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def writeOptionsRight(
       value: Either[NiftiWriteOptionsError, NiftiWriteOptions]
   ): NiftiWriteOptions =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def niftiRight[A](
       value: Either[NiftiError, A]
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)

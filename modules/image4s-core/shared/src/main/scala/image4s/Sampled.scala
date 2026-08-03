@@ -62,8 +62,8 @@ final class Sampled[
 
   /** Check a runtime-known storage rank without copying data.
     *
-    * Use this after loading a dynamically ranked image when later code needs a
-    * ranked `apply` method or a statically ranked view.
+    * Use this after loading a dynamically ranked image when later code needs a ranked `apply`
+    * method or a statically ranked view.
     */
   def requireDataRank[N <: Int](using
       expected: ValueOf[N]
@@ -74,23 +74,20 @@ final class Sampled[
     data
       .requireRank[N]
       .left
-      .map(error =>
-        ImageError.StorageRankMismatch(error.expected, error.actual)
-      )
-      .map(ranked =>
-        new Sampled(ranked, sampleSpace, metadata, valueSemantics)
-      )
+      .map(error => ImageError.StorageRankMismatch(error.expected, error.actual))
+      .map(ranked => new Sampled(ranked, sampleSpace, metadata, valueSemantics))
 
   /** Fix one non-spatial coordinate and remove that axis.
     *
-    * `axis` is relative to `nonSpatialAxes`, not to the complete Ravel shape.
-    * The result shares immutable storage with this image and keeps the same
-    * spatial grid.
+    * `axis` is relative to `nonSpatialAxes`, not to the complete Ravel shape. The result shares
+    * immutable storage with this image and keeps the same spatial grid.
     */
   def selectNonSpatial(
       axis: Int,
       index: Int
-  )(using CanDropAxis[R]): Either[
+  )(using
+      CanDropAxis[R]
+  ): Either[
     ImageError,
     Sampled[
       ? <: SampleSpace[sampleSpace.F, sampleSpace.D],
@@ -101,13 +98,15 @@ final class Sampled[
   ] =
     selectNonSpatialWithCoordinate(axis, index).map(_._2)
 
-  /** Fix one non-spatial coordinate and return both its declared coordinate
-    * and the zero-copy image view.
+  /** Fix one non-spatial coordinate and return both its declared coordinate and the zero-copy image
+    * view.
     */
   def selectNonSpatialWithCoordinate(
       axis: Int,
       index: Int
-  )(using CanDropAxis[R]): Either[
+  )(using
+      CanDropAxis[R]
+  ): Either[
     ImageError,
     (
         AxisCoordinate,
@@ -151,13 +150,14 @@ final class Sampled[
 
   /** Select the sole non-spatial axis of `kind`.
     *
-    * The method rejects missing or repeated kinds instead of choosing an axis
-    * by position.
+    * The method rejects missing or repeated kinds instead of choosing an axis by position.
     */
   def selectAxis(
       kind: AxisKind,
       index: Int
-  )(using CanDropAxis[R]): Either[
+  )(using
+      CanDropAxis[R]
+  ): Either[
     ImageError,
     Sampled[
       ? <: SampleSpace[sampleSpace.F, sampleSpace.D],
@@ -172,7 +172,9 @@ final class Sampled[
 
   def selectTime(
       index: Int
-  )(using CanDropAxis[R]): Either[
+  )(using
+      CanDropAxis[R]
+  ): Either[
     ImageError,
     Sampled[
       ? <: SampleSpace[sampleSpace.F, sampleSpace.D],
@@ -186,7 +188,9 @@ final class Sampled[
   /** Approachable spelling for selecting the sole declared time axis. */
   def atTime(
       index: Int
-  )(using CanDropAxis[R]): Either[
+  )(using
+      CanDropAxis[R]
+  ): Either[
     ImageError,
     Sampled[
       ? <: SampleSpace[sampleSpace.F, sampleSpace.D],
@@ -199,7 +203,9 @@ final class Sampled[
 
   def selectChannel(
       index: Int
-  )(using CanDropAxis[R]): Either[
+  )(using
+      CanDropAxis[R]
+  ): Either[
     ImageError,
     Sampled[
       ? <: SampleSpace[sampleSpace.F, sampleSpace.D],
@@ -212,7 +218,9 @@ final class Sampled[
 
   def selectDirection(
       index: Int
-  )(using CanDropAxis[R]): Either[
+  )(using
+      CanDropAxis[R]
+  ): Either[
     ImageError,
     Sampled[
       ? <: SampleSpace[sampleSpace.F, sampleSpace.D],
@@ -225,13 +233,14 @@ final class Sampled[
 
   /** Apply an exact spatial pullback without copying stored values.
     *
-    * The target grid affine is derived by composing the source grid geometry
-    * with the map. Only maps representable by signed Ravel strides and an axis
-    * permutation can be constructed.
+    * The target grid affine is derived by composing the source grid geometry with the map. Only
+    * maps representable by signed Ravel strides and an axis permutation can be constructed.
     */
   def view(
       map: LatticeMap[sampleSpace.D]
-  )(using dimension: Dimension[sampleSpace.D]): Either[
+  )(using
+      dimension: Dimension[sampleSpace.D]
+  ): Either[
     ImageError,
     Sampled[
       ? <: SampleSpace[sampleSpace.F, sampleSpace.D],
@@ -260,14 +269,15 @@ final class Sampled[
 
   /** Return an affine-correct spatial crop that shares immutable storage.
     *
-    * `origin` and `shape` use grid-axis order. The returned grid has a fresh
-    * identity in the same frame, and its index origin maps to this grid's
-    * `origin`. Non-spatial axes are unchanged.
+    * `origin` and `shape` use grid-axis order. The returned grid has a fresh identity in the same
+    * frame, and its index origin maps to this grid's `origin`. Non-spatial axes are unchanged.
     */
   def spatialView(
       origin: Vector[Int],
       shape: Vector[Int]
-  )(using dimension: Dimension[sampleSpace.D]): Either[
+  )(using
+      dimension: Dimension[sampleSpace.D]
+  ): Either[
     ImageError,
     Sampled[
       ? <: SampleSpace[sampleSpace.F, sampleSpace.D],
@@ -285,7 +295,9 @@ final class Sampled[
   def crop(
       origin: Vector[Int],
       shape: Vector[Int]
-  )(using dimension: Dimension[sampleSpace.D]): Either[
+  )(using
+      dimension: Dimension[sampleSpace.D]
+  ): Either[
     ImageError,
     Sampled[
       ? <: SampleSpace[sampleSpace.F, sampleSpace.D],
@@ -298,7 +310,9 @@ final class Sampled[
 
   def flipSpatial(
       axis: Int
-  )(using dimension: Dimension[sampleSpace.D]): Either[
+  )(using
+      dimension: Dimension[sampleSpace.D]
+  ): Either[
     ImageError,
     Sampled[
       ? <: SampleSpace[sampleSpace.F, sampleSpace.D],
@@ -313,7 +327,9 @@ final class Sampled[
 
   def permuteSpatial(
       sourceAxisForTarget: IterableOnce[Int]
-  )(using dimension: Dimension[sampleSpace.D]): Either[
+  )(using
+      dimension: Dimension[sampleSpace.D]
+  ): Either[
     ImageError,
     Sampled[
       ? <: SampleSpace[sampleSpace.F, sampleSpace.D],
@@ -328,7 +344,9 @@ final class Sampled[
 
   def strideSpatial(
       steps: IterableOnce[Int]
-  )(using dimension: Dimension[sampleSpace.D]): Either[
+  )(using
+      dimension: Dimension[sampleSpace.D]
+  ): Either[
     ImageError,
     Sampled[
       ? <: SampleSpace[sampleSpace.F, sampleSpace.D],
@@ -355,8 +373,7 @@ final class Sampled[
   ] =
     val copied = order.iterator.toVector
     nonSpatialAxes.permute(copied).map { targetAxes =>
-      if copied == nonSpatialAxes.values.indices.toVector then
-        widenedSpatialOwner
+      if copied == nonSpatialAxes.values.indices.toVector then widenedSpatialOwner
       else
         val spatial = Vector.range(0, grid.spatialRank)
         val trailing = copied.map(_ + grid.spatialRank)
@@ -396,11 +413,10 @@ final class Sampled[
       valueSemantics
     )
 
-  /** Convert numeric storage without changing the sampled space, metadata, or
-    * semantic role.
+  /** Convert numeric storage without changing the sampled space, metadata, or semantic role.
     *
-    * Ravel validates `Overflow.Reject` before allocating its output and
-    * executes the successful conversion through a primitive storage kernel.
+    * Ravel validates `Overflow.Reject` before allocating its output and executes the successful
+    * conversion through a primitive storage kernel.
     */
   def convertTo[B](
       policy: ConversionPolicy = ConversionPolicy()
@@ -446,8 +462,8 @@ final class Sampled[
 
   /** Attach a Ravel reduction result after removing one non-spatial axis.
     *
-    * image4s updates and validates the sampling space; Ravel or a downstream
-    * algebra remains responsible for the actual reducer and output storage.
+    * image4s updates and validates the sampling space; Ravel or a downstream algebra remains
+    * responsible for the actual reducer and output storage.
     */
   def replaceAfterNonSpatialReduction[
       B,
@@ -488,8 +504,8 @@ final class Sampled[
         )
     }
 
-  /** Return this image when its Ravel layout is canonical; otherwise copy its
-    * logical values into canonical C order.
+  /** Return this image when its Ravel layout is canonical; otherwise copy its logical values into
+    * canonical C order.
     */
   def canonicalLayout: Sampled[S, A, Sem, R] =
     if data.isCanonicalLayout then this
@@ -502,7 +518,7 @@ final class Sampled[
   final override def equals(other: Any): Boolean =
     other match
       case reference: AnyRef => this eq reference
-      case _                 => false
+      case _ => false
 
   final override def hashCode(): Int =
     System.identityHashCode(this)
@@ -520,8 +536,7 @@ final class Sampled[
   def sharesStorageWith(
       that: Sampled[?, ?, ?, ?]
   ): StorageSharing =
-    if data eq that.data then
-      StorageSharing.SameArrayObject
+    if data eq that.data then StorageSharing.SameArrayObject
     else StorageSharing.Unknown
 
   def sameValuesAs[B](
@@ -534,8 +549,7 @@ final class Sampled[
       val left = data.elementsIterator
       val right = that.data.elementsIterator
       var same = true
-      while same && left.hasNext && right.hasNext do
-        same = equal(left.next(), right.next())
+      while same && left.hasNext && right.hasNext do same = equal(left.next(), right.next())
       same && !left.hasNext && !right.hasNext
 
   def rebind[T <: SampleSpace[?, ?]](
@@ -550,10 +564,9 @@ final class Sampled[
 
   /** Combine two values with the same exact static sample-space owner.
     *
-    * The output semantic tag is selected explicitly. Descriptive metadata is
-    * retained from the left operand. The rank reduces to the same concrete
-    * `Rank[N]` (or `AnyRank`); generic code sees Ravel's truthful
-    * `BroadcastRank[R, R]` rather than relying on a cast.
+    * The output semantic tag is selected explicitly. Descriptive metadata is retained from the left
+    * operand. The rank reduces to the same concrete `Rank[N]` (or `AnyRank`); generic code sees
+    * Ravel's truthful `BroadcastRank[R, R]` rather than relying on a cast.
     */
   def zipWithAs[
       OtherSem,
@@ -589,8 +602,7 @@ final class Sampled[
 
   /** Combine after one reusable exact alignment check.
     *
-    * No sampling validation is repeated here; the output remains owned by the
-    * left sample space.
+    * No sampling validation is repeated here; the output remains owned by the left sample space.
     */
   def zipWithAlignedAs[
       T <: SampleSpace[?, ?],
@@ -653,8 +665,7 @@ final class Sampled[
       )
     else
       nonSpatialAxes.values.zip(index).collectFirst {
-        case (axis, coordinate)
-            if coordinate < 0 || coordinate >= axis.extent =>
+        case (axis, coordinate) if coordinate < 0 || coordinate >= axis.extent =>
           ImageError.NonSpatialIndexOutOfBounds(
             axis.name,
             coordinate,
@@ -662,7 +673,7 @@ final class Sampled[
           )
       } match
         case Some(error) => Left(error)
-        case None        => Right(())
+        case None => Right(())
 
   private def validateIndices(
       spatialIndex: Vector[Int],
@@ -677,12 +688,11 @@ final class Sampled[
       )
     else
       grid.shape.zip(spatialIndex).zipWithIndex.collectFirst {
-        case ((extent, coordinate), axis)
-            if coordinate < 0 || coordinate >= extent =>
+        case ((extent, coordinate), axis) if coordinate < 0 || coordinate >= extent =>
           ImageError.SpatialIndexOutOfBounds(axis, coordinate, extent)
       } match
         case Some(error) => Left(error)
-        case None        => validateNonSpatialIndex(nonSpatialIndex)
+        case None => validateNonSpatialIndex(nonSpatialIndex)
 
   private def readValidated(
       spatialIndex: Vector[Int],
@@ -724,8 +734,8 @@ final class Sampled[
 
   /** Widen only the sample-space path while retaining its exact members.
     *
-    * This allocates only a small immutable image header and retains the exact
-    * sample-space and Ravel owners. It never copies sample storage.
+    * This allocates only a small immutable image header and retains the exact sample-space and
+    * Ravel owners. It never copies sample storage.
     */
   private def widenedSpatialOwner: Sampled[
     ? <: SampleSpace[sampleSpace.F, sampleSpace.D],
@@ -743,7 +753,9 @@ object Sampled:
   ](
       sampleSpace: SampleSpace[?, ?],
       data: NDArray[A, R]
-  )(using ValueSemantics[A, Sem]): Either[
+  )(using
+      ValueSemantics[A, Sem]
+  ): Either[
     ImageError,
     Sampled[sampleSpace.type, A, Sem, R]
   ] =
@@ -757,7 +769,9 @@ object Sampled:
       sampleSpace: SampleSpace[?, ?],
       data: NDArray[A, R],
       metadata: ImageMetadata
-  )(using ValueSemantics[A, Sem]): Either[
+  )(using
+      ValueSemantics[A, Sem]
+  ): Either[
     ImageError,
     Sampled[sampleSpace.type, A, Sem, R]
   ] =
@@ -773,7 +787,9 @@ object Sampled:
       grid: Grid[F, D],
       nonSpatialAxes: NonSpatialAxes,
       data: NDArray[A, R]
-  )(using ValueSemantics[A, Sem]): Either[
+  )(using
+      ValueSemantics[A, Sem]
+  ): Either[
     ImageError,
     Sampled[? <: SampleSpace[F, D], A, Sem, R]
   ] =
@@ -795,7 +811,9 @@ object Sampled:
       nonSpatialAxes: NonSpatialAxes,
       data: NDArray[A, R],
       metadata: ImageMetadata
-  )(using ValueSemantics[A, Sem]): Either[
+  )(using
+      ValueSemantics[A, Sem]
+  ): Either[
     ImageError,
     Sampled[? <: SampleSpace[F, D], A, Sem, R]
   ] =
@@ -805,7 +823,9 @@ object Sampled:
       sampleSpace: SampleSpace[?, ?],
       data: NDArray[A, R],
       metadata: ImageMetadata
-  )(using ValueSemantics[A, Continuous]): Either[
+  )(using
+      ValueSemantics[A, Continuous]
+  ): Either[
     ImageError,
     ContinuousImage[sampleSpace.type, A, R]
   ] =
@@ -814,7 +834,9 @@ object Sampled:
   def continuous[A, R <: AnyRank](
       sampleSpace: SampleSpace[?, ?],
       data: NDArray[A, R]
-  )(using ValueSemantics[A, Continuous]): Either[
+  )(using
+      ValueSemantics[A, Continuous]
+  ): Either[
     ImageError,
     ContinuousImage[sampleSpace.type, A, R]
   ] =
@@ -825,7 +847,9 @@ object Sampled:
       nonSpatialAxes: NonSpatialAxes,
       data: NDArray[A, R],
       metadata: ImageMetadata = ImageMetadata.empty
-  )(using ValueSemantics[A, Continuous]): Either[
+  )(using
+      ValueSemantics[A, Continuous]
+  ): Either[
     ImageError,
     ContinuousImage[? <: SampleSpace[F, D], A, R]
   ] =
@@ -835,7 +859,9 @@ object Sampled:
       sampleSpace: SampleSpace[?, ?],
       data: NDArray[A, R],
       metadata: ImageMetadata
-  )(using ValueSemantics[A, Categorical]): Either[
+  )(using
+      ValueSemantics[A, Categorical]
+  ): Either[
     ImageError,
     CategoricalImage[sampleSpace.type, A, R]
   ] =
@@ -844,7 +870,9 @@ object Sampled:
   def categorical[A, R <: AnyRank](
       sampleSpace: SampleSpace[?, ?],
       data: NDArray[A, R]
-  )(using ValueSemantics[A, Categorical]): Either[
+  )(using
+      ValueSemantics[A, Categorical]
+  ): Either[
     ImageError,
     CategoricalImage[sampleSpace.type, A, R]
   ] =
@@ -855,7 +883,9 @@ object Sampled:
       nonSpatialAxes: NonSpatialAxes,
       data: NDArray[A, R],
       metadata: ImageMetadata = ImageMetadata.empty
-  )(using ValueSemantics[A, Categorical]): Either[
+  )(using
+      ValueSemantics[A, Categorical]
+  ): Either[
     ImageError,
     CategoricalImage[? <: SampleSpace[F, D], A, R]
   ] =
@@ -871,7 +901,9 @@ object Sampled:
       nonSpatialAxes: NonSpatialAxes,
       data: MutableNDArray[A, R],
       metadata: ImageMetadata = ImageMetadata.empty
-  )(using ValueSemantics[A, Continuous]): Either[
+  )(using
+      ValueSemantics[A, Continuous]
+  ): Either[
     ImageError,
     ContinuousImage[? <: SampleSpace[F, D], A, R]
   ] =
@@ -892,7 +924,9 @@ object Sampled:
       nonSpatialAxes: NonSpatialAxes,
       data: MutableNDArray[A, R],
       metadata: ImageMetadata = ImageMetadata.empty
-  )(using ValueSemantics[A, Categorical]): Either[
+  )(using
+      ValueSemantics[A, Categorical]
+  ): Either[
     ImageError,
     CategoricalImage[? <: SampleSpace[F, D], A, R]
   ] =
@@ -913,7 +947,9 @@ object Sampled:
       nonSpatialAxes: NonSpatialAxes,
       data: BorrowedNDArray[A, R],
       metadata: ImageMetadata = ImageMetadata.empty
-  )(using ValueSemantics[A, Continuous]): Either[
+  )(using
+      ValueSemantics[A, Continuous]
+  ): Either[
     ImageError,
     ContinuousImage[? <: SampleSpace[F, D], A, R]
   ] =
@@ -929,7 +965,9 @@ object Sampled:
       nonSpatialAxes: NonSpatialAxes,
       data: BorrowedNDArray[A, R],
       metadata: ImageMetadata = ImageMetadata.empty
-  )(using ValueSemantics[A, Categorical]): Either[
+  )(using
+      ValueSemantics[A, Categorical]
+  ): Either[
     ImageError,
     CategoricalImage[? <: SampleSpace[F, D], A, R]
   ] =
@@ -939,7 +977,9 @@ object Sampled:
       sampleSpace: SampleSpace[?, ?],
       data: NDArray[Boolean, R],
       metadata: ImageMetadata
-  )(using ValueSemantics[Boolean, Mask]): Either[
+  )(using
+      ValueSemantics[Boolean, Mask]
+  ): Either[
     ImageError,
     MaskImage[sampleSpace.type, R]
   ] =
@@ -948,7 +988,9 @@ object Sampled:
   def mask[R <: AnyRank](
       sampleSpace: SampleSpace[?, ?],
       data: NDArray[Boolean, R]
-  )(using ValueSemantics[Boolean, Mask]): Either[
+  )(using
+      ValueSemantics[Boolean, Mask]
+  ): Either[
     ImageError,
     MaskImage[sampleSpace.type, R]
   ] =
@@ -959,7 +1001,9 @@ object Sampled:
       nonSpatialAxes: NonSpatialAxes,
       data: NDArray[Boolean, R],
       metadata: ImageMetadata = ImageMetadata.empty
-  )(using ValueSemantics[Boolean, Mask]): Either[
+  )(using
+      ValueSemantics[Boolean, Mask]
+  ): Either[
     ImageError,
     MaskImage[? <: SampleSpace[F, D], R]
   ] =
@@ -970,7 +1014,9 @@ object Sampled:
       nonSpatialAxes: NonSpatialAxes,
       data: MutableNDArray[Boolean, R],
       metadata: ImageMetadata = ImageMetadata.empty
-  )(using ValueSemantics[Boolean, Mask]): Either[
+  )(using
+      ValueSemantics[Boolean, Mask]
+  ): Either[
     ImageError,
     MaskImage[? <: SampleSpace[F, D], R]
   ] =
@@ -981,7 +1027,9 @@ object Sampled:
       nonSpatialAxes: NonSpatialAxes,
       data: BorrowedNDArray[Boolean, R],
       metadata: ImageMetadata = ImageMetadata.empty
-  )(using ValueSemantics[Boolean, Mask]): Either[
+  )(using
+      ValueSemantics[Boolean, Mask]
+  ): Either[
     ImageError,
     MaskImage[? <: SampleSpace[F, D], R]
   ] =
@@ -998,7 +1046,9 @@ object Sampled:
       nonSpatialAxes: NonSpatialAxes,
       data: NDArray[A, R],
       metadata: ImageMetadata
-  )(using semantics: ValueSemantics[A, Sem]): Either[
+  )(using
+      semantics: ValueSemantics[A, Sem]
+  ): Either[
     ImageError,
     Sampled[? <: SampleSpace[F, D], A, Sem, R]
   ] =
@@ -1012,15 +1062,16 @@ object Sampled:
       sampleSpace: SampleSpace[?, ?],
       data: NDArray[A, R],
       metadata: ImageMetadata
-  )(using semantics: ValueSemantics[A, Sem]): Either[
+  )(using
+      semantics: ValueSemantics[A, Sem]
+  ): Either[
     ImageError,
     Sampled[sampleSpace.type, A, Sem, R]
   ] =
     val expected = sampleSpace.logicalShape
     val actual =
       Vector.tabulate(data.shape.rank)(data.shape.apply)
-    if actual == expected then
-      Right(new Sampled(data, sampleSpace, metadata, semantics))
+    if actual == expected then Right(new Sampled(data, sampleSpace, metadata, semantics))
     else Left(ImageError.SampledShapeMismatch(expected, actual))
 
 type Image[
@@ -1074,9 +1125,8 @@ type FloatContinuousImage[
 
 /** Allocation-free logical indexing for statically ranked sampled values.
   *
-  * Arguments follow the complete logical axis order: spatial grid axes first,
-  * then declared non-spatial axes. Bounds and arity failures use Ravel's
-  * ranked indexing errors.
+  * Arguments follow the complete logical axis order: spatial grid axes first, then declared
+  * non-spatial axes. Bounds and arity failures use Ravel's ranked indexing errors.
   */
 extension [
     S <: SampleSpace[?, ?],

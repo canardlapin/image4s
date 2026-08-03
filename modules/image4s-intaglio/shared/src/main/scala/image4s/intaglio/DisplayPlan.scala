@@ -10,15 +10,14 @@ import _root_.intaglio.toPackedInt
 
 /** Pure appearance choices for lowering a scalar image to Intaglio.
   *
-  * A display plan never changes sampled values or geometry. In particular, it
-  * contains no resampling or filtering policy.
+  * A display plan never changes sampled values or geometry. In particular, it contains no
+  * resampling or filtering policy.
   *
-  * The v0.1 display vocabulary is deliberately decomposed rather than folded
-  * into one record: the D3 plane is an explicit `renderSliceRaster` argument,
-  * the transfer function is the window plus palette pair, overlay and label
-  * alpha ride on [[MaskOverlay]] and [[LabelPalette]], and multi-channel
-  * display is out of scope. `interpolation` is a scene-scale placement hint
-  * consumed by Intaglio backends; the bridge itself never resamples.
+  * The v0.1 display vocabulary is deliberately decomposed rather than folded into one record: the
+  * D3 plane is an explicit `renderSliceRaster` argument, the transfer function is the window plus
+  * palette pair, overlay and label alpha ride on [[MaskOverlay]] and [[LabelPalette]], and
+  * multi-channel display is out of scope. `interpolation` is a scene-scale placement hint consumed
+  * by Intaglio backends; the bridge itself never resamples.
   */
 final case class DisplayPlan(
     window: DisplayWindow,
@@ -28,11 +27,12 @@ final case class DisplayPlan(
 ):
   /** Deterministic content fingerprint over every appearance choice.
     *
-    * Two plans share a fingerprint exactly when they render identically, so
-    * the fingerprint (with the source identity) keys the bridge cache.
+    * Two plans share a fingerprint exactly when they render identically, so the fingerprint (with
+    * the source identity) keys the bridge cache.
     */
   def fingerprint: Long =
-    var state = DisplayPlan.mix(DisplayPlan.seed, java.lang.Double.doubleToRawLongBits(window.lower))
+    var state =
+      DisplayPlan.mix(DisplayPlan.seed, java.lang.Double.doubleToRawLongBits(window.lower))
     state = DisplayPlan.mix(state, java.lang.Double.doubleToRawLongBits(window.upper))
     state = DisplayPlan.mix(state, palette.low.toPackedInt.toLong)
     state = DisplayPlan.mix(state, palette.high.toPackedInt.toLong)
@@ -47,8 +47,8 @@ object DisplayPlan:
 
 /** Pixel-space orientation resolved during raster packing.
   *
-  * Flips and transpose affect only display placement. They never create a
-  * transformed `Sampled` value.
+  * Flips and transpose affect only display placement. They never create a transformed `Sampled`
+  * value.
   */
 final case class DisplayOrientation(
     transpose: Boolean = false,
@@ -72,8 +72,8 @@ object DisplayOrientation:
 
 /** Deterministic color assignment for integer labels.
   *
-  * Code zero is transparent by default; every nonzero code maps to the same
-  * opaque color independently of traversal order or process lifetime.
+  * Code zero is transparent by default; every nonzero code maps to the same opaque color
+  * independently of traversal order or process lifetime.
   */
 final case class LabelPalette(
     background: Rgba32 = Rgba32.unsafe(0, 0, 0, 0)

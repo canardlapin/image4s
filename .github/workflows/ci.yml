@@ -6,6 +6,20 @@ on:
   pull_request:
 
 jobs:
+  format:
+    name: Scalafmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: sbt
+      - uses: sbt/setup-sbt@v1
+      - name: Check Scala and sbt formatting
+        run: sbt -batch scalafmtCheckAll scalafmtSbtCheck
+
   cross-platform:
     name: JVM and Scala.js / JDK ${{ matrix.java }}
     runs-on: ubuntu-latest

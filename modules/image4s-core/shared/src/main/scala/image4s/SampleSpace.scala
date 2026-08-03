@@ -8,20 +8,19 @@ import image4s.geometry.GridRecord
 
 /** Neutral persistent record for one complete sampling space.
   *
-  * The grid record carries persistent physical identity. Axis records carry
-  * ordered non-spatial sampling coordinates but no live owner identity.
+  * The grid record carries persistent physical identity. Axis records carry ordered non-spatial
+  * sampling coordinates but no live owner identity.
   */
 final case class SampleSpaceRecord(
     grid: GridRecord,
     nonSpatialAxes: Vector[AxisRecord]
 ) derives CanEqual
 
-/** Canonical sampling geometry shared by images with the same spatial grid
-  * and ordered non-spatial axes.
+/** Canonical sampling geometry shared by images with the same spatial grid and ordered non-spatial
+  * axes.
   *
-  * This is also the runtime-erased geometry view: the abstract `D` and `F`
-  * members retain the precise dimension and frame owner without introducing
-  * a second wrapper.
+  * This is also the runtime-erased geometry view: the abstract `D` and `F` members retain the
+  * precise dimension and frame owner without introducing a second wrapper.
   */
 sealed trait SomeSampleSpace:
   type D <: Dim
@@ -81,8 +80,7 @@ final class SampleSpace[
     else SampleSpace.create(grid, NonSpatialAxes.empty)
 
   def record: Either[ImageError, SampleSpaceRecord] =
-    grid.record
-      .left
+    grid.record.left
       .map(ImageError.Geometry.apply)
       .map(SampleSpaceRecord(_, nonSpatialAxes.records))
 
@@ -92,7 +90,7 @@ final class SampleSpace[
   final override def equals(other: Any): Boolean =
     other match
       case reference: AnyRef => this eq reference
-      case _                 => false
+      case _ => false
 
   final override def hashCode(): Int =
     System.identityHashCode(this)

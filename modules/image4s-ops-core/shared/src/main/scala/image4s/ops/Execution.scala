@@ -1,7 +1,7 @@
 package image4s.ops
 
-/** Algorithm selection for filter execution. Meaning lives in the operation
-  * value; this only chooses how it is computed.
+/** Algorithm selection for filter execution. Meaning lives in the operation value; this only
+  * chooses how it is computed.
   */
 enum FilterMethod derives CanEqual:
   case Auto, Direct, Separable, Fft
@@ -44,8 +44,8 @@ object Workspace:
 
 /** Prepared execution schedule for an operation.
   *
-  * Must not capture reusable mutable scratch if it claims to be thread-safe.
-  * Callers allocate workspace explicitly via [[allocateWorkspace]].
+  * Must not capture reusable mutable scratch if it claims to be thread-safe. Callers allocate
+  * workspace explicitly via [[allocateWorkspace]].
   */
 trait PreparedPlan[-In, +Out]:
   def report: PlanReport

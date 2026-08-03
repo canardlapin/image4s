@@ -17,8 +17,7 @@ object AxisKernel:
       weights: IterableOnce[A]
   ): Either[OpError, AxisKernel[A]] =
     val copied = weights.iterator.toVector
-    if copied.isEmpty then
-      Left(OpError.InvalidKernel("axis kernel must be non-empty"))
+    if copied.isEmpty then Left(OpError.InvalidKernel("axis kernel must be non-empty"))
     else if copied.length % 2 == 0 then
       Left(
         OpError.InvalidKernel(
@@ -32,8 +31,7 @@ object AxisKernel:
       anchor: Int
   ): Either[OpError, AxisKernel[A]] =
     val copied = weights.iterator.toVector
-    if copied.isEmpty then
-      Left(OpError.InvalidKernel("axis kernel must be non-empty"))
+    if copied.isEmpty then Left(OpError.InvalidKernel("axis kernel must be non-empty"))
     else if anchor < 0 || anchor >= copied.length then
       Left(
         OpError.InvalidKernel(
@@ -127,11 +125,10 @@ object Kernel:
       yield prefix :+ value
     }
 
-/** Named linear neighborhood operations. Correlation and convolution are
-  * distinct; they are never a Boolean flag.
+/** Named linear neighborhood operations. Correlation and convolution are distinct; they are never a
+  * Boolean flag.
   *
-  * Correlation: `(K ★ X)(p) = Σ_δ K(δ) X(p+δ)`
-  * Convolution: `(K ∗ X)(p) = Σ_δ K(δ) X(p-δ)`
+  * Correlation: `(K ★ X)(p) = Σ_δ K(δ) X(p+δ)` Convolution: `(K ∗ X)(p) = Σ_δ K(δ) X(p-δ)`
   */
 enum LinearNeighborhoodOp derives CanEqual:
   case Correlation, Convolution

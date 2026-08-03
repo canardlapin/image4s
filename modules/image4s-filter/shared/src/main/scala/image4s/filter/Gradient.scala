@@ -22,17 +22,16 @@ import ravel.FloatingDType
 import ravel.NDArray
 import ravel.NumericDType
 
-/** Discrete gradient stencil family. Both variants are normalized so a
-  * unit-slope index-space affine field has an interior derivative of one.
+/** Discrete gradient stencil family. Both variants are normalized so a unit-slope index-space
+  * affine field has an interior derivative of one.
   */
 enum GradientOperator derives CanEqual:
   case Sobel, Scharr
 
 /** Component images of a gradient expressed in one explicit coordinate domain.
   *
-  * Components are in grid-axis order. `FrameCoordinates` applies the
-  * `indexToFrame^{-T}` transform to the sampled index gradient, never merely a
-  * spacing division.
+  * Components are in grid-axis order. `FrameCoordinates` applies the `indexToFrame^{-T}` transform
+  * to the sampled index gradient, never merely a spacing division.
   */
 final class GradientField[
     D <: Dim,
@@ -200,16 +199,18 @@ object Gradient:
           )
         yield component
       }
-      .foldLeft(Right(Vector.empty): Either[
-        OpError,
-        Vector[
-          ContinuousImage[
-            ? <: SampleSpace[input.sampleSpace.F, input.sampleSpace.D],
-            A,
-            R
+      .foldLeft(
+        Right(Vector.empty): Either[
+          OpError,
+          Vector[
+            ContinuousImage[
+              ? <: SampleSpace[input.sampleSpace.F, input.sampleSpace.D],
+              A,
+              R
+            ]
           ]
         ]
-      ]) { (accumulated, next) =>
+      ) { (accumulated, next) =>
         for
           values <- accumulated
           component <- next
@@ -245,16 +246,18 @@ object Gradient:
           )
         yield component
       }
-      .foldLeft(Right(Vector.empty): Either[
-        OpError,
-        Vector[
-          ContinuousImage[
-            ? <: SampleSpace[input.sampleSpace.F, input.sampleSpace.D],
-            B,
-            R
+      .foldLeft(
+        Right(Vector.empty): Either[
+          OpError,
+          Vector[
+            ContinuousImage[
+              ? <: SampleSpace[input.sampleSpace.F, input.sampleSpace.D],
+              B,
+              R
+            ]
           ]
         ]
-      ]) { (accumulated, next) =>
+      ) { (accumulated, next) =>
         for
           values <- accumulated
           component <- next
@@ -368,16 +371,18 @@ object Gradient:
           .left
           .map(OpError.Image.apply)
       }
-      .foldLeft(Right(Vector.empty): Either[
-        OpError,
-        Vector[
-          ContinuousImage[
-            ? <: SampleSpace[input.sampleSpace.F, input.sampleSpace.D],
-            B,
-            R
+      .foldLeft(
+        Right(Vector.empty): Either[
+          OpError,
+          Vector[
+            ContinuousImage[
+              ? <: SampleSpace[input.sampleSpace.F, input.sampleSpace.D],
+              B,
+              R
+            ]
           ]
         ]
-      ]) { (accumulated, next) =>
+      ) { (accumulated, next) =>
         for
           values <- accumulated
           component <- next

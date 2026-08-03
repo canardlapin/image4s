@@ -18,7 +18,8 @@ object GeometryLaws:
       coordinates: Vector[Double],
       tolerance: Double
   )(using Dimension[D]): Either[GeometryError, Boolean] =
-    Affine.identity[D]
+    Affine
+      .identity[D]
       .apply(coordinates)
       .map(closeVector(_, coordinates, tolerance))
 

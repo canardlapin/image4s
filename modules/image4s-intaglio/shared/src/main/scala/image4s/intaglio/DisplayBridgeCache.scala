@@ -14,14 +14,13 @@ import scala.collection.mutable
 
 /** Memoizing wrapper over [[DisplayBridge]] raster lowering.
   *
-  * Entries are keyed by source value identity (images are immutable, so
-  * reference identity is a sound content key), the display plane, and the
-  * structural fingerprints of the plan and overlay/palette appearance values.
-  * Repeated renders with an identical key return the previously packed
-  * [[RasterImage]] without touching source samples again.
+  * Entries are keyed by source value identity (images are immutable, so reference identity is a
+  * sound content key), the display plane, and the structural fingerprints of the plan and
+  * overlay/palette appearance values. Repeated renders with an identical key return the previously
+  * packed [[RasterImage]] without touching source samples again.
   *
-  * Eviction is least-recently-used with a fixed entry budget. The cache is
-  * not synchronized; share one instance per rendering thread.
+  * Eviction is least-recently-used with a fixed entry budget. The cache is not synchronized; share
+  * one instance per rendering thread.
   */
 final class DisplayBridgeCache(maxEntries: Int = 32):
   require(maxEntries > 0, s"cache needs a positive entry budget, got $maxEntries")
@@ -131,8 +130,7 @@ final class DisplayBridgeCache(maxEntries: Int = 32):
 
   private def store(key: DisplayBridgeCache.Key, raster: RasterImage): Unit =
     entries.update(key, raster)
-    while entries.size > maxEntries do
-      entries.remove(entries.head._1): Unit
+    while entries.size > maxEntries do entries.remove(entries.head._1): Unit
 
 object DisplayBridgeCache:
   /** Reference-identity source key plus method tag and appearance fingerprint. */

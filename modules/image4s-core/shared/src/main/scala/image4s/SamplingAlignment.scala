@@ -6,8 +6,7 @@ import image4s.geometry.Grid
 
 /** Result of comparing persistent sample-space identity.
   *
-  * Ephemeral owners are reported explicitly rather than treated as unequal
-  * persistent identities.
+  * Ephemeral owners are reported explicitly rather than treated as unequal persistent identities.
   */
 enum PersistentSpaceComparison derives CanEqual:
   case Same
@@ -21,8 +20,8 @@ enum StorageSharing derives CanEqual:
   case SameArrayObject
   case Unknown
 
-/** Reusable evidence that two complete spaces sample the same points and
-  * ordered non-spatial coordinates exactly.
+/** Reusable evidence that two complete spaces sample the same points and ordered non-spatial
+  * coordinates exactly.
   */
 final class SamplingAlignment[
     L <: SampleSpace[?, ?],
@@ -72,8 +71,8 @@ object SamplingAlignment:
         )
     yield new SamplingAlignment(left, right)
 
-/** Checked approximate geometric congruence. Non-spatial sampling remains
-  * exact; approximation applies only to the grid affine.
+/** Checked approximate geometric congruence. Non-spatial sampling remains exact; approximation
+  * applies only to the grid affine.
   */
 final class ApproximateSamplingCongruence[
     L <: SampleSpace[?, ?],

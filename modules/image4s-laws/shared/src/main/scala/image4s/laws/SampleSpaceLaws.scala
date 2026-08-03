@@ -18,9 +18,9 @@ object SampleSpaceLaws:
   ): Boolean =
     val alignment = SamplingAlignment.identity(space)
     (alignment.left eq space) &&
-      (alignment.right eq space) &&
-      (alignment.reverse.left eq space) &&
-      (alignment.reverse.right eq space)
+    (alignment.right eq space) &&
+    (alignment.reverse.left eq space) &&
+    (alignment.reverse.right eq space)
 
   def alignmentReverse[
       L <: SampleSpace[?, ?],
@@ -30,7 +30,7 @@ object SampleSpaceLaws:
   ): Boolean =
     val roundTrip = alignment.reverse.reverse
     (roundTrip.left eq alignment.left) &&
-      (roundTrip.right eq alignment.right)
+    (roundTrip.right eq alignment.right)
 
   def alignmentComposition[
       L <: SampleSpace[?, ?],
@@ -42,4 +42,4 @@ object SampleSpaceLaws:
   ): Boolean =
     val composed = first.andThen(second)
     (composed.left eq first.left) &&
-      (composed.right eq second.right)
+    (composed.right eq second.right)

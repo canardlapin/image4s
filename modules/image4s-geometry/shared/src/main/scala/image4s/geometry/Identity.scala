@@ -8,8 +8,7 @@ object FrameId:
       .validate(value)
       .toRight(GeometryError.InvalidFrameId(value))
 
-  extension (id: FrameId)
-    def value: String = id
+  extension (id: FrameId) def value: String = id
 
 opaque type GridId = String
 
@@ -19,8 +18,7 @@ object GridId:
       .validate(value)
       .toRight(GeometryError.InvalidGridId(value))
 
-  extension (id: GridId)
-    def value: String = id
+  extension (id: GridId) def value: String = id
 
 private object Identifier:
   def validate(value: String): Option[String] =
@@ -35,8 +33,8 @@ enum CoordinateConvention derives CanEqual:
 
 /** Presentation-only metadata for a physical frame.
   *
-  * Units and coordinate convention are structural and therefore live in
-  * [[FrameKey]], not in this renameable description.
+  * Units and coordinate convention are structural and therefore live in [[FrameKey]], not in this
+  * renameable description.
   */
 final case class FrameMetadata private (
     label: String
@@ -45,8 +43,7 @@ final case class FrameMetadata private (
 object FrameMetadata:
   def create(label: String): Either[GeometryError, FrameMetadata] =
     val normalized = label.trim
-    if normalized.nonEmpty && normalized == label then
-      Right(new FrameMetadata(label))
+    if normalized.nonEmpty && normalized == label then Right(new FrameMetadata(label))
     else Left(GeometryError.InvalidFrameLabel(label))
 
   def named(label: String): Either[GeometryError, FrameMetadata] =
@@ -117,8 +114,8 @@ object Frame:
 
   /** Immutable persistent-frame registry.
     *
-    * Registering or restoring returns a new value. Existing registry instances
-    * remain safe to share across threads and Scala.js tasks.
+    * Registering or restoring returns a new value. Existing registry instances remain safe to share
+    * across threads and Scala.js tasks.
     */
   final class Registry private[Frame] (
       private[Frame] val entries: Map[FrameId, RegistryEntry]
@@ -268,9 +265,8 @@ object Frame:
 
   /** Check alignment after exact singleton owner types have been erased.
     *
-    * Ordinary code should use [[align]], which retains path-dependent owners.
-    * Generic boundaries can use this evidence instead of invoking a widened
-    * point or vector constructor.
+    * Ordinary code should use [[align]], which retains path-dependent owners. Generic boundaries
+    * can use this evidence instead of invoking a widened point or vector constructor.
     */
   def alignOwners[
       D <: Dim,
@@ -300,8 +296,7 @@ object Frame:
                 )
               )
             )
-          case Some(entry)
-              if entry.key == key && (entry.value eq frame) =>
+          case Some(entry) if entry.key == key && (entry.value eq frame) =>
             Right(registry)
           case Some(entry) if entry.key != key =>
             Left(
@@ -348,29 +343,25 @@ final class FrameAlignment[
   def pointToRight(
       point: Point[A, D]
   )(using Dimension[D]): Either[GeometryError, Point[B, D]] =
-    if point.belongsTo(left) then
-      Point.fromVectorAs(right, point.coordinates)
+    if point.belongsTo(left) then Point.fromVectorAs(right, point.coordinates)
     else Left(left.mismatchWith(point.frame))
 
   def pointToLeft(
       point: Point[B, D]
   )(using Dimension[D]): Either[GeometryError, Point[A, D]] =
-    if point.belongsTo(right) then
-      Point.fromVectorAs(left, point.coordinates)
+    if point.belongsTo(right) then Point.fromVectorAs(left, point.coordinates)
     else Left(right.mismatchWith(point.frame))
 
   def vectorToRight(
       vector: Vec[A, D]
   )(using Dimension[D]): Either[GeometryError, Vec[B, D]] =
-    if vector.belongsTo(left) then
-      Vec.fromVectorAs(right, vector.coordinates)
+    if vector.belongsTo(left) then Vec.fromVectorAs(right, vector.coordinates)
     else Left(left.mismatchWith(vector.frame))
 
   def vectorToLeft(
       vector: Vec[B, D]
   )(using Dimension[D]): Either[GeometryError, Vec[A, D]] =
-    if vector.belongsTo(right) then
-      Vec.fromVectorAs(left, vector.coordinates)
+    if vector.belongsTo(right) then Vec.fromVectorAs(left, vector.coordinates)
     else Left(right.mismatchWith(vector.frame))
 
 object FrameAlignment:

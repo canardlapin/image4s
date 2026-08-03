@@ -39,27 +39,27 @@ enum ThresholdComparison derives CanEqual:
   ): Boolean =
     val comparison = ordering.compare(value, threshold)
     this match
-      case GreaterThan    => comparison > 0
+      case GreaterThan => comparison > 0
       case GreaterOrEqual => comparison >= 0
-      case LessThan       => comparison < 0
-      case LessOrEqual    => comparison <= 0
+      case LessThan => comparison < 0
+      case LessOrEqual => comparison <= 0
 
 private object ThresholdOrdering:
-  /** Ravel's ordered kernels implement the same compare relation as these
-    * canonical Scala orderings. Other orderings must retain the callback path.
+  /** Ravel's ordered kernels implement the same compare relation as these canonical Scala
+    * orderings. Other orderings must retain the callback path.
     */
   def isCanonical[A](ordering: Ordering[A]): Boolean =
     val ref = ordering.asInstanceOf[AnyRef]
     (ref eq Ordering.Byte) ||
-      (ref eq Ordering.Short) ||
-      (ref eq Ordering.Int) ||
-      (ref eq Ordering.Long) ||
-      (ref eq Ordering.Float.TotalOrdering) ||
-      (ref eq Ordering.Float.IeeeOrdering) ||
-      (ref eq Ordering.DeprecatedFloatOrdering) ||
-      (ref eq Ordering.Double.TotalOrdering) ||
-      (ref eq Ordering.Double.IeeeOrdering) ||
-      (ref eq Ordering.DeprecatedDoubleOrdering)
+    (ref eq Ordering.Short) ||
+    (ref eq Ordering.Int) ||
+    (ref eq Ordering.Long) ||
+    (ref eq Ordering.Float.TotalOrdering) ||
+    (ref eq Ordering.Float.IeeeOrdering) ||
+    (ref eq Ordering.DeprecatedFloatOrdering) ||
+    (ref eq Ordering.Double.TotalOrdering) ||
+    (ref eq Ordering.Double.IeeeOrdering) ||
+    (ref eq Ordering.DeprecatedDoubleOrdering)
 
 private def primitiveThresholdMask[A, R <: AnyRank](
     data: NDArray[A, R],
@@ -81,9 +81,8 @@ enum StructuringElementShape derives CanEqual:
 
 /** Deferred structuring-element definition.
   *
-  * Frame-space radii are lowered against a grid at preparation time, so disks
-  * and balls use the affine-induced physical metric rather than treating
-  * samples as isotropic.
+  * Frame-space radii are lowered against a grid at preparation time, so disks and balls use the
+  * affine-induced physical metric rather than treating samples as isotropic.
   */
 final class StructuringElement[D <: Dim] private (
     val shape: StructuringElementShape,
@@ -194,8 +193,8 @@ private object RadiusGeometry:
                 }
               case StructuringElementShape.Cross =>
                 coordinates.count(_ != 0) <= 1 &&
-                  frameDistanceSquared(columns, coordinates) <=
-                    physicalRadius * physicalRadius
+                frameDistanceSquared(columns, coordinates) <=
+                  physicalRadius * physicalRadius
               case StructuringElementShape.Disk | StructuringElementShape.Ball =>
                 frameDistanceSquared(columns, coordinates) <=
                   physicalRadius * physicalRadius
@@ -235,7 +234,7 @@ private object RadiusGeometry:
 
   private def unitScale(unit: LengthUnit): Double =
     unit match
-      case LengthUnit.Meter      => 1.0
+      case LengthUnit.Meter => 1.0
       case LengthUnit.Millimeter => 1.0e-3
       case LengthUnit.Micrometer => 1.0e-6
 
@@ -333,8 +332,8 @@ private object PreparedBooleanPass:
 
 /** Prepared binary morphology schedule with support and address plan reuse.
   *
-  * A plan owns mutable Boolean workspaces and is sequential. Every `run`
-  * returns a fresh immutable mask, so results do not alias later runs.
+  * A plan owns mutable Boolean workspaces and is sequential. Every `run` returns a fresh immutable
+  * mask, so results do not alias later runs.
   */
 final class PreparedBinaryMorphology[
     D <: Dim,
@@ -602,11 +601,11 @@ object BinaryMorphology:
       border: Border[Boolean]
   ): (BorderMode, Boolean) =
     border match
-      case Border.Constant(value)      => (BorderMode.Constant, value)
-      case Border.Replicate            => (BorderMode.Replicate, false)
-      case Border.ReflectWithoutEdge   => (BorderMode.ReflectWithoutEdge, false)
-      case Border.ReflectWithEdge      => (BorderMode.ReflectWithEdge, false)
-      case Border.Wrap                 => (BorderMode.Wrap, false)
+      case Border.Constant(value) => (BorderMode.Constant, value)
+      case Border.Replicate => (BorderMode.Replicate, false)
+      case Border.ReflectWithoutEdge => (BorderMode.ReflectWithoutEdge, false)
+      case Border.ReflectWithEdge => (BorderMode.ReflectWithEdge, false)
+      case Border.Wrap => (BorderMode.Wrap, false)
 
 extension [
     S <: SampleSpace[?, ?],
@@ -632,8 +631,7 @@ extension [
           value,
           comparison
         )(using input.data.dtype.asInstanceOf[OrderedDType[A]])
-      else
-        input.data.map(sample => comparison.matches(ordering, sample, value))
+      else input.data.map(sample => comparison.matches(ordering, sample, value))
     Sampled
       .mask(input.sampleSpace, mask, input.metadata)
       .left

@@ -65,11 +65,13 @@ final class LatticeMapAllocationSuite extends FunSuite:
 
     maps.foreach { case (name, map) =>
       val samples =
-        Vector.fill(15) {
-          allocatedBytes {
-            consume(imageRight(source.view(map)))
+        Vector
+          .fill(15) {
+            allocatedBytes {
+              consume(imageRight(source.view(map)))
+            }
           }
-        }.sorted
+          .sorted
       val median = samples(samples.size / 2)
       assert(
         median <= 128L * 1024L,
@@ -92,10 +94,8 @@ final class LatticeMapAllocationSuite extends FunSuite:
   ): Long =
     val bean =
       ManagementFactory.getThreadMXBean match
-        case value: ThreadMXBean
-            if value.isThreadAllocatedMemorySupported =>
-          if !value.isThreadAllocatedMemoryEnabled then
-            value.setThreadAllocatedMemoryEnabled(true)
+        case value: ThreadMXBean if value.isThreadAllocatedMemorySupported =>
+          if !value.isThreadAllocatedMemoryEnabled then value.setThreadAllocatedMemoryEnabled(true)
           value
         case _ =>
           fail("this JVM does not expose per-thread allocation accounting")
@@ -109,11 +109,11 @@ final class LatticeMapAllocationSuite extends FunSuite:
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def imageRight[A](
       value: Either[ImageError, A]
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)

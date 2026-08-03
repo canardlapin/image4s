@@ -8,11 +8,10 @@ import munit.FunSuite
 
 /** Cross-platform checks for the operation gallery's rendered evidence.
   *
-  * These are intentionally small visual contracts rather than golden images:
-  * binary silhouettes catch topology and orientation regressions, asymmetric
-  * filters catch correlation/convolution reversals, and D3 slice dimensions
-  * catch axis-order mistakes. The JVM gallery turns the same cases into
-  * artifacts for human inspection.
+  * These are intentionally small visual contracts rather than golden images: binary silhouettes
+  * catch topology and orientation regressions, asymmetric filters catch correlation/convolution
+  * reversals, and D3 slice dimensions catch axis-order mistakes. The JVM gallery turns the same
+  * cases into artifacts for human inspection.
   */
 final class ImageOpsVisualQaSuite extends FunSuite:
   private val cases: Vector[VisualCase] = ImageOpsVisualQaFixtures.build()
@@ -149,7 +148,7 @@ final class ImageOpsVisualQaSuite extends FunSuite:
         "...............",
         "..............."
       )
-      )
+    )
 
   test("primitive and shaped morphology produce distinct, ordered silhouettes"):
     val threshold = foregroundCount(byName("d2-threshold"))
@@ -238,17 +237,21 @@ final class ImageOpsVisualQaSuite extends FunSuite:
 
   private def maskAscii(raster: RasterImage): Vector[String] =
     Vector.tabulate(raster.height) { y =>
-      Vector.tabulate(raster.width) { x =>
-        if raster.pixelUnsafe(x, y).alpha == 0 then '.' else '#'
-      }.mkString
+      Vector
+        .tabulate(raster.width) { x =>
+          if raster.pixelUnsafe(x, y).alpha == 0 then '.' else '#'
+        }
+        .mkString
     }
 
   private def foregroundCount(raster: RasterImage): Int =
-    Vector.tabulate(raster.width * raster.height) { index =>
-      if raster.pixelUnsafe(index % raster.width, index / raster.width).alpha == 0
-      then 0
-      else 1
-    }.sum
+    Vector
+      .tabulate(raster.width * raster.height) { index =>
+        if raster.pixelUnsafe(index % raster.width, index / raster.width).alpha == 0
+        then 0
+        else 1
+      }
+      .sum
 
   private def grayscaleValues(raster: RasterImage): Vector[Int] =
     Vector.tabulate(raster.width * raster.height) { index =>

@@ -200,9 +200,7 @@ final class ImageLawsSuite extends ScalaCheckSuite:
             Axis.explicit(
               "frequency",
               AxisKind.custom("frequency").toOption.get,
-              Vector.tabulate(extent)(index =>
-                origin + index.toDouble * step * step
-              ),
+              Vector.tabulate(extent)(index => origin + index.toDouble * step * step),
               AxisUnit.Hertz
             )
           ),
@@ -246,8 +244,8 @@ final class ImageLawsSuite extends ScalaCheckSuite:
           Sampled.continuous(
             grid,
             NonSpatialAxes.empty,
-            NDArray.tabulate[Double](firstExtent, secondExtent) {
-              (i, j) => 17.0 * i.toDouble + j.toDouble
+            NDArray.tabulate[Double](firstExtent, secondExtent) { (i, j) =>
+              17.0 * i.toDouble + j.toDouble
             }
           )
         )
@@ -393,9 +391,7 @@ final class ImageLawsSuite extends ScalaCheckSuite:
           Sampled.continuous(
             grid,
             NonSpatialAxes.empty,
-            NDArray.tabulate[Double](5, 5)((a, b) =>
-              2.0 * a.toDouble - 3.0 * b.toDouble + 7.0
-            )
+            NDArray.tabulate[Double](5, 5)((a, b) => 2.0 * a.toDouble - 3.0 * b.toDouble + 7.0)
           )
         )
       val lattice = geometryRight(LatticeIndex.of[D2](i, j))
@@ -602,14 +598,14 @@ final class ImageLawsSuite extends ScalaCheckSuite:
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def imageRight[A](
       value: Either[ImageError, A]
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def tolerance(
       absolute: Double,

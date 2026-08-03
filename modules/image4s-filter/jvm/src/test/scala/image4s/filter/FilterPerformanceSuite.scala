@@ -55,24 +55,22 @@ final class FilterPerformanceSuite extends FunSuite:
     val sigma = opsRight(SpatialSigma.samples[D2](1.5))
     val extent = FilterExtent.same(Border.Replicate)
     val preserving = () =>
-      retained =
-        opsRight(
-          floatImage.gaussianBlur(
-            sigma,
-            extent,
-            policy = ExecutionPolicy(method = FilterMethod.Direct)
-          )
-        ).asInstanceOf[AnyRef]
-    val promoting = () =>
-      retained =
-        opsRight(
-          byteImage.gaussianBlurTo[Float](
-            sigma,
-            extent,
-            policy = ExecutionPolicy(method = FilterMethod.Direct)
-          )
+      retained = opsRight(
+        floatImage.gaussianBlur(
+          sigma,
+          extent,
+          policy = ExecutionPolicy(method = FilterMethod.Direct)
         )
-          .asInstanceOf[AnyRef]
+      ).asInstanceOf[AnyRef]
+    val promoting = () =>
+      retained = opsRight(
+        byteImage.gaussianBlurTo[Float](
+          sigma,
+          extent,
+          policy = ExecutionPolicy(method = FilterMethod.Direct)
+        )
+      )
+        .asInstanceOf[AnyRef]
     val preparedPlan =
       opsRight(
         Gaussian.prepare(
@@ -82,8 +80,7 @@ final class FilterPerformanceSuite extends FunSuite:
           policy = ExecutionPolicy(method = FilterMethod.Separable)
         )
       )
-    val prepared = () =>
-      retained = opsRight(preparedPlan.run(floatImage)).asInstanceOf[AnyRef]
+    val prepared = () => retained = opsRight(preparedPlan.run(floatImage)).asInstanceOf[AnyRef]
 
     Vector.fill(3) {
       preserving()
@@ -129,10 +126,8 @@ final class FilterPerformanceSuite extends FunSuite:
   private def allocatedBytes(body: => Unit): Long =
     val bean =
       ManagementFactory.getThreadMXBean match
-        case value: ThreadMXBean
-            if value.isThreadAllocatedMemorySupported =>
-          if !value.isThreadAllocatedMemoryEnabled then
-            value.setThreadAllocatedMemoryEnabled(true)
+        case value: ThreadMXBean if value.isThreadAllocatedMemorySupported =>
+          if !value.isThreadAllocatedMemoryEnabled then value.setThreadAllocatedMemoryEnabled(true)
           value
         case _ =>
           fail("thread allocation accounting is unavailable")
@@ -144,14 +139,14 @@ final class FilterPerformanceSuite extends FunSuite:
   private def opsRight[A](value: Either[OpError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def geometryRight[A](value: Either[GeometryError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def imageRight[A](value: Either[image4s.ImageError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)

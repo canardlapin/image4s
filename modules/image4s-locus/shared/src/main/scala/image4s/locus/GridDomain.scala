@@ -33,15 +33,12 @@ import ravel.AnyRank
 
 /** Versioned logical linearization of a grid-backed finite domain.
   *
-  * This convention is independent of Ravel's physical layout. Versioning is
-  * part of persistent identity, so a future convention cannot silently
-  * reinterpret existing voxel ordinals.
+  * This convention is independent of Ravel's physical layout. Versioning is part of persistent
+  * identity, so a future convention cannot silently reinterpret existing voxel ordinals.
   */
 enum GridDomainLayout(val id: String):
-  case RowMajorLastAxisFastestV1
-      extends GridDomainLayout("row-major-last-axis-fastest/v1")
-  case Unrecognized(value: String)
-      extends GridDomainLayout(value)
+  case RowMajorLastAxisFastestV1 extends GridDomainLayout("row-major-last-axis-fastest/v1")
+  case Unrecognized(value: String) extends GridDomainLayout(value)
 
 /** Serializable evidence binding one persistent grid to its canonical domain. */
 final case class GridDomainRecord(
@@ -62,8 +59,7 @@ object GridDomainError:
       s"grid shape ${shape.mkString("[", ", ", "]")} exceeds the maximum " +
         s"finite-domain size $maximum"
 
-  final case class DomainSizeMismatch(expected: Int, actual: Int)
-      extends GridDomainError:
+  final case class DomainSizeMismatch(expected: Int, actual: Int) extends GridDomainError:
     val message: String =
       s"grid requires a finite domain of size $expected, found $actual"
 
@@ -75,38 +71,30 @@ object GridDomainError:
     val message: String =
       s"grid index axis $axis is outside [0, $extent): $coordinate"
 
-  final case class OrdinalOutOfBounds(ordinal: Int, size: Int)
-      extends GridDomainError:
+  final case class OrdinalOutOfBounds(ordinal: Int, size: Int) extends GridDomainError:
     val message: String =
       s"grid-domain ordinal is outside [0, $size): $ordinal"
 
-  final case class PersistentGridRequired(error: GeometryError)
-      extends GridDomainError:
+  final case class PersistentGridRequired(error: GeometryError) extends GridDomainError:
     val message: String =
       s"a canonical grid domain requires a persistent grid: ${error.message}"
 
-  final case class GeometryFailure(error: GeometryError)
-      extends GridDomainError:
+  final case class GeometryFailure(error: GeometryError) extends GridDomainError:
     val message: String = error.message
 
-  final case class ImageFailure(error: ImageError)
-      extends GridDomainError:
+  final case class ImageFailure(error: ImageError) extends GridDomainError:
     val message: String = error.message
 
-  final case class DomainRecordFailure(error: DomainError)
-      extends GridDomainError:
+  final case class DomainRecordFailure(error: DomainError) extends GridDomainError:
     val message: String = error.message
 
-  final case class DomainRestoreFailure(error: DomainRestoreError)
-      extends GridDomainError:
+  final case class DomainRestoreFailure(error: DomainRestoreError) extends GridDomainError:
     val message: String = error.message
 
-  final case class DomainIndexFailure(error: IndexError)
-      extends GridDomainError:
+  final case class DomainIndexFailure(error: IndexError) extends GridDomainError:
     val message: String = error.message
 
-  final case class LocusMapFailure(message: String)
-      extends GridDomainError
+  final case class LocusMapFailure(message: String) extends GridDomainError
 
   final case class GridRecordMismatch(
       expected: GridRecord,
@@ -130,8 +118,7 @@ object GridDomainError:
     val message: String =
       s"bridge requires layout $expected, found $actual"
 
-  final case class GridRuntimeOwnerMismatch(id: GridId)
-      extends GridDomainError:
+  final case class GridRuntimeOwnerMismatch(id: GridId) extends GridDomainError:
     val message: String =
       s"grid ${id.value} is represented by a different live runtime owner"
 
@@ -142,13 +129,11 @@ object GridDomainError:
     val message: String =
       s"domain ${expected.id.value} is represented by a different live runtime owner"
 
-  final case class ImageGridRuntimeOwnerMismatch(id: GridId)
-      extends GridDomainError:
+  final case class ImageGridRuntimeOwnerMismatch(id: GridId) extends GridDomainError:
     val message: String =
       s"image grid ${id.value} is not the bridge's live grid owner"
 
-  final case class SpatialFieldRequiresNoNonSpatialAxes(actual: Int)
-      extends GridDomainError:
+  final case class SpatialFieldRequiresNoNonSpatialAxes(actual: Int) extends GridDomainError:
     val message: String =
       s"a spatial field requires no non-spatial axes, found $actual"
 
@@ -158,8 +143,8 @@ object GridDomainError:
 
 /** A checked attachment of one persistent grid to its canonical finite domain.
   *
-  * The bridge owns no image storage. Grid geometry, Ravel storage, and locus
-  * domain identity remain owned by their respective libraries.
+  * The bridge owns no image storage. Grid geometry, Ravel storage, and locus domain identity remain
+  * owned by their respective libraries.
   */
 final class GridDomain[
     F <: Frame[D],
@@ -301,8 +286,7 @@ final class GridDomain[
       Left(GridDomainError.SeriesFieldRequiresNonSpatialAxis)
     else Right(new SeriesFieldView(this, image))
 
-  /** Translate an exact image view into a locus injection and, when complete,
-    * a bijection.
+  /** Translate an exact image view into a locus injection and, when complete, a bijection.
     */
   def exactView(
       map: LatticeMap[D]
@@ -568,8 +552,7 @@ object GridDomain:
         case Left(error) =>
           failure = Some(GridDomainError.ImageFailure(error))
         case Right(sourceCoordinates) =>
-          targets(ordinal) =
-            source.ordinalOfCoordinatesUnchecked(sourceCoordinates)
+          targets(ordinal) = source.ordinalOfCoordinatesUnchecked(sourceCoordinates)
       ordinal += 1
 
     failure match
@@ -601,7 +584,7 @@ object GridDomain:
   ): GridDomainError =
     GridDomainError.LocusMapFailure(
       error match
-        case value: TotalMapError     => value.message
+        case value: TotalMapError => value.message
         case value: CertifiedMapError => value.message
     )
 
@@ -625,8 +608,7 @@ object GridDomain:
       if !overflow then total *= extent
       axis += 1
 
-    if overflow then
-      Left(GridDomainError.VoxelCountOverflow(shape, Int.MaxValue))
+    if overflow then Left(GridDomainError.VoxelCountOverflow(shape, Int.MaxValue))
     else Right(total.toInt)
 
   private def coordinatesOfOrdinalUnchecked(

@@ -25,11 +25,10 @@ final class Affine[D <: Dim] private (
       maximumInverseResidual
     )
 
-  /**
-   * Compose this coordinate operator with `next`.
-   *
-   * The returned operator applies this affine first and `next` second.
-   */
+  /** Compose this coordinate operator with `next`.
+    *
+    * The returned operator applies this affine first and `next` second.
+    */
   def andThen(
       next: Affine[D]
   )(using Dimension[D]): Either[GeometryError, Affine[D]] =
@@ -109,16 +108,14 @@ object Affine:
           MaximumValidationTolerance
         )
       )
-    else if
-      !maximumConditionNumber.isFinite || maximumConditionNumber < 1.0
+    else if !maximumConditionNumber.isFinite || maximumConditionNumber < 1.0
     then
       Left(
         GeometryError.InvalidMaximumConditionNumber(
           maximumConditionNumber
         )
       )
-    else if
-      !maximumInverseResidual.isFinite || maximumInverseResidual < 0.0
+    else if !maximumInverseResidual.isFinite || maximumInverseResidual < 0.0
     then
       Left(
         GeometryError.InvalidMaximumInverseResidual(
@@ -151,10 +148,9 @@ object Affine:
           val inverseValues = matrixRowMajor(inverse)
           val diagnostics =
             affineDiagnostics(canonical, inverseValues, size)
-          if
-            !diagnostics.conditionEstimateInfinityNorm.isFinite ||
-              diagnostics.conditionEstimateInfinityNorm >
-                maximumConditionNumber
+          if !diagnostics.conditionEstimateInfinityNorm.isFinite ||
+            diagnostics.conditionEstimateInfinityNorm >
+              maximumConditionNumber
           then
             Left(
               GeometryError.IllConditionedAffine(
@@ -162,10 +158,9 @@ object Affine:
                 maximumConditionNumber
               )
             )
-          else if
-            !diagnostics.inverseResidualInfinityNorm.isFinite ||
-              diagnostics.inverseResidualInfinityNorm >
-                maximumInverseResidual
+          else if !diagnostics.inverseResidualInfinityNorm.isFinite ||
+            diagnostics.inverseResidualInfinityNorm >
+              maximumInverseResidual
           then
             Left(
               GeometryError.AffineInverseResidualTooLarge(
@@ -218,10 +213,9 @@ object Affine:
       Left(
         GeometryError.NonFiniteDirection(index, directionValues(index))
       )
-    else if
-      !directionTolerance.isFinite ||
-        directionTolerance < 0.0 ||
-        directionTolerance > MaximumValidationTolerance
+    else if !directionTolerance.isFinite ||
+      directionTolerance < 0.0 ||
+      directionTolerance > MaximumValidationTolerance
     then
       Left(
         GeometryError.InvalidDirectionTolerance(
@@ -229,8 +223,7 @@ object Affine:
           MaximumValidationTolerance
         )
       )
-    else if
-      directionOrthonormalDeviation(directionValues, rank) >
+    else if directionOrthonormalDeviation(directionValues, rank) >
         directionTolerance
     then
       Left(
@@ -281,16 +274,14 @@ object Affine:
     fromRowMajor[D](
       product,
       tolerance = math.max(first.tolerance, second.tolerance),
-      maximumConditionNumber =
-        math.min(
-          first.maximumConditionNumber,
-          second.maximumConditionNumber
-        ),
-      maximumInverseResidual =
-        math.min(
-          first.maximumInverseResidual,
-          second.maximumInverseResidual
-        )
+      maximumConditionNumber = math.min(
+        first.maximumConditionNumber,
+        second.maximumConditionNumber
+      ),
+      maximumInverseResidual = math.min(
+        first.maximumInverseResidual,
+        second.maximumInverseResidual
+      )
     )
 
   private def directionOrthonormalDeviation(
@@ -403,7 +394,7 @@ object Affine:
 
 /** Explicit name for image4s' equal-dimensional affine isomorphism.
   *
-  * A future rectangular `AffineEmbedding[I, W]` will be a separate type and
-  * will not change the meaning of this alias.
+  * A future rectangular `AffineEmbedding[I, W]` will be a separate type and will not change the
+  * meaning of this alias.
   */
 type AffineIso[D <: Dim] = Affine[D]

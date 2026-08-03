@@ -45,13 +45,11 @@ final class ConversionPerformanceSuite extends FunSuite:
         )
       )
     val byteRun = () =>
-      retained =
-        imageRight(bytes.convertTo[Float](ConversionPolicy()))
-          .asInstanceOf[AnyRef]
+      retained = imageRight(bytes.convertTo[Float](ConversionPolicy()))
+        .asInstanceOf[AnyRef]
     val shortRun = () =>
-      retained =
-        imageRight(shorts.convertTo[Float](ConversionPolicy()))
-          .asInstanceOf[AnyRef]
+      retained = imageRight(shorts.convertTo[Float](ConversionPolicy()))
+        .asInstanceOf[AnyRef]
 
     Vector.fill(3) {
       byteRun()
@@ -69,11 +67,13 @@ final class ConversionPerformanceSuite extends FunSuite:
     val allocations =
       Vector.fill(7)(allocatedBytes(body)).sorted
     val timings =
-      Vector.fill(11) {
-        val started = System.nanoTime()
-        body
-        System.nanoTime() - started
-      }.sorted
+      Vector
+        .fill(11) {
+          val started = System.nanoTime()
+          body
+          System.nanoTime() - started
+        }
+        .sorted
     val allocated = allocations(allocations.size / 2)
     val elapsed = timings(timings.size / 2)
     val outputBytes = samples.toLong * 4L
@@ -94,10 +94,8 @@ final class ConversionPerformanceSuite extends FunSuite:
   private def allocatedBytes(body: => Unit): Long =
     val bean =
       ManagementFactory.getThreadMXBean match
-        case value: ThreadMXBean
-            if value.isThreadAllocatedMemorySupported =>
-          if !value.isThreadAllocatedMemoryEnabled then
-            value.setThreadAllocatedMemoryEnabled(true)
+        case value: ThreadMXBean if value.isThreadAllocatedMemorySupported =>
+          if !value.isThreadAllocatedMemoryEnabled then value.setThreadAllocatedMemoryEnabled(true)
           value
         case _ =>
           fail("thread allocation accounting is unavailable")
@@ -109,9 +107,9 @@ final class ConversionPerformanceSuite extends FunSuite:
   private def geometryRight[A](value: Either[GeometryError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def imageRight[A](value: Either[ImageError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)

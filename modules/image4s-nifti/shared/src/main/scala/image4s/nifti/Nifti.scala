@@ -61,8 +61,8 @@ private[nifti] final class NiftiApi[P](
 
   /** Read native storage codes with their structural storage interpretation.
     *
-    * No NIfTI slope/intercept scaling is applied. The header retained by
-    * [[DecodedNifti]] remains the receipt for that affine interpretation.
+    * No NIfTI slope/intercept scaling is applied. The header retained by [[DecodedNifti]] remains
+    * the receipt for that affine interpretation.
     */
   def readScalarStored(
       path: P,
@@ -174,10 +174,9 @@ private[nifti] final class NiftiApi[P](
 
   /** Read categorical codes without widening their native integer storage.
     *
-    * This strict surface accepts only UInt8, Int16, and Int32 inputs whose
-    * header applies no effective scaling. In accordance with the NIfTI
-    * convention, a zero slope means "do not scale" and is accepted regardless
-    * of its intercept.
+    * This strict surface accepts only UInt8, Int16, and Int32 inputs whose header applies no
+    * effective scaling. In accordance with the NIfTI convention, a zero slope means "do not scale"
+    * and is accepted regardless of its intercept.
     */
   def readLabelsNative(
       path: P,
@@ -329,20 +328,15 @@ private[nifti] final class NiftiApi[P](
   ](
       path: P,
       image: CategoricalImage[S, Long, R],
-      options: NiftiWriteOptions =
-        NiftiWriteOptions.forDatatype(NiftiDatatype.Int32),
+      options: NiftiWriteOptions = NiftiWriteOptions.forDatatype(NiftiDatatype.Int32),
       extensions: Vector[NiftiExtension] = Vector.empty
   ): Either[NiftiError, NiftiFiles[P]] =
-    if
-      options.integerConversion !=
+    if options.integerConversion !=
         NiftiIntegerConversion.RejectLossy
-    then
-      Left(NiftiError.LabelWriteRequiresExactIntegerConversion)
+    then Left(NiftiError.LabelWriteRequiresExactIntegerConversion)
     else
       options.datatype match
-        case NiftiDatatype.UInt8 |
-            NiftiDatatype.Int16 |
-            NiftiDatatype.Int32 =>
+        case NiftiDatatype.UInt8 | NiftiDatatype.Int16 | NiftiDatatype.Int32 =>
           writeValues(path, image, options, extensions, WriteValueSource.long)
         case datatype =>
           Left(NiftiError.LabelDatatypeMustBeIntegral(datatype))
@@ -365,9 +359,7 @@ private[nifti] final class NiftiApi[P](
           selection,
           options,
           NativePayloadReader.uint8
-        ).map(image =>
-          NiftiRawImage.UInt8(SomeSampled.d3(image))
-        )
+        ).map(image => NiftiRawImage.UInt8(SomeSampled.d3(image)))
       case NiftiDatatype.Int16 =>
         readNativeIn[Short, NiftiRaw](
           path,
@@ -376,9 +368,7 @@ private[nifti] final class NiftiApi[P](
           selection,
           options,
           NativePayloadReader.short
-        ).map(image =>
-          NiftiRawImage.Int16(SomeSampled.d3(image))
-        )
+        ).map(image => NiftiRawImage.Int16(SomeSampled.d3(image)))
       case NiftiDatatype.Int32 =>
         readNativeIn[Int, NiftiRaw](
           path,
@@ -387,9 +377,7 @@ private[nifti] final class NiftiApi[P](
           selection,
           options,
           NativePayloadReader.int
-        ).map(image =>
-          NiftiRawImage.Int32(SomeSampled.d3(image))
-        )
+        ).map(image => NiftiRawImage.Int32(SomeSampled.d3(image)))
       case NiftiDatatype.Float32 =>
         readNativeIn[Float, NiftiRaw](
           path,
@@ -398,9 +386,7 @@ private[nifti] final class NiftiApi[P](
           selection,
           options,
           NativePayloadReader.float
-        ).map(image =>
-          NiftiRawImage.Float32(SomeSampled.d3(image))
-        )
+        ).map(image => NiftiRawImage.Float32(SomeSampled.d3(image)))
       case NiftiDatatype.Float64 =>
         readNativeIn[Double, NiftiRaw](
           path,
@@ -409,9 +395,7 @@ private[nifti] final class NiftiApi[P](
           selection,
           options,
           NativePayloadReader.double
-        ).map(image =>
-          NiftiRawImage.Float64(SomeSampled.d3(image))
-        )
+        ).map(image => NiftiRawImage.Float64(SomeSampled.d3(image)))
 
   private def readNativeIn[
       A,
@@ -423,7 +407,10 @@ private[nifti] final class NiftiApi[P](
       selection: NiftiAffineSelection,
       options: NiftiReadOptions,
       reader: NativePayloadReader[A]
-  )(using DType[A], ValueSemantics[A, Sem]): Either[
+  )(using
+      DType[A],
+      ValueSemantics[A, Sem]
+  ): Either[
     NiftiError,
     Sampled[
       ? <: SampleSpace[frame.type, D3],
@@ -456,10 +443,9 @@ private[nifti] final class NiftiApi[P](
 
   /** Typed native payload writers keep primitive storage on the hot decode path.
     *
-    * The reader loop is shared, but each writer is compiled with a concrete
-    * Ravel dtype. Passing a generic `(ByteBuffer, Int) => A` decoder here would
-    * route opaque unsigned and primitive values through the generic builder
-    * path on some JVMs, allocating one boxed value per sample.
+    * The reader loop is shared, but each writer is compiled with a concrete Ravel dtype. Passing a
+    * generic `(ByteBuffer, Int) => A` decoder here would route opaque unsigned and primitive values
+    * through the generic builder path on some JVMs, allocating one boxed value per sample.
     */
   private trait NativePayloadReader[A]:
     def bytesPerValue: Int
@@ -588,7 +574,10 @@ private[nifti] final class NiftiApi[P](
       selection: NiftiAffineSelection,
       options: NiftiReadOptions,
       convert: (Double, Array[Int]) => A
-  )(using DType[A], ValueSemantics[A, Sem]): Either[
+  )(using
+      DType[A],
+      ValueSemantics[A, Sem]
+  ): Either[
     NiftiError,
     Sampled[
       ? <: SampleSpace[frame.type, D3],
@@ -630,8 +619,7 @@ private[nifti] final class NiftiApi[P](
         for
           axes <- accumulated
           axis <-
-            if index == 0 then
-              fourthAxis(header, extent, options)
+            if index == 0 then fourthAxis(header, extent, options)
             else ordinalAxis(index, extent)
         yield axes :+ axis
       }
@@ -743,8 +731,7 @@ private[nifti] final class NiftiApi[P](
       header.spatialUnit match
         case NiftiSpatialUnit.Unknown =>
           Right(())
-        case unit
-            if geometryUnit(unit, frame.unit) != frame.unit =>
+        case unit if geometryUnit(unit, frame.unit) != frame.unit =>
           Left(
             NiftiError.FrameUnitMismatch(unit, frame.unit)
           )
@@ -807,8 +794,7 @@ private[nifti] final class NiftiApi[P](
           )
         else
           (header.qform, header.sform, difference) match
-            case (Some(_), Some(_), Some(value))
-                if value > tolerance =>
+            case (Some(_), Some(_), Some(value)) if value > tolerance =>
               Left(
                 NiftiError.AffineFormsDisagree(value, tolerance)
               )
@@ -853,8 +839,7 @@ private[nifti] final class NiftiApi[P](
                 NiftiReadValueProblem.FloatingOverflow
               )
             )
-          else if
-            precision == NiftiFloatPrecision.RejectLossy &&
+          else if precision == NiftiFloatPrecision.RejectLossy &&
             !sameFloatingValue(scaled, narrowed.toDouble)
           then
             throw ReadConversionFailure(
@@ -896,8 +881,7 @@ private[nifti] final class NiftiApi[P](
             NiftiReadValueProblem.FractionalLabel
           )
         )
-      else if
-        scaled < Long.MinValue.toDouble ||
+      else if scaled < Long.MinValue.toDouble ||
         scaled >= LongUpperExclusive
       then
         throw ReadConversionFailure(
@@ -918,7 +902,7 @@ private[nifti] final class NiftiApi[P](
     header.datatype match
       case NiftiDatatype.UInt8 | NiftiDatatype.Int16 | NiftiDatatype.Int32 =>
         if header.slope == 0.0 ||
-            (header.slope == 1.0 && header.intercept == 0.0)
+          (header.slope == 1.0 && header.intercept == 0.0)
         then Right(())
         else
           Left(
@@ -960,7 +944,7 @@ private[nifti] final class NiftiApi[P](
   ): Boolean =
     (left.isNaN && right.isNaN) ||
       java.lang.Double.doubleToRawLongBits(left) ==
-        java.lang.Double.doubleToRawLongBits(right)
+      java.lang.Double.doubleToRawLongBits(right)
 
   private def readPayloadAs[A](
       path: P,
@@ -1026,42 +1010,41 @@ private[nifti] final class NiftiApi[P](
     val data =
       NDArray.build[A, AnyRank](shape) { builder =>
         var fileValueOffset = 0
-        result =
-          fileSystem.readChunks(
-            payloadPath,
-            NiftiOperation.ReadPayload,
-            header.voxelOffset.toLong,
-            payloadBytes,
-            workingBytes
-          ) { (bytes, length) =>
-            val buffer =
-              ByteBuffer
-                .wrap(bytes, 0, length)
-                .order(javaOrder(header.byteOrder))
-            var byteOffset = 0
-            var failure: Option[NiftiError] = None
-            while byteOffset < length && failure.isEmpty do
-              decodeFirstAxisFastest(
-                fileValueOffset,
-                dimensions,
-                indices
+        result = fileSystem.readChunks(
+          payloadPath,
+          NiftiOperation.ReadPayload,
+          header.voxelOffset.toLong,
+          payloadBytes,
+          workingBytes
+        ) { (bytes, length) =>
+          val buffer =
+            ByteBuffer
+              .wrap(bytes, 0, length)
+              .order(javaOrder(header.byteOrder))
+          var byteOffset = 0
+          var failure: Option[NiftiError] = None
+          while byteOffset < length && failure.isEmpty do
+            decodeFirstAxisFastest(
+              fileValueOffset,
+              dimensions,
+              indices
+            )
+            val logicalOffset =
+              lastAxisFastestOffset(indices, dimensions)
+            val raw =
+              readRawValue(buffer, byteOffset, header.datatype)
+            try
+              builder.writeLinear(
+                logicalOffset,
+                convert(raw, indices)
               )
-              val logicalOffset =
-                lastAxisFastestOffset(indices, dimensions)
-              val raw =
-                readRawValue(buffer, byteOffset, header.datatype)
-              try
-                builder.writeLinear(
-                  logicalOffset,
-                  convert(raw, indices)
-                )
-                fileValueOffset += 1
-                byteOffset += bytesPerValue
-              catch
-                case conversion: ReadConversionFailure =>
-                  failure = Some(conversion.error)
-            failure.toLeft(())
-          }
+              fileValueOffset += 1
+              byteOffset += bytesPerValue
+            catch
+              case conversion: ReadConversionFailure =>
+                failure = Some(conversion.error)
+          failure.toLeft(())
+        }
       }
     result.map(_ => data)
 
@@ -1141,8 +1124,7 @@ private[nifti] final class NiftiApi[P](
       bytes: Array[Byte],
       order: NiftiByteOrder
   ): Either[NiftiError, Vector[NiftiExtension]] =
-    if bytes.isEmpty then
-      Right(Vector.empty)
+    if bytes.isEmpty then Right(Vector.empty)
     else if bytes.length < ExtensionFlagSize then
       Left(
         NiftiError.InvalidHeader(
@@ -1150,8 +1132,7 @@ private[nifti] final class NiftiApi[P](
           s"expected $ExtensionFlagSize bytes, got ${bytes.length}"
         )
       )
-    else if bytes(0) == 0.toByte then
-      Right(Vector.empty)
+    else if bytes(0) == 0.toByte then Right(Vector.empty)
     else
       val buffer = ByteBuffer.wrap(bytes).order(javaOrder(order))
       var offset = ExtensionFlagSize
@@ -1161,44 +1142,40 @@ private[nifti] final class NiftiApi[P](
       while offset < bytes.length && failure.isEmpty do
         val remaining = bytes.length - offset
         if remaining < ExtensionHeaderSize then
-          failure =
-            Some(
-              NiftiError.Extension(
-                NiftiExtensionError.BlockExceedsRegion(
-                  index,
-                  ExtensionHeaderSize,
-                  remaining
-                )
+          failure = Some(
+            NiftiError.Extension(
+              NiftiExtensionError.BlockExceedsRegion(
+                index,
+                ExtensionHeaderSize,
+                remaining
               )
             )
+          )
         else
           val size = buffer.getInt(offset)
           val code = buffer.getInt(offset + 4)
           if size < MinimumExtensionSize then
-            failure =
-              Some(
-                NiftiError.Extension(
-                  NiftiExtensionError.InvalidBlockSize(index, size)
-                )
+            failure = Some(
+              NiftiError.Extension(
+                NiftiExtensionError.InvalidBlockSize(index, size)
               )
+            )
           else if size % ExtensionAlignment != 0 then
-            failure =
-              Some(
-                NiftiError.Extension(
-                  NiftiExtensionError.MisalignedBlockSize(index, size)
-                )
+            failure = Some(
+              NiftiError.Extension(
+                NiftiExtensionError.MisalignedBlockSize(index, size)
               )
+            )
           else if size > remaining then
-            failure =
-              Some(
-                NiftiError.Extension(
-                  NiftiExtensionError.BlockExceedsRegion(
-                    index,
-                    size,
-                    remaining
-                  )
+            failure = Some(
+              NiftiError.Extension(
+                NiftiExtensionError.BlockExceedsRegion(
+                  index,
+                  size,
+                  remaining
                 )
               )
+            )
           else
             val payload =
               bytes
@@ -1313,16 +1290,16 @@ private[nifti] final class NiftiApi[P](
       )
     else
       val values =
-        Vector.tabulate(rank)(axis =>
-          unsignedShort(buffer, 42 + axis * 2)
-        )
-      values.zipWithIndex.collectFirst {
-        case (extent, axis) if extent <= 0 =>
-          NiftiError.InvalidHeader(
-            NiftiHeaderField.Dimension(axis + 1),
-            s"expected a positive extent, got $extent"
-          )
-      }.toLeft(values)
+        Vector.tabulate(rank)(axis => unsignedShort(buffer, 42 + axis * 2))
+      values.zipWithIndex
+        .collectFirst {
+          case (extent, axis) if extent <= 0 =>
+            NiftiError.InvalidHeader(
+              NiftiHeaderField.Dimension(axis + 1),
+              s"expected a positive extent, got $extent"
+            )
+        }
+        .toLeft(values)
 
   private def pixelDimensions(
       buffer: ByteBuffer,
@@ -1351,7 +1328,7 @@ private[nifti] final class NiftiApi[P](
     val minimum =
       storage match
         case NiftiStorage.SingleFile => DataOffset
-        case NiftiStorage.PairFile   => 0
+        case NiftiStorage.PairFile => 0
     if value.isFinite &&
       value >= minimum.toDouble &&
       value == math.rint(value) &&
@@ -1370,8 +1347,7 @@ private[nifti] final class NiftiApi[P](
   ): Either[NiftiError, (Double, Double)] =
     val slope = buffer.getFloat(112).toDouble
     val intercept = buffer.getFloat(116).toDouble
-    if slope.isFinite && intercept.isFinite then
-      Right(slope -> intercept)
+    if slope.isFinite && intercept.isFinite then Right(slope -> intercept)
     else
       Left(
         NiftiError.InvalidHeader(
@@ -1417,8 +1393,7 @@ private[nifti] final class NiftiApi[P](
         Vector.tabulate(16) { flat =>
           val row = flat / 4
           val column = flat % 4
-          if row < 3 then
-            buffer.getFloat(280 + row * 16 + column * 4).toDouble
+          if row < 3 then buffer.getFloat(280 + row * 16 + column * 4).toDouble
           else if column == 3 then 1.0
           else 0.0
         }
@@ -1436,9 +1411,7 @@ private[nifti] final class NiftiApi[P](
         Vector(0.0, 0.0, 0.0),
         pixelDimensions.padTo(3, 1.0).take(3),
         Vector(
-          1.0, 0.0, 0.0,
-          0.0, 1.0, 0.0,
-          0.0, 0.0, 1.0
+          1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0
         )
       )
       .left
@@ -1457,8 +1430,7 @@ private[nifti] final class NiftiApi[P](
       if squaredVector > 1.0 - 1e-7 then
         val scale = 1.0 / math.sqrt(squaredVector)
         (0.0, b0 * scale, c0 * scale, d0 * scale)
-      else
-        (math.sqrt(1.0 - squaredVector), b0, c0, d0)
+      else (math.sqrt(1.0 - squaredVector), b0, c0, d0)
 
     val values =
       Vector(
@@ -1524,8 +1496,7 @@ private[nifti] final class NiftiApi[P](
     val dimensions = image.logicalShape
     if dimensions.length < 3 || dimensions.length > 7 then
       Left(NiftiError.UnsupportedWriteRank(dimensions.length))
-    else if
-      options.nonSpatialPixelDimensions.size >
+    else if options.nonSpatialPixelDimensions.size >
         dimensions.length - 3
     then
       Left(
@@ -1565,8 +1536,7 @@ private[nifti] final class NiftiApi[P](
             )
           else Right(())
         _ <-
-          if headerBytes > Int.MaxValue.toLong then
-            Left(NiftiError.OutputTooLarge(headerBytes))
+          if headerBytes > Int.MaxValue.toLong then Left(NiftiError.OutputTooLarge(headerBytes))
           else Right(())
         header = new Array[Byte](headerBytes.toInt)
         headerBuffer =
@@ -1578,8 +1548,7 @@ private[nifti] final class NiftiApi[P](
           dimensions,
           image,
           files.storage,
-          if files.storage == NiftiStorage.SingleFile then
-            headerBytes.toInt
+          if files.storage == NiftiStorage.SingleFile then headerBytes.toInt
           else 0,
           options
         )
@@ -1711,7 +1680,8 @@ private[nifti] final class NiftiApi[P](
       345,
       (storage match
         case NiftiStorage.SingleFile => '+'
-        case NiftiStorage.PairFile   => 'i').toByte
+        case NiftiStorage.PairFile => 'i'
+      ).toByte
     )
     buffer.put(346, '1'.toByte)
     buffer.put(347, 0.toByte)
@@ -1821,10 +1791,9 @@ private[nifti] final class NiftiApi[P](
           failure = Some(conversion.error)
     failure.toLeft(())
 
-  /** Concrete write sources preserve primitive Ravel access in both the
-    * validation and emission passes. Keeping the element type abstract here
-    * would route rank-specific reads through the generic boxed fallback on
-    * some JVMs.
+  /** Concrete write sources preserve primitive Ravel access in both the validation and emission
+    * passes. Keeping the element type abstract here would route rank-specific reads through the
+    * generic boxed fallback on some JVMs.
     */
   private trait WriteValueSource[A]:
     def read[R <: AnyRank](
@@ -1951,7 +1920,7 @@ private[nifti] final class NiftiApi[P](
       val rounded = math.rint(encoded)
       if options.integerConversion ==
           NiftiIntegerConversion.RejectLossy &&
-        encoded != rounded
+          encoded != rounded
       then
         throw WriteConversionFailure(
           valueError(
@@ -2033,10 +2002,10 @@ private[nifti] final class NiftiApi[P](
   private def dtypeBytes[A](dtype: DType[A]): Int =
     dtype.name match
       case "Boolean" | "Byte" => 1
-      case "Short"            => 2
-      case "Int" | "Float"    => 4
-      case "Long" | "Double"  => 8
-      case _                  => 8
+      case "Short" => 2
+      case "Int" | "Float" => 4
+      case "Long" | "Double" => 8
+      case _ => 8
 
   private def alignedWorkingBuffer(
       configured: Int,
@@ -2130,7 +2099,7 @@ private[nifti] final class NiftiApi[P](
   private def javaOrder(order: NiftiByteOrder): ByteOrder =
     order match
       case NiftiByteOrder.LittleEndian => ByteOrder.LITTLE_ENDIAN
-      case NiftiByteOrder.BigEndian    => ByteOrder.BIG_ENDIAN
+      case NiftiByteOrder.BigEndian => ByteOrder.BIG_ENDIAN
 
   private def spatialUnit(code: Int): NiftiSpatialUnit =
     code match
@@ -2141,38 +2110,38 @@ private[nifti] final class NiftiApi[P](
 
   private def temporalUnit(code: Int): NiftiTemporalUnit =
     code match
-      case 8  => NiftiTemporalUnit.Second
+      case 8 => NiftiTemporalUnit.Second
       case 16 => NiftiTemporalUnit.Millisecond
       case 24 => NiftiTemporalUnit.Microsecond
       case 32 => NiftiTemporalUnit.Hertz
       case 40 => NiftiTemporalUnit.Ppm
       case 48 => NiftiTemporalUnit.RadianPerSecond
-      case _  => NiftiTemporalUnit.Unknown
+      case _ => NiftiTemporalUnit.Unknown
 
   private def geometryUnit(
       unit: NiftiSpatialUnit,
       fallback: LengthUnit
   ): LengthUnit =
     unit match
-      case NiftiSpatialUnit.Meter      => LengthUnit.Meter
+      case NiftiSpatialUnit.Meter => LengthUnit.Meter
       case NiftiSpatialUnit.Micrometer => LengthUnit.Micrometer
       case NiftiSpatialUnit.Millimeter => LengthUnit.Millimeter
-      case NiftiSpatialUnit.Unknown    => fallback
+      case NiftiSpatialUnit.Unknown => fallback
 
   private def spatialUnitCode(unit: LengthUnit): Int =
     unit match
-      case LengthUnit.Meter      => 1
+      case LengthUnit.Meter => 1
       case LengthUnit.Millimeter => 2
       case LengthUnit.Micrometer => 3
 
   private def temporalUnitCode(unit: NiftiTemporalUnit): Int =
     unit match
-      case NiftiTemporalUnit.Unknown         => 0
-      case NiftiTemporalUnit.Second          => 8
-      case NiftiTemporalUnit.Millisecond     => 16
-      case NiftiTemporalUnit.Microsecond     => 24
-      case NiftiTemporalUnit.Hertz           => 32
-      case NiftiTemporalUnit.Ppm             => 40
+      case NiftiTemporalUnit.Unknown => 0
+      case NiftiTemporalUnit.Second => 8
+      case NiftiTemporalUnit.Millisecond => 16
+      case NiftiTemporalUnit.Microsecond => 24
+      case NiftiTemporalUnit.Hertz => 32
+      case NiftiTemporalUnit.Ppm => 40
       case NiftiTemporalUnit.RadianPerSecond => 48
 
   private final case class ResolvedFiles(
@@ -2232,8 +2201,7 @@ private[nifti] final class NiftiApi[P](
           path
         )
       )
-    else
-      Left(NiftiError.UnsupportedPath(fileSystem.show(path)))
+    else Left(NiftiError.UnsupportedPath(fileSystem.show(path)))
 
   private def resolveForRead(
       path: P
@@ -2243,8 +2211,7 @@ private[nifti] final class NiftiApi[P](
         fileSystem.exists(files.entryPath)
       then
         val companion =
-          if files.entryPath == files.headerPath then
-            files.payloadPath
+          if files.entryPath == files.headerPath then files.payloadPath
           else files.headerPath
         if fileSystem.exists(companion) then Right(files)
         else

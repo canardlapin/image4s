@@ -9,12 +9,12 @@ import image4s.geometry.Grid
 
 /** Exact output-grid laws for neighborhood filters.
   *
-  * - `Same`: identical shape, grid identity, affine, and frame
-  * - `Valid`: `n' = n - l - r`; new origin is old index `l`
-  * - `Full`: `n' = n + l + r`; new origin is old index `-l`
+  *   - `Same`: identical shape, grid identity, affine, and frame
+  *   - `Valid`: `n' = n - l - r`; new origin is old index `l`
+  *   - `Full`: `n' = n + l + r`; new origin is old index `-l`
   *
-  * Geometry-preserving operations reuse the source grid. Geometry-changing
-  * operations construct a fresh grid in the same frame.
+  * Geometry-preserving operations reuse the source grid. Geometry-changing operations construct a
+  * fresh grid in the same frame.
   */
 object OutputGrid:
   def shape[D <: Dim](

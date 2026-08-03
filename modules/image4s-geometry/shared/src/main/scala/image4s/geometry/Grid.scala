@@ -53,7 +53,7 @@ object GridIndex:
         GeometryError.GridIndexOutOfBounds(axis, value, extent)
     } match
       case Some(error) => Left(error)
-      case None        => Right(new GridIndex(grid, lattice))
+      case None => Right(new GridIndex(grid, lattice))
 
 final class Grid[F <: Frame[D], D <: Dim] private (
     val frame: F,
@@ -75,9 +75,7 @@ final class Grid[F <: Frame[D], D <: Dim] private (
       .toRight(GeometryError.EphemeralGridHasNoRecord)
 
   def contains(index: LatticeIndex[D]): Boolean =
-    index.values.indices.forall(axis =>
-      index.values(axis) >= 0 && index.values(axis) < shape(axis)
-    )
+    index.values.indices.forall(axis => index.values(axis) >= 0 && index.values(axis) < shape(axis))
 
   def index(
       lattice: LatticeIndex[D]
@@ -373,8 +371,7 @@ object Grid:
                 key
               )
             )
-          case Some(entry)
-              if !entry.frame.sameRuntimeOwnerAs(grid.frame) =>
+          case Some(entry) if !entry.frame.sameRuntimeOwnerAs(grid.frame) =>
             Left(
               GeometryError.GridRestoreFrameOwnerConflict(
                 key.id,
@@ -407,8 +404,7 @@ object Grid:
             key
           )
         )
-      case Some(entry)
-          if !entry.frame.sameRuntimeOwnerAs(candidate.frame) =>
+      case Some(entry) if !entry.frame.sameRuntimeOwnerAs(candidate.frame) =>
         Left(
           GeometryError.GridRestoreFrameOwnerConflict(
             key.id,
@@ -452,15 +448,13 @@ final class GridAlignment[
   def pointToRight(
       point: Point[LF, D]
   )(using Dimension[D]): Either[GeometryError, Point[RF, D]] =
-    if point.belongsTo(left.frame) then
-      Point.fromVectorAs(right.frame, point.coordinates)
+    if point.belongsTo(left.frame) then Point.fromVectorAs(right.frame, point.coordinates)
     else Left(left.frame.mismatchWith(point.frame))
 
   def pointToLeft(
       point: Point[RF, D]
   )(using Dimension[D]): Either[GeometryError, Point[LF, D]] =
-    if point.belongsTo(right.frame) then
-      Point.fromVectorAs(left.frame, point.coordinates)
+    if point.belongsTo(right.frame) then Point.fromVectorAs(left.frame, point.coordinates)
     else Left(right.frame.mismatchWith(point.frame))
 
 object GridAlignment:
@@ -469,9 +463,7 @@ object GridAlignment:
       right: Grid[RF, D]
   ): Either[GeometryError, GridAlignment[D, LF, RF]] =
     if left.sameRuntimeOwnerAs(right) || left.samePersistentKeyAs(right) then
-      Frame.align(left.frame, right.frame).map(_ =>
-        new GridAlignment(left, right)
-      )
+      Frame.align(left.frame, right.frame).map(_ => new GridAlignment(left, right))
     else Left(left.mismatchWith(right))
 
 final class GridCongruence[

@@ -23,10 +23,9 @@ final class NodeNiftiSuite extends FunSuite:
   private var temporaryDirectory = ""
 
   override def beforeAll(): Unit =
-    temporaryDirectory =
-      NodeTestFs.mkdtempSync(
-        NodeTestPath.join(NodeTestOs.tmpdir(), "image4s-nifti-node-")
-      )
+    temporaryDirectory = NodeTestFs.mkdtempSync(
+      NodeTestPath.join(NodeTestOs.tmpdir(), "image4s-nifti-node-")
+    )
 
   override def afterAll(): Unit =
     if temporaryDirectory.nonEmpty then
@@ -78,8 +77,7 @@ final class NodeNiftiSuite extends FunSuite:
           case NiftiFiles.PairFile(headerPath, imagePath) =>
             assertEquals(expectedStorage, NiftiStorage.PairFile)
             val entry =
-              if suffix.endsWith(".gz") then
-                path.replace(".hdr.gz", ".img.gz")
+              if suffix.endsWith(".gz") then path.replace(".hdr.gz", ".img.gz")
               else path.replace(".hdr", ".img")
             assert(NodeTestFs.existsSync(headerPath))
             assert(NodeTestFs.existsSync(imagePath))
@@ -325,31 +323,31 @@ final class NodeNiftiSuite extends FunSuite:
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def imageRight[A](
       value: Either[image4s.ImageError, A]
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def extensionRight(
       value: Either[NiftiExtensionError, NiftiExtension]
   ): NiftiExtension =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def niftiRight[A](
       value: Either[NiftiError, A]
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
 @js.native
-@JSImport("node:fs",JSImport.Namespace)
+@JSImport("node:fs", JSImport.Namespace)
 private object NodeTestFs extends js.Object:
   def existsSync(path: String): Boolean = js.native
 
@@ -362,11 +360,11 @@ private object NodeTestFs extends js.Object:
   def rmSync(path: String, options: js.Object): Unit = js.native
 
 @js.native
-@JSImport("node:os",JSImport.Namespace)
+@JSImport("node:os", JSImport.Namespace)
 private object NodeTestOs extends js.Object:
   def tmpdir(): String = js.native
 
 @js.native
-@JSImport("node:path",JSImport.Namespace)
+@JSImport("node:path", JSImport.Namespace)
 private object NodeTestPath extends js.Object:
   def join(parts: String*): String = js.native

@@ -7,33 +7,31 @@ import ravel.UInt8
 
 /** Standard semantics for values that admit linear interpolation.
   *
-  * This tag describes field meaning, not storage dtype: a
-  * `ContinuousImage[..., Byte, ...]` may still represent a continuously
-  * sampled quantity stored at byte precision. Scalar versus multi-component
-  * structure is expressed by axes / [[ComponentAxisView]], not by this tag.
+  * This tag describes field meaning, not storage dtype: a `ContinuousImage[..., Byte, ...]` may
+  * still represent a continuously sampled quantity stored at byte precision. Scalar versus
+  * multi-component structure is expressed by axes / [[ComponentAxisView]], not by this tag.
   */
 sealed trait Continuous
 
 /** Standard semantics for categorical / label values.
   *
-  * Labels are not interpolated numerically. Standard construction requires an
-  * integral element type; do not treat a Boolean mask as a label image.
+  * Labels are not interpolated numerically. Standard construction requires an integral element
+  * type; do not treat a Boolean mask as a label image.
   */
 sealed trait Categorical
 
 /** Standard semantics for logical support masks.
   *
-  * Distinct from [[Categorical]]: a mask is Boolean support, not an integer
-  * label map whose codes happen to be zero and one.
+  * Distinct from [[Categorical]]: a mask is Boolean support, not an integer label map whose codes
+  * happen to be zero and one.
   */
 sealed trait Mask
 
 /** Evidence that element type `A` may be stored with semantic tag `Sem`.
   *
-  * This is the library's admissibility witness for image construction. `Sem`
-  * is intentionally unbounded so downstream libraries can define their own
-  * semantic tags without changing image4s. Standard tags are gated:
-  * continuous values need a linear codomain, categorical labels need an
+  * This is the library's admissibility witness for image construction. `Sem` is intentionally
+  * unbounded so downstream libraries can define their own semantic tags without changing image4s.
+  * Standard tags are gated: continuous values need a linear codomain, categorical labels need an
   * integral dtype, and masks are Boolean-only.
   */
 trait ValueSemantics[A, Sem]
@@ -51,9 +49,8 @@ object ValueSemantics:
 
 /** Primitive-to-Double widening required by linear interpolation.
   *
-  * Interpolation always accumulates into an explicit Float or Double output.
-  * Integer storage is therefore admissible as an input but is never silently
-  * truncated back into its source dtype.
+  * Interpolation always accumulates into an explicit Float or Double output. Integer storage is
+  * therefore admissible as an input but is never silently truncated back into its source dtype.
   */
 trait LinearInterpolable[A]:
   def toDouble(value: A): Double
@@ -107,9 +104,8 @@ object LinearSampling:
 
 /** Explicit floating output representation for linear sampling.
   *
-  * This type is deliberately closed: reference linear interpolation accumulates
-  * in Double and may return only Float or Double. It never performs implicit
-  * byte or short arithmetic.
+  * This type is deliberately closed: reference linear interpolation accumulates in Double and may
+  * return only Float or Double. It never performs implicit byte or short arithmetic.
   */
 sealed trait LinearOutput[A]:
   private[image4s] def fromDouble(value: Double): A

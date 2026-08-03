@@ -22,8 +22,8 @@ import ravel.NDArray
 import ravel.Rank
 import ravel.Shape
 
-/** Display conformance laws: exact grayscale endpoints, byte-exact alpha,
-  * RGBA packing round-trips, and single orientation application.
+/** Display conformance laws: exact grayscale endpoints, byte-exact alpha, RGBA packing round-trips,
+  * and single orientation application.
   */
 final class DisplayBridgeLawsSuite extends FunSuite:
   test("grayscale endpoints are exact and out-of-window values clamp to them"):
@@ -181,18 +181,18 @@ final class DisplayBridgeLawsSuite extends FunSuite:
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def geometryRight[A](
       value: Either[GeometryError, A]
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def imageRight[A](
       value: Either[ImageError, A]
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)

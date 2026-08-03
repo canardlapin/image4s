@@ -31,11 +31,11 @@ lazy val ravelBuild =
     .map(path => file(path).getCanonicalFile.toURI)
     .getOrElse(uri(s"https://github.com/canardlapin/ravel.git#$ravelRevision"))
 lazy val ravelCoreJVM = ProjectRef(ravelBuild, "coreJVM")
-lazy val ravelCoreJS  = ProjectRef(ravelBuild, "coreJS")
+lazy val ravelCoreJS = ProjectRef(ravelBuild, "coreJS")
 lazy val ravelStencilJVM = ProjectRef(ravelBuild, "stencilJVM")
-lazy val ravelStencilJS  = ProjectRef(ravelBuild, "stencilJS")
+lazy val ravelStencilJS = ProjectRef(ravelBuild, "stencilJS")
 lazy val ravelPackedJVM = ProjectRef(ravelBuild, "packedJVM")
-lazy val ravelPackedJS  = ProjectRef(ravelBuild, "packedJS")
+lazy val ravelPackedJS = ProjectRef(ravelBuild, "packedJS")
 
 lazy val galeRevision = "d55fe2f97196a76ab7879e1a12f1e92403aeba06"
 lazy val galeBuild =
@@ -44,7 +44,7 @@ lazy val galeBuild =
     .map(path => file(path).getCanonicalFile.toURI)
     .getOrElse(uri(s"https://github.com/canardlapin/gale.git#$galeRevision"))
 lazy val galeCoreJVM = ProjectRef(galeBuild, "coreJVM")
-lazy val galeCoreJS  = ProjectRef(galeBuild, "coreJS")
+lazy val galeCoreJS = ProjectRef(galeBuild, "coreJS")
 
 lazy val locus4sRevision = "5186cf9dd691c5145286032080ef2d59fe3d179d"
 lazy val locus4sBuild =
@@ -55,9 +55,9 @@ lazy val locus4sBuild =
       uri(s"https://github.com/canardlapin/locus4s.git#$locus4sRevision")
     )
 lazy val locus4sCoreJVM = ProjectRef(locus4sBuild, "locus4s-coreJVM")
-lazy val locus4sCoreJS  = ProjectRef(locus4sBuild, "locus4s-coreJS")
+lazy val locus4sCoreJS = ProjectRef(locus4sBuild, "locus4s-coreJS")
 lazy val locus4sDataJVM = ProjectRef(locus4sBuild, "locus4s-dataJVM")
-lazy val locus4sDataJS  = ProjectRef(locus4sBuild, "locus4s-dataJS")
+lazy val locus4sDataJS = ProjectRef(locus4sBuild, "locus4s-dataJS")
 
 lazy val intaglioRevision = "596b398af380079e4b251535230d0bc03cd88c51"
 lazy val intaglioBuild =
@@ -68,7 +68,7 @@ lazy val intaglioBuild =
       uri(s"https://github.com/canardlapin/intaglio.git#$intaglioRevision")
     )
 lazy val intaglioCoreJVM = ProjectRef(intaglioBuild, "coreJVM")
-lazy val intaglioCoreJS  = ProjectRef(intaglioBuild, "coreJS")
+lazy val intaglioCoreJS = ProjectRef(intaglioBuild, "coreJS")
 
 lazy val sharedSettings = Seq(
   libraryDependencies ++= Seq(
@@ -219,3 +219,5 @@ addCommandAlias(
   "image4sTestAll",
   ";image4s-geometryJVM/test;image4s-geometryJS/test;image4s-coreJVM/test;image4s-coreJS/test;image4s-niftiJVM/test;image4s-niftiJS/test;image4s-referenceJVM/test;image4s-referenceJS/test;image4s-lawsJVM/test;image4s-lawsJS/test;image4s-locusJVM/test;image4s-locusJS/test;image4s-intaglioJVM/test;image4s-intaglioJS/test;image4s-ops-coreJVM/test;image4s-ops-coreJS/test;image4s-filterJVM/test;image4s-filterJS/test;image4s-morphologyJVM/test;image4s-morphologyJS/test;image4s-ops-lawsJVM/test;image4s-ops-lawsJS/test"
 )
+addCommandAlias("fmtCheck", ";scalafmtCheckAll;scalafmtSbtCheck")
+addCommandAlias("fmt", ";scalafmtAll;scalafmtSbt")

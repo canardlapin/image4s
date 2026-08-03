@@ -44,10 +44,9 @@ final class GeometryRegistryJvmSuite extends munit.FunSuite:
       assertEquals(base.size, 0)
       assertEquals(results.size, 1000)
       assert(results.forall(_ == (record.key, 1)))
-    finally
-      executor.shutdown()
+    finally executor.shutdown()
 
   private def right[A](value: Either[GeometryError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)

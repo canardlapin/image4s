@@ -6,8 +6,8 @@ import image4s.geometry.Dimension
 
 /** Finite, duplicate-free, canonically ordered neighborhood support.
   *
-  * Independent of weights and element type. Shared by linear filters, rank
-  * filters, morphology, and connectivity definitions.
+  * Independent of weights and element type. Shared by linear filters, rank filters, morphology, and
+  * connectivity definitions.
   */
 final class Support[D <: Dim] private (
     val offsets: Vector[Offset[D]]
@@ -56,8 +56,7 @@ object Support:
       offsets: IterableOnce[Offset[D]]
   )(using @unused dimension: Dimension[D]): Either[OpError, Support[D]] =
     val raw = offsets.iterator.toVector
-    if raw.isEmpty then
-      Left(OpError.InvalidSupport("support must be non-empty"))
+    if raw.isEmpty then Left(OpError.InvalidSupport("support must be non-empty"))
     else
       val sorted =
         raw.sortWith { (left, right) =>
@@ -75,7 +74,7 @@ object Support:
         index += 1
       duplicate match
         case Some(err) => Left(err)
-        case None      => Right(new Support(sorted))
+        case None => Right(new Support(sorted))
 
   def singleton[D <: Dim](
       offset: Offset[D]

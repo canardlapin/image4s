@@ -11,9 +11,9 @@ import ravel.Slice
 
 /** Exact integer-affine map from a target spatial lattice into a source.
   *
-  * Every target axis maps to exactly one source axis with a nonzero signed
-  * step. This restricted representation is deliberate: every valid map can be
-  * represented by Ravel slicing and axis permutation without copying values.
+  * Every target axis maps to exactly one source axis with a nonzero signed step. This restricted
+  * representation is deliberate: every valid map can be represented by Ravel slicing and axis
+  * permutation without copying values.
   */
 final class LatticeMap[D <: Dim] private (
     val sourceShape: Vector[Int],
@@ -48,12 +48,12 @@ final class LatticeMap[D <: Dim] private (
           ImageError.LatticeTargetIndexOutOfBounds(axis, index, extent)
       } match
         case Some(error) => Left(error)
-        case None        => Right(sourceIndexUnchecked(target))
+        case None => Right(sourceIndexUnchecked(target))
 
   /** Compose this target-to-source map with a following map.
     *
-    * If this map is `middle -> source` and `next` is `target -> middle`,
-    * the result is `target -> source`.
+    * If this map is `middle -> source` and `next` is `target -> middle`, the result is
+    * `target -> source`.
     */
   def followedBy(
       next: LatticeMap[D]
@@ -71,9 +71,8 @@ final class LatticeMap[D <: Dim] private (
       val combinedAxes =
         next.sourceAxisForTarget.map(sourceAxisForTarget)
       val combinedSteps =
-        next.sourceAxisForTarget.zip(next.steps).map {
-          case (middleAxis, nextStep) =>
-            steps(middleAxis) * nextStep
+        next.sourceAxisForTarget.zip(next.steps).map { case (middleAxis, nextStep) =>
+          steps(middleAxis) * nextStep
         }
       LatticeMap.stridedPermutation(
         sourceShape,
@@ -110,7 +109,9 @@ final class LatticeMap[D <: Dim] private (
   /** Construct the exact target geometry by composing index maps. */
   def targetGrid[F <: Frame[D]](
       source: Grid[F, D]
-  )(using dimension: Dimension[D]): Either[
+  )(using
+      dimension: Dimension[D]
+  ): Either[
     ImageError,
     Grid[F, D]
   ] =
@@ -150,8 +151,7 @@ final class LatticeMap[D <: Dim] private (
         start.toLong + step.toLong * targetShape(targetAxis).toLong
       val stop =
         if step < 0 && rawStop < -1L then -1
-        else if step > 0 && rawStop > sourceShape(sourceAxis).toLong then
-          sourceShape(sourceAxis)
+        else if step > 0 && rawStop > sourceShape(sourceAxis).toLong then sourceShape(sourceAxis)
         else rawStop.toInt
       sliced = sliced.slice(sourceAxis, Slice(start, stop, step))
       sourceAxis += 1
@@ -163,8 +163,7 @@ final class LatticeMap[D <: Dim] private (
     var targetAxis = 0
     while targetAxis < spatialRank do
       val sourceAxis = sourceAxisForTarget(targetAxis)
-      source(sourceAxis) =
-        origin(sourceAxis) + steps(targetAxis) * target(targetAxis)
+      source(sourceAxis) = origin(sourceAxis) + steps(targetAxis) * target(targetAxis)
       targetAxis += 1
     source.toVector
 
@@ -200,24 +199,26 @@ object LatticeMap:
         )
       )
     else
-      target.zipWithIndex.collectFirst {
-        case (extent, axis) if extent <= 0 =>
-          ImageError.NonPositiveSpatialViewExtent(axis, extent)
-      }.orElse(
-        copiedOrigin.indices.collectFirst {
-          case axis
-              if source.lift(axis).isEmpty ||
-                copiedOrigin(axis) < 0 ||
-                copiedOrigin(axis).toLong + target(axis).toLong >
-                  source(axis).toLong =>
-            ImageError.SpatialViewOutOfBounds(
-              axis,
-              copiedOrigin(axis),
-              target(axis),
-              source.lift(axis).getOrElse(0)
-            )
+      target.zipWithIndex
+        .collectFirst {
+          case (extent, axis) if extent <= 0 =>
+            ImageError.NonPositiveSpatialViewExtent(axis, extent)
         }
-      ) match
+        .orElse(
+          copiedOrigin.indices.collectFirst {
+            case axis
+                if source.lift(axis).isEmpty ||
+                  copiedOrigin(axis) < 0 ||
+                  copiedOrigin(axis).toLong + target(axis).toLong >
+                  source(axis).toLong =>
+              ImageError.SpatialViewOutOfBounds(
+                axis,
+                copiedOrigin(axis),
+                target(axis),
+                source.lift(axis).getOrElse(0)
+              )
+          }
+        ) match
         case Some(error) => Left(error)
         case None =>
           stridedPermutation(
@@ -338,46 +339,50 @@ object LatticeMap:
         )
       )
     else
-      source.zipWithIndex.collectFirst {
-        case (extent, axis) if extent <= 0 =>
-          ImageError.NonPositiveLatticeMapExtent("source", axis, extent)
-      }.orElse(
-        target.zipWithIndex.collectFirst {
+      source.zipWithIndex
+        .collectFirst {
           case (extent, axis) if extent <= 0 =>
-            ImageError.NonPositiveLatticeMapExtent("target", axis, extent)
+            ImageError.NonPositiveLatticeMapExtent("source", axis, extent)
         }
-      ).orElse(
-        Option.when(axes.sorted != Vector.range(0, rank))(
-          ImageError.InvalidLatticeAxisPermutation(axes, rank)
+        .orElse(
+          target.zipWithIndex.collectFirst {
+            case (extent, axis) if extent <= 0 =>
+              ImageError.NonPositiveLatticeMapExtent("target", axis, extent)
+          }
         )
-      ).orElse(
-        copiedSteps.zipWithIndex.collectFirst {
-          case (0, targetAxis) =>
+        .orElse(
+          Option.when(axes.sorted != Vector.range(0, rank))(
+            ImageError.InvalidLatticeAxisPermutation(axes, rank)
+          )
+        )
+        .orElse(
+          copiedSteps.zipWithIndex.collectFirst { case (0, targetAxis) =>
             ImageError.ZeroLatticeStep(targetAxis)
-        }
-      ).orElse(
-        axes.indices.collectFirst {
-          case targetAxis
-              if !endpointsFit(
-                copiedOrigin(axes(targetAxis)),
-                copiedSteps(targetAxis),
-                target(targetAxis),
-                source(axes(targetAxis))
-              ) =>
-            val sourceAxis = axes(targetAxis)
-            val first = copiedOrigin(sourceAxis).toLong
-            val last =
-              first +
-                copiedSteps(targetAxis).toLong *
+          }
+        )
+        .orElse(
+          axes.indices.collectFirst {
+            case targetAxis
+                if !endpointsFit(
+                  copiedOrigin(axes(targetAxis)),
+                  copiedSteps(targetAxis),
+                  target(targetAxis),
+                  source(axes(targetAxis))
+                ) =>
+              val sourceAxis = axes(targetAxis)
+              val first = copiedOrigin(sourceAxis).toLong
+              val last =
+                first +
+                  copiedSteps(targetAxis).toLong *
                   (target(targetAxis).toLong - 1L)
-            ImageError.LatticeMapOutOfBounds(
-              sourceAxis,
-              first,
-              last,
-              source(sourceAxis)
-            )
-        }
-      ) match
+              ImageError.LatticeMapOutOfBounds(
+                sourceAxis,
+                first,
+                last,
+                source(sourceAxis)
+              )
+          }
+        ) match
         case Some(error) => Left(error)
         case None =>
           Right(
@@ -400,6 +405,6 @@ object LatticeMap:
     val right =
       left + step.toLong * (extent.toLong - 1L)
     left >= 0L &&
-      left < sourceExtent.toLong &&
-      right >= 0L &&
-      right < sourceExtent.toLong
+    left < sourceExtent.toLong &&
+    right >= 0L &&
+    right < sourceExtent.toLong

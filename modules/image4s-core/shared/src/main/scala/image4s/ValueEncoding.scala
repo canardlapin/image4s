@@ -2,17 +2,16 @@ package image4s
 
 /** Structural, serializable relationship between stored and domain values.
   *
-  * Encodings carry data only: they never accept a user callback. Their
-  * fingerprints are stable across processes and are suitable for persistent
-  * receipts and equality checks.
+  * Encodings carry data only: they never accept a user callback. Their fingerprints are stable
+  * across processes and are suitable for persistent receipts and equality checks.
   */
 sealed trait ValueEncoding[Stored, Domain] derives CanEqual:
   def fingerprint: String
 
   /** Decode one stored value.
     *
-    * `nonSpatialIndex` is required only by encodings whose coefficients vary
-    * along a declared non-spatial axis.
+    * `nonSpatialIndex` is required only by encodings whose coefficients vary along a declared
+    * non-spatial axis.
     */
   def decode(
       stored: Stored,
@@ -150,9 +149,11 @@ object ValueEncoding:
         stored: Int,
         nonSpatialIndex: Vector[Int]
     ): Either[EncodingError, String] =
-      labels.lift(stored).toRight(
-        EncodingError.InvalidStoredValue("Codebook", stored.toString)
-      )
+      labels
+        .lift(stored)
+        .toRight(
+          EncodingError.InvalidStoredValue("Codebook", stored.toString)
+        )
 
     private[image4s] def validateFor(
         nonSpatialShape: Vector[Int]
@@ -164,8 +165,7 @@ object ValueEncoding:
         labels: IterableOnce[String]
     ): Either[EncodingError, Codebook] =
       val copied = labels.iterator.toVector
-      if copied.isEmpty then
-        Left(EncodingError.InvalidParameter("Codebook.labels", "empty"))
+      if copied.isEmpty then Left(EncodingError.InvalidParameter("Codebook.labels", "empty"))
       else if copied.exists(label => label.isEmpty || label != label.trim) then
         Left(EncodingError.InvalidParameter("Codebook.labels", "blank or padded label"))
       else Right(new Codebook(copied))

@@ -30,15 +30,12 @@ final class MorphologyPerformanceSuite extends FunSuite:
       imageRight(
         Sampled.mask(
           space,
-          NDArray.tabulate[Boolean](edge, edge)((row, column) =>
-            (row + 3 * column) % 11 == 0
-          )
+          NDArray.tabulate[Boolean](edge, edge)((row, column) => (row + 3 * column) % 11 == 0)
         )
       )
     val element = StructuringElement.cross[D2](opsRight(Radius.samples(1)))
     val plan = opsRight(BinaryMorphology.prepareDilate(input, element))
-    val run = () =>
-      retained = opsRight(plan.run(input)).asInstanceOf[AnyRef]
+    val run = () => retained = opsRight(plan.run(input)).asInstanceOf[AnyRef]
 
     Vector.fill(5)(run())
     val allocated = Vector.fill(7)(allocatedBytes(run())).sorted.apply(3)
@@ -59,8 +56,7 @@ final class MorphologyPerformanceSuite extends FunSuite:
     val bean =
       ManagementFactory.getThreadMXBean match
         case value: ThreadMXBean if value.isThreadAllocatedMemorySupported =>
-          if !value.isThreadAllocatedMemoryEnabled then
-            value.setThreadAllocatedMemoryEnabled(true)
+          if !value.isThreadAllocatedMemoryEnabled then value.setThreadAllocatedMemoryEnabled(true)
           value
         case _ =>
           fail("thread allocation accounting is unavailable")
@@ -72,14 +68,14 @@ final class MorphologyPerformanceSuite extends FunSuite:
   private def opsRight[A](value: Either[OpError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def geometryRight[A](value: Either[GeometryError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def imageRight[A](value: Either[image4s.ImageError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)

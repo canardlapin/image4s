@@ -172,9 +172,7 @@ final class OpsPerformanceCourtSuite extends FunSuite:
     imageRight(
       Sampled.continuous[Float, Rank[2]](
         space,
-        NDArray.tabulate[Float](edge, edge)((row, column) =>
-          ((row + column) % 23).toFloat
-        )
+        NDArray.tabulate[Float](edge, edge)((row, column) => ((row + column) % 23).toFloat)
       )
     )
 
@@ -185,9 +183,9 @@ final class OpsPerformanceCourtSuite extends FunSuite:
     imageRight(
       Sampled.continuous[Double, Rank[2]](
         space,
-        NDArray.tabulate[Double](edge, edge)((row, column) =>
-          ((row * 3 + column) % 29).toDouble
-        ).reverse(0)
+        NDArray
+          .tabulate[Double](edge, edge)((row, column) => ((row * 3 + column) % 29).toDouble)
+          .reverse(0)
       )
     )
 
@@ -213,9 +211,7 @@ final class OpsPerformanceCourtSuite extends FunSuite:
     imageRight(
       Sampled.mask(
         space,
-        NDArray.tabulate[Boolean](edge, edge)((row, column) =>
-          (row + 3 * column) % 11 == 0
-        )
+        NDArray.tabulate[Boolean](edge, edge)((row, column) => (row + 3 * column) % 11 == 0)
       )
     )
 
@@ -227,9 +223,9 @@ final class OpsPerformanceCourtSuite extends FunSuite:
     imageRight(
       Sampled.continuous[Float, Rank[3]](
         space,
-        NDArray.tabulate[Float](edge, edge, edge)((x, y, z) =>
-          ((x + 2 * y + 3 * z) % 31).toFloat
-        ).reverse(0)
+        NDArray
+          .tabulate[Float](edge, edge, edge)((x, y, z) => ((x + 2 * y + 3 * z) % 31).toFloat)
+          .reverse(0)
       )
     )
 
@@ -237,8 +233,7 @@ final class OpsPerformanceCourtSuite extends FunSuite:
     val bean =
       ManagementFactory.getThreadMXBean match
         case value: ThreadMXBean if value.isThreadAllocatedMemorySupported =>
-          if !value.isThreadAllocatedMemoryEnabled then
-            value.setThreadAllocatedMemoryEnabled(true)
+          if !value.isThreadAllocatedMemoryEnabled then value.setThreadAllocatedMemoryEnabled(true)
           value
         case _ =>
           fail("thread allocation accounting is unavailable")
@@ -250,14 +245,14 @@ final class OpsPerformanceCourtSuite extends FunSuite:
   private def opsRight[A](value: Either[OpError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def geometryRight[A](value: Either[GeometryError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def imageRight[A](value: Either[image4s.ImageError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)

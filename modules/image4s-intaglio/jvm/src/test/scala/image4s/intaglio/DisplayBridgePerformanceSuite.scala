@@ -39,8 +39,7 @@ final class DisplayBridgePerformanceSuite extends FunSuite:
         )
       )
     val plan = DisplayPlan(DisplayWindow.unsafe(0.0, (width * height - 1).toDouble))
-    val render = () =>
-      retained = DisplayBridge.renderRaster(image, plan)
+    val render = () => retained = DisplayBridge.renderRaster(image, plan)
 
     Vector.fill(3)(render())
     val allocations = Vector.fill(7)(allocatedBytes(render())).sorted
@@ -59,10 +58,8 @@ final class DisplayBridgePerformanceSuite extends FunSuite:
   ): Long =
     val bean =
       ManagementFactory.getThreadMXBean match
-        case value: ThreadMXBean
-            if value.isThreadAllocatedMemorySupported =>
-          if !value.isThreadAllocatedMemoryEnabled then
-            value.setThreadAllocatedMemoryEnabled(true)
+        case value: ThreadMXBean if value.isThreadAllocatedMemorySupported =>
+          if !value.isThreadAllocatedMemoryEnabled then value.setThreadAllocatedMemoryEnabled(true)
           value
         case _ =>
           fail("this JVM does not expose per-thread allocation accounting")

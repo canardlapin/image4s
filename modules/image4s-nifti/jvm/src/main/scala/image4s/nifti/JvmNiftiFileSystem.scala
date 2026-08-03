@@ -55,8 +55,7 @@ private object JvmNiftiFileSystem extends NiftiFileSystem[Path]:
           val read = input.read(bytes, offset, maximumBytes - offset)
           if read < 0 then ended = true
           else if read > 0 then offset += read
-        if offset == maximumBytes && !ended then
-          ended = input.read() < 0
+        if offset == maximumBytes && !ended then ended = input.read() < 0
         Right(
           NiftiBoundedRead(
             java.util.Arrays.copyOf(bytes, offset),
@@ -109,19 +108,18 @@ private object JvmNiftiFileSystem extends NiftiFileSystem[Path]:
             while filled < requested && failure.isEmpty do
               val read = input.read(buffer, filled, requested - filled)
               if read < 0 then
-                failure =
-                  Some(
-                    NiftiError.UnexpectedEndOfFile(
-                      operation,
-                      clampToInt(startOffset + byteCount),
-                      clampToInt(startOffset + consumed + filled)
-                    )
+                failure = Some(
+                  NiftiError.UnexpectedEndOfFile(
+                    operation,
+                    clampToInt(startOffset + byteCount),
+                    clampToInt(startOffset + consumed + filled)
                   )
+                )
               else if read > 0 then filled += read
             if failure.isEmpty then
               consume(buffer, requested) match
                 case Left(error) => failure = Some(error)
-                case Right(_)    => consumed += requested.toLong
+                case Right(_) => consumed += requested.toLong
           failure.toLeft(())
       finally input.close()
     }
@@ -164,10 +162,12 @@ private object JvmNiftiFileSystem extends NiftiFileSystem[Path]:
         var failure: Option[NiftiError] = None
         while payloadOffset < payloadBytes && failure.isEmpty do
           val length =
-            math.min(
-              buffer.length.toLong,
-              payloadBytes - payloadOffset
-            ).toInt
+            math
+              .min(
+                buffer.length.toLong,
+                payloadBytes - payloadOffset
+              )
+              .toInt
           fill(payloadOffset, buffer, length) match
             case Left(error) => failure = Some(error)
             case Right(_) =>
