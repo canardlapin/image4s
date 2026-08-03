@@ -1,37 +1,56 @@
-# image4s guide
+# image4s
 
-image4s is a typed Scala 3 library for multidimensional images. It keeps
-sample values attached to their spatial grid, declared non-spatial axes,
-metadata, and value semantics while they move through a pipeline.
-
-This guide is for the current source checkout. image4s is early development
-software (`0.1.0-SNAPSHOT`), so APIs and module boundaries can still change.
-The examples are compiled by mdoc against the JVM modules during the site
-build; a broken example fails the documentation build.
-
-## Start here
-
-- [Getting started](getting-started.md) builds one image, selects a time point,
-  crops it, and maps its values.
-- [The core model](core-model.md) explains how grids, non-spatial axes, and
-  semantic value roles fit together.
-- [Views and coordinates](guides/views.md) shows checked zero-copy spatial and
-  non-spatial views.
-- [Filtering](guides/filtering.md) adds a Gaussian operation without losing
-  the sampled space.
-
-## Reference
-
-- [Build and module boundaries](reference/build.md)
-- [NIfTI input and output](reference/nifti.md)
-
-## Build this guide
-
-From the repository root:
+image4s represents multidimensional images whose coordinates and meaning stay
+attached to their values.
 
 ```text
-sbt -batch docs/tlSite
+image = values + spatial grid + sampled axes + value meaning
 ```
 
-The generated site is under `site/target/`. It is build output, not source,
-and is intentionally not committed.
+This combination changes what an image operation is allowed to assume:
+
+- A crop remains in the same physical coordinate frame. Its grid records where
+  the first cropped sample lies.
+- A time point comes from a declared time axis. Code does not have to guess
+  that the fourth array dimension means time.
+- A label image remains categorical even when its stored codes are numbers.
+  Continuous-only operations cannot accept it by accident.
+- Equal array shapes do not prove that two images sample the same locations.
+  Pointwise work requires a shared sample space or an exact alignment proof.
+
+image4s is early-development Scala 3 software (`0.1.0-SNAPSHOT`). The public
+model and module boundaries are deliberate, but source and binary compatibility
+are not yet promised. The executable examples in this guide compile against
+the JVM modules during `docs/tlSite`.
+
+## Where image4s fits
+
+image4s owns sampled-image meaning: geometry, declared axes, semantic roles,
+metadata, and checked image operations. Neighboring libraries have narrower
+jobs:
+
+| Library | Responsibility |
+| --- | --- |
+| Ravel | Dense arrays, layouts, storage views, and numerical kernels |
+| Gale | Coordinate frames and affine geometry used by image4s |
+| reframe4s | Resampling values onto a different grid |
+| Intaglio | Turning display descriptions into rendered output |
+
+## Choose a route
+
+- **Build a first image:** follow [Getting started](getting-started.md).
+- **Understand the representation:** read
+  [The sampled-image model](understand/sampled-image-model.md), then
+  [Geometry and sampled axes](understand/geometry-and-axes.md).
+- **Complete a task:** start with
+  [exact views](work/exact-views.md),
+  [filtering](work/filter-and-gradients.md),
+  [morphology](work/masks-and-morphology.md),
+  [NIfTI input](work/read-nifti.md), or
+  [Intaglio display](work/display-intaglio.md).
+- **Integrate reconstructed data:** read
+  [Identity, reconstruction, and alignment](deeper/identity-and-alignment.md).
+
+The compact [reference](reference/modules-and-platforms.md) records module,
+platform, error, and support boundaries. Contributor build commands live under
+[Build and check the guide](contribute/build-guide.md).

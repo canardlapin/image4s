@@ -24,7 +24,7 @@ ThisBuild / scalacOptions ++= Seq(
 ThisBuild / Test / parallelExecution := false
 Global / concurrentRestrictions += Tags.limit(Tags.Test, 1)
 
-lazy val ravelRevision = "2b3bba9156aff7a177d1049aef20da38595d669e"
+lazy val ravelRevision = "a9237849af96218588693eaf4db64569760f9be5"
 lazy val ravelBuild =
   sys.props
     .get("image4s.ravel.build")
@@ -190,7 +190,13 @@ lazy val root =
 lazy val docs =
   project
     .in(file("site"))
-    .dependsOn(image4sCore.jvm, image4sFilter.jvm)
+    .dependsOn(
+      image4sCore.jvm,
+      image4sFilter.jvm,
+      image4sMorphology.jvm,
+      image4sNifti.jvm,
+      image4sIntaglio.jvm
+    )
     .enablePlugins(org.typelevel.sbt.TypelevelSitePlugin)
     .settings(
       name := "image4s-site",
