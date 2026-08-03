@@ -55,39 +55,59 @@ The shared singleton type of `leftSpace` is the proof. `zipWith` computes new
 values, retains metadata from the left input, and keeps the left sample-space
 owner.
 
-## Align independently constructed sample spaces once
+## Combine independently constructed spaces once
 
 Two `SampleSpace.create` calls produce different live owners even when they
-refer to the same grid and ordered axes. Check exact congruence once and reuse
-the resulting `SamplingAlignment`.
+refer to the same grid and ordered axes. `zipWithExact` is the concise route
+when one combination needs an exact comparison.
 
 ```scala mdoc:silent
 val reconstructedSpace =
   SampleSpace.create(grid, NonSpatialAxes.empty)
-val alignedInputs =
-  for
-    reconstructed <- Image.continuous(
+val reconstructed =
+  Image
+    .continuous(
       reconstructedSpace,
       NDArray.fromSeq(Shape(2, 2), Vector.fill(4)(20.0))
     )
-    alignment <- left.sampleSpace.alignExact(reconstructedSpace)
-  yield (reconstructed, alignment)
-
-val (reconstructed, alignment) =
-  alignedInputs.fold(
+    .fold(
     error => throw new IllegalArgumentException(error.toString),
     identity
   )
-val checkedSum =
-  left.zipWithAligned(reconstructed, alignment)(_ + _)
+val exactSum =
+  left
+    .zipWithExact(reconstructed)(_ + _)
+    .fold(
+      error => throw new IllegalArgumentException(error.toString),
+      identity
+    )
 
-assert(checkedSum(1, 1) == 24.0)
-assert(checkedSum.sampleSpace.eq(leftSpace))
+assert(exactSum(1, 1) == 24.0)
+assert(exactSum.sampleSpace.eq(leftSpace))
 ```
 
-`alignExact` checks exact grid congruence and equality of the ordered axis
-records. Shape alone is not enough: a shifted affine, a different frame, a
-different axis unit, or different declared coordinates rejects the proof.
+The method validates exact alignment once and keeps the left owner. Shape alone
+is not enough: a shifted affine, a different frame, a different axis unit, or
+different declared coordinates returns the same error as `alignExact`.
+
+## Retain alignment when several operations reuse it
+
+Call `alignExact` directly when more than one operation should share the proof.
+
+```scala mdoc:silent
+val alignment =
+  left.sampleSpace
+    .alignExact(reconstructedSpace)
+    .fold(
+      error => throw new IllegalArgumentException(error.toString),
+      identity
+    )
+val alignedSum =
+  left.zipWithAligned(reconstructed, alignment)(_ + _)
+
+assert(alignedSum(1, 1) == 24.0)
+assert(alignedSum.sampleSpace.eq(leftSpace))
+```
 
 ## Rebind when several operations share the proof
 
@@ -112,7 +132,7 @@ Approximate geometric congruence is diagnostic evidence. It does not produce a
 | --- | --- | --- | --- | --- |
 | `alignExact` | Unchanged | Compared exactly | Records compared in order | Unchanged |
 | `rebind` | Same array object | Rebound to proved owner | Rebound to proved owner | Preserved |
-| `zipWith` / `zipWithAligned` | Newly computed | Left input's grid | Left input's axes | Preserved for this overload |
+| `zipWith` / `zipWithExact` / `zipWithAligned` | Newly computed | Left input's grid | Left input's axes | Preserved for this overload |
 
 For registry restoration and persistent identity, continue to
 [Identity, reconstruction, and alignment](../deeper/identity-and-alignment.md).

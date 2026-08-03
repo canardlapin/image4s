@@ -1279,6 +1279,100 @@ extension [
   ] =
     Gaussian.blur(input, sigma, extent, truncate, policy)
 
+  /** Gaussian blur with an isotropic sigma measured in samples. */
+  def gaussianBlurSamples(
+      sigma: Double,
+      extent: FilterExtent[A] = FilterExtent.same(Border.reflect),
+      truncate: Double = 3.0,
+      policy: ExecutionPolicy = ExecutionPolicy()
+  )(using
+      dimension: Dimension[input.sampleSpace.D],
+      target: FilterOutput[A],
+      floating: FloatingDType[A],
+      semantics: ValueSemantics[A, Continuous]
+  ): Either[
+    OpError,
+    ContinuousImage[
+      ? <: SampleSpace[input.sampleSpace.F, input.sampleSpace.D],
+      A,
+      R
+    ]
+  ] =
+    SpatialSigma
+      .samples[input.sampleSpace.D](sigma)
+      .flatMap(Gaussian.blur(input, _, extent, truncate, policy))
+
+  /** Gaussian blur with one sample-coordinate sigma per spatial axis. */
+  def gaussianBlurSamplesByAxis(
+      sigmas: IterableOnce[Double],
+      extent: FilterExtent[A] = FilterExtent.same(Border.reflect),
+      truncate: Double = 3.0,
+      policy: ExecutionPolicy = ExecutionPolicy()
+  )(using
+      dimension: Dimension[input.sampleSpace.D],
+      target: FilterOutput[A],
+      floating: FloatingDType[A],
+      semantics: ValueSemantics[A, Continuous]
+  ): Either[
+    OpError,
+    ContinuousImage[
+      ? <: SampleSpace[input.sampleSpace.F, input.sampleSpace.D],
+      A,
+      R
+    ]
+  ] =
+    SpatialSigma
+      .samples[input.sampleSpace.D](sigmas)
+      .flatMap(Gaussian.blur(input, _, extent, truncate, policy))
+
+  /** Gaussian blur with an isotropic sigma measured in frame coordinates. */
+  def gaussianBlurFrame(
+      sigma: Double,
+      unit: LengthUnit = input.grid.frame.unit,
+      extent: FilterExtent[A] = FilterExtent.same(Border.reflect),
+      truncate: Double = 3.0,
+      policy: ExecutionPolicy = ExecutionPolicy()
+  )(using
+      dimension: Dimension[input.sampleSpace.D],
+      target: FilterOutput[A],
+      floating: FloatingDType[A],
+      semantics: ValueSemantics[A, Continuous]
+  ): Either[
+    OpError,
+    ContinuousImage[
+      ? <: SampleSpace[input.sampleSpace.F, input.sampleSpace.D],
+      A,
+      R
+    ]
+  ] =
+    SpatialSigma
+      .frame[input.sampleSpace.D](sigma, Some(unit))
+      .flatMap(Gaussian.blur(input, _, extent, truncate, policy))
+
+  /** Gaussian blur with one frame-coordinate sigma per spatial axis. */
+  def gaussianBlurFrameByAxis(
+      sigmas: IterableOnce[Double],
+      unit: LengthUnit = input.grid.frame.unit,
+      extent: FilterExtent[A] = FilterExtent.same(Border.reflect),
+      truncate: Double = 3.0,
+      policy: ExecutionPolicy = ExecutionPolicy()
+  )(using
+      dimension: Dimension[input.sampleSpace.D],
+      target: FilterOutput[A],
+      floating: FloatingDType[A],
+      semantics: ValueSemantics[A, Continuous]
+  ): Either[
+    OpError,
+    ContinuousImage[
+      ? <: SampleSpace[input.sampleSpace.F, input.sampleSpace.D],
+      A,
+      R
+    ]
+  ] =
+    SpatialSigma
+      .frame[input.sampleSpace.D](sigmas, Some(unit))
+      .flatMap(Gaussian.blur(input, _, extent, truncate, policy))
+
   def gaussianBlurTo[B](
       sigma: SpatialSigma[input.sampleSpace.D],
       extent: FilterExtent[B] = FilterExtent.same(Border.reflect),

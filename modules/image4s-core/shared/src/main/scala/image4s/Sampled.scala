@@ -575,6 +575,54 @@ final class Sampled[
       valueSemantics
     )
 
+  /** Combine after validating exact sampling alignment once for this call.
+    *
+    * This is the one-shot form of `sampleSpace.alignExact(that.sampleSpace)` followed by
+    * [[zipWithAlignedAs]]. The reusable [[SamplingAlignment]] route remains preferable when more
+    * than one operation consumes the same proof.
+    */
+  def zipWithExactAs[
+      RF <: Frame[sampleSpace.D],
+      T <: SampleSpace[RF, sampleSpace.D],
+      OtherSem,
+      C,
+      OutSem
+  ](
+      that: Sampled[T, A, OtherSem, R]
+  )(
+      combine: (A, A) => C
+  )(using
+      outputSemantics: ValueSemantics[C, OutSem],
+      dtype: DType[C]
+  ): Either[
+    ImageError,
+    Sampled[S, C, OutSem, BroadcastRank[R, R]]
+  ] =
+    sampleSpace.alignExact(that.sampleSpace).map { alignment =>
+      val widened: SamplingAlignment[S, T] =
+        SamplingAlignment.widen(alignment)
+      zipWithAlignedAs(that, widened)(combine)
+    }
+
+  /** Combine equal-typed fields after one exact alignment validation. */
+  def zipWithExact[
+      RF <: Frame[sampleSpace.D],
+      T <: SampleSpace[RF, sampleSpace.D]
+  ](
+      that: Sampled[T, A, Sem, R]
+  )(
+      combine: (A, A) => A
+  )(using
+      dtype: DType[A]
+  ): Either[
+    ImageError,
+    Sampled[S, A, Sem, BroadcastRank[R, R]]
+  ] =
+    zipWithExactAs[RF, T, Sem, A, Sem](that)(combine)(using
+      valueSemantics,
+      dtype
+    )
+
   /** Combine after one reusable exact alignment check.
     *
     * No sampling validation is repeated here; the output remains owned by the left sample space.
@@ -829,6 +877,41 @@ object Sampled:
     ContinuousImage[? <: SampleSpace[F, D], A, R]
   ] =
     validateAndCreate(grid, nonSpatialAxes, data, metadata)
+
+  /** Construct a continuous image from one declarative sampling request.
+    *
+    * This is exactly `sampling.buildFor(data.shape)` followed by [[continuous]] on the resulting
+    * sample space. It retains `data` by reference and creates a fresh runtime sampling owner for
+    * each call. Use [[SamplingSpec.buildFor]] directly when several images must share one owner.
+    */
+  def continuous[D <: Dim, A, R <: AnyRank](
+      data: NDArray[A, R],
+      sampling: SamplingSpec[D]
+  )(using
+      Dimension[D],
+      ValueSemantics[A, Continuous]
+  ): Either[
+    ImageError,
+    ContinuousImage[? <: SampleSpace[? <: Frame[D], D], A, R]
+  ] =
+    continuous(data, sampling, ImageMetadata.empty)
+
+  /** Construct a continuous image with metadata from one declarative sampling request. */
+  def continuous[D <: Dim, A, R <: AnyRank](
+      data: NDArray[A, R],
+      sampling: SamplingSpec[D],
+      metadata: ImageMetadata
+  )(using
+      Dimension[D],
+      ValueSemantics[A, Continuous]
+  ): Either[
+    ImageError,
+    ContinuousImage[? <: SampleSpace[? <: Frame[D], D], A, R]
+  ] =
+    for
+      space <- sampling.buildFor(data.shape)
+      image <- continuous(space, data, metadata)
+    yield image
 
   def categorical[A, R <: AnyRank](
       sampleSpace: SampleSpace[?, ?],

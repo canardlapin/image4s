@@ -18,14 +18,22 @@ Current guarantees within the source contract:
 - Continuous, categorical, and mask roles remain distinct from storage dtype.
 - Runtime owner, persistent identity, exact congruence, approximate
   congruence, and value equality remain separate relations.
+- `SamplingSpec` is create-only vocabulary that expands to the canonical
+  frame, grid, axes, and sample space; it is not a second stored model.
+- Fresh-frame NIfTI reads expose known D3 spatial rank while retaining
+  header-selected storage rank and exact decode receipts.
 
 Deliberate limits:
 
 - Native D2-in-D3 embedded planes are not represented by `Grid[D2]`; use a D3
   singleton extent or retain embedding geometry downstream.
 - Axis units are identifiers, not an implicit unit-conversion system.
+- Index selection does not imply coordinate-value matching. Exact,
+  tolerance-bound, and nearest matching require distinct explicit policies.
 - image4s exposes no public flat-index or contiguous-storage contract.
 - Approximate congruence does not authorize pointwise arithmetic.
+- The core prelude does not export data containers, feature modules, workflow
+  effects, generic slicing, or resampling.
 
 ## Exact views and resampling
 

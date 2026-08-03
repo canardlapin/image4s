@@ -728,8 +728,23 @@ object NiftiError:
     val message: String =
       error.message
 
-final case class DecodedNifti[I](
+final case class DecodedNifti[+I](
     image: I,
     header: NiftiHeader,
     affineSelection: NiftiAffineSelection
-)
+):
+  /** Transform the decoded image while retaining the exact header and affine-selection receipts. */
+  def mapImage[J](transform: I => J): DecodedNifti[J] =
+    DecodedNifti(
+      transform(image),
+      header,
+      affineSelection
+    )
+
+  /** Transform the decoded image through a typed failure channel while retaining its receipts. */
+  def traverseImage[E, J](
+      transform: I => Either[E, J]
+  ): Either[E, DecodedNifti[J]] =
+    transform(image).map { result =>
+      DecodedNifti(result, header, affineSelection)
+    }

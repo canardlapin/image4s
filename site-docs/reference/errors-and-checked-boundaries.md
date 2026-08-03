@@ -9,6 +9,7 @@ indexing retains Ravel's indexing behavior.
 
 | User action | Error family | Typical cause | Next action |
 | --- | --- | --- | --- |
+| Build a `SamplingSpec` | `ImageError` wrapping geometry errors or a specification mismatch | Spatial rank differs from the array shape, an explicit axis extent disagrees, or a requested frame/affine is invalid | Correct the declarative request or data shape; do not patch the built image |
 | Parse an ID or create a frame | `GeometryError` | Empty ID/label or unsupported dimensional declaration | Correct the identifier or dimension |
 | Create an affine | `GeometryError` | Wrong matrix size, non-finite coefficient, singular or ill-conditioned basis | Repair the transform or choose explicit diagnostic limits |
 | Create a grid or index | `GeometryError` | Rank mismatch, non-positive extent, or out-of-bounds bounded index | Correct shape/index before constructing the image |
@@ -27,6 +28,8 @@ indexing retains Ravel's indexing behavior.
 
 Approximate congruence reports closeness only. It does not recover from an
 exact-alignment error and cannot be passed to pointwise operations.
+`zipWithExact` returns the same alignment failure as `alignExact`; it is a
+one-shot convenience, not approximate matching or resampling.
 
 ## Filtering and morphology
 
@@ -34,6 +37,9 @@ exact-alignment error and cannot be passed to pointwise operations.
 execution methods, image construction failures, and unsupported geometry.
 
 - Use positive finite Gaussian sigmas.
+- Use `gaussianBlurSamples` or `gaussianBlurFrame` to make the sigma coordinate
+  system explicit; their validation errors are the canonical `SpatialSigma`
+  errors.
 - Use non-negative morphology radii.
 - Request floating output for integer-backed filtering or gradients.
 - Use D2 disks and D3 balls in their supported dimensions.

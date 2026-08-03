@@ -11,6 +11,7 @@ import image4s.geometry.D3
 import image4s.geometry.Frame
 import image4s.geometry.GeometryError
 import image4s.geometry.Grid
+import image4s.geometry.LengthUnit
 import image4s.ops.Border
 import image4s.ops.Convolution
 import image4s.ops.Correlation
@@ -47,6 +48,100 @@ final class FilterSuite extends FunSuite:
       output.data.elementsIterator.map(_.toDouble).sum,
       1.0,
       1.0e-6
+    )
+
+  test("unit-explicit Gaussian facades match canonical SpatialSigma routes"):
+    val frame =
+      geometryRight(
+        Frame.named[D2]("facade-filter", unit = LengthUnit.Millimeter)
+      )
+    val affine =
+      geometryRight(
+        Affine.fromOriginSpacingDirection[D2](
+          origin = Vector(0.0, 0.0),
+          spacing = Vector(2.0, 4.0),
+          directionRowMajor = Vector(1.0, 0.0, 0.0, 1.0)
+        )
+      )
+    val grid = geometryRight(Grid.in(frame)(Vector(9, 9), affine))
+    val space = SampleSpace.create(grid, NonSpatialAxes.empty)
+    val data =
+      NDArray.tabulate[Double](9, 9) { (row, column) =>
+        if row == 4 && column == 4 then 1.0 else 0.0
+      }
+    val image = imageRight(Sampled.continuous[Double, Rank[2]](space, data))
+    val extent = FilterExtent.same(Border.Constant(0.0))
+
+    val sampleFacade = opsRight(image.gaussianBlurSamples(1.0, extent))
+    val sampleCanonical =
+      opsRight(
+        image.gaussianBlur(
+          opsRight(SpatialSigma.samples[D2](1.0)),
+          extent
+        )
+      )
+    val frameFacade =
+      opsRight(
+        image.gaussianBlurFrame(
+          4.0,
+          LengthUnit.Millimeter,
+          extent
+        )
+      )
+    val frameCanonical =
+      opsRight(
+        image.gaussianBlur(
+          opsRight(
+            SpatialSigma.frame[D2](4.0, Some(LengthUnit.Millimeter))
+          ),
+          extent
+        )
+      )
+    val sampleByAxis =
+      opsRight(image.gaussianBlurSamplesByAxis(Vector(2.0, 1.0), extent))
+    val frameByAxis =
+      opsRight(
+        image.gaussianBlurFrameByAxis(
+          Vector(4.0, 4.0),
+          LengthUnit.Millimeter,
+          extent
+        )
+      )
+
+    assertEquals(
+      sampleFacade.data.elementsIterator.toVector,
+      sampleCanonical.data.elementsIterator.toVector
+    )
+    assertEquals(
+      frameFacade.data.elementsIterator.toVector,
+      frameCanonical.data.elementsIterator.toVector
+    )
+    assertEquals(
+      sampleByAxis.data.elementsIterator.toVector,
+      frameByAxis.data.elementsIterator.toVector
+    )
+    assertEquals(sampleFacade.grid, sampleCanonical.grid)
+    assertEquals(frameFacade.grid, frameCanonical.grid)
+    assertEquals(sampleFacade.data.shape, sampleCanonical.data.shape)
+
+  test("Gaussian facade validation returns canonical errors"):
+    val image = doubleImage(Vector.fill(25)(1.0), Vector(5, 5))
+
+    assertEquals(
+      image.gaussianBlurSamples(-1.0).left.toOption,
+      SpatialSigma.samples[D2](-1.0).left.toOption
+    )
+    assertEquals(
+      image.gaussianBlurSamplesByAxis(Vector(1.0)).left.toOption,
+      SpatialSigma.samples[D2](Vector(1.0)).left.toOption
+    )
+    assertEquals(
+      image.gaussianBlurFrame(Double.NaN).left.toOption,
+      SpatialSigma.frame[D2](Double.NaN).left.toOption
+    )
+    assertEquals(
+      image.gaussianBlurFrameByAxis(Vector(1.0)).left.toOption,
+      SpatialSigma.frame[D2](Vector(1.0), None).left.toOption
     )
 
   test("Byte Gaussian requires explicit promotion and preserves batch axes"):

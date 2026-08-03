@@ -39,6 +39,16 @@ final class SamplingAlignment[
     new SamplingAlignment(left, next.right)
 
 object SamplingAlignment:
+  private[image4s] def widen[
+      L <: SampleSpace[?, ?],
+      R <: SampleSpace[?, ?],
+      ExactL <: L,
+      ExactR <: R
+  ](
+      alignment: SamplingAlignment[ExactL, ExactR]
+  ): SamplingAlignment[L, R] =
+    new SamplingAlignment(alignment.left, alignment.right)
+
   def identity[S <: SampleSpace[?, ?]](
       space: S
   ): SamplingAlignment[S, S] =

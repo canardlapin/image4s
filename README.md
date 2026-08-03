@@ -25,51 +25,53 @@ This constructs a 3D image with a declared time axis, selects one time point,
 takes a spatial crop, and maps its values:
 
 ```scala
-import image4s.*
-import image4s.geometry.*
-import ravel.DType.given
+import image4s.prelude.*
 import ravel.NDArray
 
-val frame =
-  Frame.named[D3](
-    "native",
-    unit = LengthUnit.Millimeter,
-    convention = CoordinateConvention.RAS
-  ).toOption.get
-val grid =
-  Grid.in(frame)(Vector(6, 7, 5), Affine.identity[D3]).toOption.get
-val time =
-  Axis.regular(
-    "time",
-    AxisKind.Time,
-    extent = 4,
-    origin = 0.0,
-    step = 0.8,
-    unit = AxisUnit.Seconds
-  ).toOption.get
-val axes = NonSpatialAxes.from(Vector(time)).toOption.get
+val sampling =
+  SamplingSpec[D3](
+    frame = FrameSpec.named(
+      "native",
+      unit = LengthUnit.Millimeter,
+      convention = CoordinateConvention.RAS
+    ),
+    grid = GridSpec.identity,
+    axes = AxesSpec(
+      AxisSpec.timeRegular(
+        origin = 0.0,
+        step = 0.8,
+        unit = AxisUnit.Seconds
+      )
+    )
+  )
 val values =
   NDArray.tabulate[Double](6, 7, 5, 4)((i, j, k, t) =>
     1000.0 * i + 100.0 * j + 10.0 * k + t
   )
 
-val image = Image.continuous(grid, axes, values).toOption.get
-val volume = image.atTime(2).toOption.get
-val crop =
-  volume
-    .crop(origin = Vector(1, 2, 1), shape = Vector(3, 4, 2))
-    .toOption
-    .get
-val centered = crop.mapValues(_ - 1000.0)
+val result =
+  for
+    image <- Image.continuous(values, sampling)
+    volume <- image.atTime(2)
+    crop <- volume.crop(
+      origin = Vector(1, 2, 1),
+      shape = Vector(3, 4, 2)
+    )
+  yield (image, crop.mapValues(_ - 1000.0))
 
-assert(image.logicalShape == Vector(6, 7, 5, 4))
-assert(centered(0, 0, 0) == 212.0)
+result match
+  case Right((image, centered)) =>
+    assert(image.logicalShape == Vector(6, 7, 5, 4))
+    assert(centered(0, 0, 0) == 212.0)
+  case Left(error) =>
+    println(s"invalid image workflow: ${error.message}")
 ```
 
-The example unwraps successful `Either` values to keep the workflow visible;
-constructors and operations return typed errors, which application code should
-handle explicitly. The same construction, selection, crop, and map workflow is
-compiled and run on both platforms by
+`SamplingSpec` is a create-only request. It expands to the ordinary `Frame`,
+`Grid`, `Axis`, and `SampleSpace` values; the resulting image does not retain a
+second geometry representation. The workflow has one honest `Either` result,
+so construction, selection, and crop failures remain visible. The same workflow
+is compiled and run on both platforms by
 [`ApproachableApiSuite`](modules/image4s-core/shared/src/test/scala/image4s/ApproachableApiSuite.scala):
 
 ```text
@@ -141,17 +143,25 @@ checks for development and validation.
   zero-copy view. Broader transforms must be materialized or resampled
   explicitly.
 - **Alignment is not guessed.** Images built from one live `SampleSpace` can
-  combine directly. Independently reconstructed spaces require an explicit
-  `SamplingAlignment`; structural similarity does not create hidden ownership.
+  combine directly. Use `zipWithExact` for a one-off exact comparison of
+  reconstructed spaces, or retain a `SamplingAlignment` when several
+  operations reuse the proof. Structural similarity does not create hidden
+  ownership.
 - **Numeric behavior is visible.** `Sampled.convertTo[B]` takes an explicit
-  conversion policy. Floating images can use `gaussianBlur`; integer-backed
-  continuous images must request a floating output with `gaussianBlurTo[B]`
-  rather than silently truncating.
+  conversion policy. `gaussianBlurSamples` and `gaussianBlurFrame` state the
+  sigma coordinate system in the method name. Integer-backed continuous images
+  must request a floating output with `gaussianBlurTo[B]` rather than silently
+  truncating.
 - **NIfTI scaling is visible.** Stored codes, scaled values, labels, affine
   choice, and I/O limits have separate policies and typed failure paths.
 
 The [canonical image representation contract](docs/image-representation-contract.md)
 is the normative description of these boundaries.
+
+The convenience API does not add hidden Python-style slicing, coordinate-value
+matching, resampling, unit conversion, or workflow effects. Coordinate lookup
+and index selection are separate unless a method explicitly states a matching
+policy; production resampling remains a reframe4s responsibility.
 
 ## Documentation and evidence
 

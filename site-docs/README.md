@@ -17,6 +17,8 @@ This combination changes what an image operation is allowed to assume:
   Continuous-only operations cannot accept it by accident.
 - Equal array shapes do not prove that two images sample the same locations.
   Pointwise work requires a shared sample space or an exact alignment proof.
+- Ordinary construction can be declared once with `SamplingSpec`; the request
+  expands to the same canonical frame, grid, axes, and sample space.
 
 image4s is early-development Scala 3 software (`0.1.0-SNAPSHOT`). The public
 model and module boundaries are deliberate, but source and binary compatibility
@@ -39,6 +41,8 @@ jobs:
 ## Choose a route
 
 - **Build a first image:** follow [Getting started](getting-started.md).
+- **Reduce common imports:** opt into `image4s.prelude.*`; import `NDArray` and
+  feature modules separately so ownership remains visible.
 - **Understand the representation:** read
   [The sampled-image model](understand/sampled-image-model.md), then
   [Geometry and sampled axes](understand/geometry-and-axes.md).

@@ -1,77 +1,51 @@
 # Getting started
 
 This workflow builds a two-dimensional image sampled at three time points,
-selects the sample at 0.5 seconds, crops it, and applies a Gaussian blur. Using
-two spatial dimensions keeps the difference between spatial geometry and time
-visible in the types and shapes.
-
-The example composes operations that can fail with `Either`. Each section
-converts failure to an exception once so mdoc stops if the example becomes
-invalid. Application code should instead report or recover from the error.
+selects the sample at 0.5 seconds, crops it exactly, and applies a Gaussian
+blur. Spatial rank, units, coordinate convention, transform policy, and time
+coordinates stay visible even though the constructor plumbing is compact.
 
 ```scala mdoc:silent
-import image4s.*
-import image4s.filter.gaussianBlur
-import image4s.geometry.*
-import image4s.ops.SpatialSigma
-import ravel.DType.given
+import image4s.prelude.*
+import image4s.filter.gaussianBlurSamples
 import ravel.NDArray
 ```
 
-## 1. Declare a spatial grid
+## 1. Describe the sampling
 
-The grid has six samples along its first spatial axis and five along its
-second. Its identity affine maps index `(x, y)` to the same coordinates in the
-named frame.
+`SamplingSpec` is a create-only request. `D2` fixes spatial rank. The frame
+uses millimetres and RAS coordinates. `GridSpec.identity` states that spatial
+indices map directly into that frame; use `GridSpec.axisAligned` or
+`GridSpec.affine` when that transform policy is not correct.
 
 ```scala mdoc:silent
-val frameAndGrid =
-  for
-    frame <- Frame.named[D2](
+val sampling =
+  SamplingSpec[D2](
+    frame = FrameSpec.named(
       "scanner-plane",
       unit = LengthUnit.Millimeter,
       convention = CoordinateConvention.RAS
+    ),
+    grid = GridSpec.identity,
+    axes = AxesSpec(
+      AxisSpec.timeRegular(
+        origin = 0.0,
+        step = 0.5,
+        unit = AxisUnit.Seconds
+      )
     )
-    grid <- Grid.in(frame)(Vector(6, 5), Affine.identity[D2])
-  yield (frame, grid)
-
-val (frame, grid) =
-  frameAndGrid.fold(
-    error => throw new IllegalArgumentException(error.toString),
-    identity
   )
 ```
 
-## 2. Declare time coordinates
+The time extent is intentionally absent from `AxisSpec.timeRegular`: the Ravel
+shape binds it when the image is built. This prevents a declared axis extent
+from drifting away from the data shape.
 
-The time axis has coordinates 0.0, 0.5, and 1.0 seconds. It is not merely a
-trailing array dimension.
+## 2. Attach values and take exact views
 
-```scala mdoc:silent
-val timeAndAxes =
-  for
-    time <- Axis.regular(
-      "time",
-      AxisKind.Time,
-      extent = 3,
-      origin = 0.0,
-      step = 0.5,
-      unit = AxisUnit.Seconds
-    )
-    axes <- NonSpatialAxes.from(Vector(time))
-  yield (time, axes)
-
-val (time, axes) =
-  timeAndAxes.fold(
-    error => throw new IllegalArgumentException(error.toString),
-    identity
-  )
-```
-
-## 3. Attach values
-
-The Ravel array shape is the spatial grid shape followed by the declared time
-extent: `6 × 5 × 3`.
+The Ravel shape is the spatial shape followed by declared non-spatial axes:
+`6 × 5 × 3`. Construction, coordinate lookup, time selection, and crop form
+one `Either[ImageError, ...]` workflow.
 
 ```scala mdoc:silent
 val values =
@@ -79,79 +53,56 @@ val values =
     x.toDouble + 10.0 * y + 100.0 * t
   }
 
-val image =
-  Image.continuous(grid, axes, values).fold(
-    error => throw new IllegalArgumentException(error.toString),
+val imageWorkflow =
+  for
+    image <- Image.continuous(values, sampling)
+    coordinate <- image.nonSpatialAxes.coordinateAt(axis = 0, index = 1)
+    atHalfSecond <- image.atTime(1)
+    crop <- atHalfSecond.crop(
+      origin = Vector(1, 1),
+      shape = Vector(4, 3)
+    )
+  yield (image, coordinate, atHalfSecond, crop)
+
+val (image, selectedCoordinate, atHalfSecond, crop) =
+  imageWorkflow.fold(
+    error => throw new IllegalArgumentException(error.message),
     identity
   )
 
 assert(image.logicalShape == Vector(6, 5, 3))
-```
-
-## 4. Select the sample at 0.5 seconds
-
-`atTime(1)` selects index 1 from the sole declared time axis. The axis itself
-reports the coordinate attached to that index.
-
-```scala mdoc:silent
-val selectedAtHalfSecond =
-  for
-    coordinate <- time.coordinateAt(1)
-    selected <- image.atTime(1)
-  yield (coordinate, selected)
-
-val (selectedCoordinate, atHalfSecond) =
-  selectedAtHalfSecond.fold(
-    error => throw new IllegalArgumentException(error.toString),
-    identity
-  )
-
 assert(selectedCoordinate == AxisCoordinate.Numeric(0.5, AxisUnit.Seconds))
 assert(atHalfSecond.logicalShape == Vector(6, 5))
 assert(atHalfSecond(2, 3) == image(2, 3, 1))
-```
-
-## 5. Crop in space
-
-The crop is an exact storage view. Its grid changes shape and index origin so
-that index `(0, 0)` in the result still maps to the physical location sampled
-at index `(1, 1)` in the source.
-
-```scala mdoc:silent
-val crop =
-  atHalfSecond
-    .crop(
-      origin = Vector(1, 1),
-      shape = Vector(4, 3)
-    )
-    .fold(
-      error => throw new IllegalArgumentException(error.toString),
-      identity
-    )
-
 assert(crop.logicalShape == Vector(4, 3))
 assert(crop(0, 0) == atHalfSecond(1, 1))
 assert(crop.grid.indexToFrame(Vector(0.0, 0.0)) ==
   atHalfSecond.grid.indexToFrame(Vector(1.0, 1.0)))
 ```
 
-## 6. Compute blurred values
+`atTime(1)` selects by index from the sole declared time axis. It does not
+silently search for a numeric coordinate. Coordinate-value selection is left
+explicit until a caller chooses exact, tolerance-bound, or nearest matching.
 
-The default `Same` extent keeps the crop grid and shape. The output values are
-newly computed.
+The crop is a zero-copy storage view. Its grid changes shape and index origin
+so index `(0, 0)` still names the physical location sampled at `(1, 1)` in the
+source.
+
+## 3. State the Gaussian coordinate system
+
+`gaussianBlurSamples(0.8)` measures sigma in sample-index steps. Use
+`gaussianBlurFrame(value, LengthUnit...)` when sigma is stated in frame
+coordinates. Filtering computes new values, so it is a separate `Either`
+boundary from the exact-view workflow.
 
 ```scala mdoc:silent
-val blurredResult =
-  for
-    sigma <- SpatialSigma.samples[D2](0.8)
-    blurred <- crop.gaussianBlur(sigma)
-  yield blurred
-
 val blurred =
-  blurredResult.fold(
-    error => throw new IllegalArgumentException(error.toString),
-    identity
-  )
+  crop
+    .gaussianBlurSamples(0.8)
+    .fold(
+      error => throw new IllegalArgumentException(error.message),
+      identity
+    )
 
 assert(blurred.logicalShape == crop.logicalShape)
 assert(blurred.grid.sameRuntimeOwnerAs(crop.grid))
@@ -161,22 +112,26 @@ assert(blurred.grid.sameRuntimeOwnerAs(crop.grid))
 (selectedCoordinate, crop.logicalShape, blurred.logicalShape)
 ```
 
-## What changed?
+## What the façade does—and does not do
+
+`Image.continuous(values, sampling)` expands the specification into the
+ordinary `Frame`, `Grid`, `Axis`, `NonSpatialAxes`, and `SampleSpace` values,
+then runs the canonical image constructor. The image retains only those
+canonical values and the original Ravel array; it does not retain a second
+geometry model or copy storage.
 
 | Step | Values | Spatial grid | Time axis | Semantic role |
 | --- | --- | --- | --- | --- |
-| Construct | New array | Declared `6 × 5` grid | Three declared coordinates | Continuous |
+| Construct | Original array | Declared `6 × 5` grid | Three declared coordinates | Continuous |
 | `atTime(1)` | Exact view | Same live grid | Removed | Continuous |
 | `crop(...)` | Exact view | Affine-correct `4 × 3` crop grid | Absent | Continuous |
-| `gaussianBlur(...)` | Newly computed | Same as crop with `Same` extent | Absent | Continuous |
+| `gaussianBlurSamples(...)` | Newly computed | Same as crop with `Same` extent | Absent | Continuous |
 
-All constructors and checked operations above return `Either`. A production
-workflow can compose the selection and crop without throwing:
+The prelude exports core image and geometry vocabulary plus Ravel dtype givens.
+It deliberately does not export `NDArray`, filtering, NIfTI, Intaglio, locus,
+or reframe4s APIs; import those from their owning modules.
 
-```scala
-image.atTime(1).flatMap(_.crop(Vector(1, 1), Vector(4, 3)))
-```
-
-Next, read [The sampled-image model](understand/sampled-image-model.md) to name
-the parts that made these guarantees possible, or continue to
+For persistent frame identity, shared live owners, or a custom affine built in
+stages, continue to [Geometry and sampled axes](understand/geometry-and-axes.md).
+For storage-only transformations, continue to
 [Select and transform exact views](work/exact-views.md).

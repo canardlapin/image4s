@@ -4,6 +4,7 @@ import image4s.Axis
 import image4s.AxisCoordinate
 import image4s.AxisKind
 import image4s.AxisUnit
+import image4s.Continuous
 import image4s.NonSpatialAxes
 import image4s.Sampled
 import image4s.SomeSampled
@@ -211,6 +212,36 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
       )
     )
     assertEquals(sampledValues(float.image), Vector(1.0f, 35.0f, 511.0f))
+
+  test("decoded image transformations retain receipts without a spatial fold"):
+    val path = "/decoded-transform.nii"
+    writeFixture(
+      path,
+      dimensions = Vector(2, 1, 1, 3),
+      datatype = NiftiDatatype.Float64,
+      pixelDimensions = Vector(1.0, 1.0, 1.0, 0.5),
+      temporalUnitCode = 8,
+      values = Vector(0.0, 1.0, 2.0, 3.0, 4.0, 5.0)
+    )
+
+    val decoded = niftiRight(api.readScaledDouble(path))
+    val widened: DecodedNifti[SomeSampled[Double, Continuous]] =
+      decoded
+    assert(widened.image eq decoded.image)
+
+    val mapped = decoded.mapImage(_.mapValues(_ + 10.0))
+    assert(mapped.header eq decoded.header)
+    assert(mapped.affineSelection eq decoded.affineSelection)
+    assertEquals(
+      mapped.image.valueAt(Vector(1, 0, 0), Vector(2)),
+      Right(15.0)
+    )
+
+    val selected = imageRight(decoded.traverseImage(_.atTime(1)))
+    assert(selected.header eq decoded.header)
+    assert(selected.affineSelection eq decoded.affineSelection)
+    assertEquals(selected.image.logicalShape, Vector(2, 1, 1))
+    assertEquals(selected.image.valueAt(Vector(0, 0, 0)), Right(2.0))
 
   test("native labels retain integer codes and reject scaled or floating input"):
     val cases =

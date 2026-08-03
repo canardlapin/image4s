@@ -62,6 +62,14 @@ final class FilterPerformanceSuite extends FunSuite:
           policy = ExecutionPolicy(method = FilterMethod.Direct)
         )
       ).asInstanceOf[AnyRef]
+    val preservingFacade = () =>
+      retained = opsRight(
+        floatImage.gaussianBlurSamples(
+          1.5,
+          extent,
+          policy = ExecutionPolicy(method = FilterMethod.Direct)
+        )
+      )
     val promoting = () =>
       retained = opsRight(
         byteImage.gaussianBlurTo[Float](
@@ -84,11 +92,14 @@ final class FilterPerformanceSuite extends FunSuite:
 
     Vector.fill(3) {
       preserving()
+      preservingFacade()
       promoting()
       prepared()
     }
     val preservingMedian =
       Vector.fill(7)(allocatedBytes(preserving())).sorted.apply(3)
+    val preservingFacadeMedian =
+      Vector.fill(7)(allocatedBytes(preservingFacade())).sorted.apply(3)
     val promotingMedian =
       Vector.fill(7)(allocatedBytes(promoting())).sorted.apply(3)
     val preparedMedian =
@@ -102,6 +113,10 @@ final class FilterPerformanceSuite extends FunSuite:
       s"Float-preserving Gaussian allocated $preservingMedian bytes; limit=$preservingLimit"
     )
     assert(
+      preservingFacadeMedian <= preservingLimit,
+      s"Float-preserving Gaussian facade allocated $preservingFacadeMedian bytes; limit=$preservingLimit"
+    )
+    assert(
       promotingMedian <= promotingLimit,
       s"Byte-to-Float Gaussian allocated $promotingMedian bytes; limit=$promotingLimit"
     )
@@ -112,6 +127,10 @@ final class FilterPerformanceSuite extends FunSuite:
     println(
       s"IMG-FILTER JVM allocation: operation=gaussian-preserving-float, " +
         s"samples=$samples, allocated=$preservingMedian B"
+    )
+    println(
+      s"IMG-FILTER JVM allocation: operation=gaussian-preserving-float-facade, " +
+        s"samples=$samples, allocated=$preservingFacadeMedian B"
     )
     println(
       s"IMG-FILTER JVM allocation: operation=gaussian-byte-to-float, " +

@@ -77,6 +77,13 @@ final class NiftiSuite extends FunSuite:
     assertEquals(scalar.image.storageRank, 3)
     assertEquals(labels.image.storageRank, 3)
 
+    val scalarD3: image4s.SomeSampled.D3Case[Double, Continuous] =
+      niftiRight(Nifti.readScaledDouble(path)).image
+    val labelsD3: image4s.SomeSampled.D3Case[Long, Categorical] =
+      niftiRight(Nifti.readLabels(path)).image
+    assertEquals(scalarD3.valueAt(Vector(1, 0, 0)), Right(2.0))
+    assertEquals(labelsD3.valueAt(Vector(1, 0, 0)), Right(2L))
+
   test("supported datatypes apply slope and intercept"):
     val cases =
       Vector(
