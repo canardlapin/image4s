@@ -29,9 +29,7 @@ final class PackedMaskPerformanceSuite extends FunSuite:
           imageRight(
             Sampled.mask(
               space,
-              NDArray.tabulate[Boolean](edge, edge)((row, column) =>
-                (row * 5 + column) % 7 < 3
-              )
+              NDArray.tabulate[Boolean](edge, edge)((row, column) => (row * 5 + column) % 7 < 3)
             )
           )
         )
@@ -42,15 +40,12 @@ final class PackedMaskPerformanceSuite extends FunSuite:
           imageRight(
             Sampled.mask(
               space,
-              NDArray.tabulate[Boolean](edge, edge)((row, column) =>
-                (row + column * 3) % 5 < 2
-              )
+              NDArray.tabulate[Boolean](edge, edge)((row, column) => (row + column * 3) % 5 < 2)
             )
           )
         )
       )
-    val run = () =>
-      retained = packedRight(left.union(right)).asInstanceOf[AnyRef]
+    val run = () => retained = packedRight(left.union(right)).asInstanceOf[AnyRef]
 
     Vector.fill(5)(run())
     val allocated = Vector.fill(7)(allocatedBytes(run())).sorted.apply(3)
@@ -92,8 +87,7 @@ final class PackedMaskPerformanceSuite extends FunSuite:
           quantizer
         )
       )
-    val run = () =>
-      retained = packed.decodeToFloatArray
+    val run = () => retained = packed.decodeToFloatArray
 
     Vector.fill(5)(run())
     val allocated = Vector.fill(7)(allocatedBytes(run())).sorted.apply(3)
@@ -113,8 +107,7 @@ final class PackedMaskPerformanceSuite extends FunSuite:
     val bean =
       ManagementFactory.getThreadMXBean match
         case value: ThreadMXBean if value.isThreadAllocatedMemorySupported =>
-          if !value.isThreadAllocatedMemoryEnabled then
-            value.setThreadAllocatedMemoryEnabled(true)
+          if !value.isThreadAllocatedMemoryEnabled then value.setThreadAllocatedMemoryEnabled(true)
           value
         case _ =>
           fail("thread allocation accounting is unavailable")
@@ -126,14 +119,14 @@ final class PackedMaskPerformanceSuite extends FunSuite:
   private def packedRight[A](value: Either[PackedImageError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def geometryRight[A](value: Either[GeometryError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def imageRight[A](value: Either[ImageError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)

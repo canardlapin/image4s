@@ -16,31 +16,26 @@ object GeometryError:
     val message: String =
       "frame label must be non-empty and contain no surrounding whitespace"
 
-  final case class DimensionMismatch(expected: Int, actual: Int)
-      extends GeometryError:
+  final case class DimensionMismatch(expected: Int, actual: Int) extends GeometryError:
     val message: String = s"expected spatial rank $expected, got $actual"
 
   final case class UnsupportedSpatialRank(actual: Int) extends GeometryError:
     val message: String =
       s"only spatial ranks 2 and 3 are supported, got $actual"
 
-  final case class NonFiniteCoordinate(axis: Int, value: Double)
-      extends GeometryError:
+  final case class NonFiniteCoordinate(axis: Int, value: Double) extends GeometryError:
     val message: String =
       s"coordinate $axis must be finite, got $value"
 
-  final case class InvalidAffineTolerance(value: Double, maximum: Double)
-      extends GeometryError:
+  final case class InvalidAffineTolerance(value: Double, maximum: Double) extends GeometryError:
     val message: String =
       s"affine tolerance must be finite and between zero and $maximum, got $value"
 
-  final case class InvalidAffineShape(expected: Int, actual: Int)
-      extends GeometryError:
+  final case class InvalidAffineShape(expected: Int, actual: Int) extends GeometryError:
     val message: String =
       s"expected $expected row-major affine values, got $actual"
 
-  final case class NonFiniteAffineElement(index: Int, value: Double)
-      extends GeometryError:
+  final case class NonFiniteAffineElement(index: Int, value: Double) extends GeometryError:
     val message: String =
       s"affine element $index must be finite, got $value"
 
@@ -52,18 +47,15 @@ object GeometryError:
       s"affine bottom row ${actual.mkString("[", ", ", "]")} is not " +
         s"[0, ..., 0, 1] within tolerance $tolerance"
 
-  final case class NonInvertibleAffine(diagnostics: String)
-      extends GeometryError:
+  final case class NonInvertibleAffine(diagnostics: String) extends GeometryError:
     val message: String =
       s"affine matrix must be invertible: $diagnostics"
 
-  final case class InvalidMaximumConditionNumber(value: Double)
-      extends GeometryError:
+  final case class InvalidMaximumConditionNumber(value: Double) extends GeometryError:
     val message: String =
       s"maximum affine condition number must be finite and at least one, got $value"
 
-  final case class InvalidMaximumInverseResidual(value: Double)
-      extends GeometryError:
+  final case class InvalidMaximumInverseResidual(value: Double) extends GeometryError:
     val message: String =
       s"maximum affine inverse residual must be finite and non-negative, got $value"
 
@@ -81,23 +73,19 @@ object GeometryError:
     val message: String =
       s"affine inverse residual $residual exceeds maximum $maximum"
 
-  final case class InvalidDirectionShape(expected: Int, actual: Int)
-      extends GeometryError:
+  final case class InvalidDirectionShape(expected: Int, actual: Int) extends GeometryError:
     val message: String =
       s"expected $expected row-major direction values, got $actual"
 
-  final case class NonFiniteOrigin(axis: Int, value: Double)
-      extends GeometryError:
+  final case class NonFiniteOrigin(axis: Int, value: Double) extends GeometryError:
     val message: String =
       s"origin $axis must be finite, got $value"
 
-  final case class InvalidSpacing(axis: Int, value: Double)
-      extends GeometryError:
+  final case class InvalidSpacing(axis: Int, value: Double) extends GeometryError:
     val message: String =
       s"spacing $axis must be finite and positive, got $value"
 
-  final case class NonFiniteDirection(index: Int, value: Double)
-      extends GeometryError:
+  final case class NonFiniteDirection(index: Int, value: Double) extends GeometryError:
     val message: String =
       s"direction element $index must be finite, got $value"
 
@@ -115,8 +103,7 @@ object GeometryError:
     val message: String =
       s"direction cosines have orthonormality deviation $maximumDeviation, exceeding $tolerance"
 
-  final case class NonPositiveGridExtent(axis: Int, value: Int)
-      extends GeometryError:
+  final case class NonPositiveGridExtent(axis: Int, value: Int) extends GeometryError:
     val message: String =
       s"grid extent $axis must be positive, got $value"
 
@@ -128,13 +115,11 @@ object GeometryError:
     val message: String =
       s"grid index $value is outside axis $axis with extent $extent"
 
-  final case class FrameMismatch(expected: FrameId, actual: FrameId)
-      extends GeometryError:
+  final case class FrameMismatch(expected: FrameId, actual: FrameId) extends GeometryError:
     val message: String =
       s"expected frame ${expected.value}, got ${actual.value}"
 
-  final case class GridMismatch(expected: GridId, actual: GridId)
-      extends GeometryError:
+  final case class GridMismatch(expected: GridId, actual: GridId) extends GeometryError:
     val message: String =
       s"expected grid ${expected.value}, got ${actual.value}"
 
@@ -178,13 +163,11 @@ object GeometryError:
     val message: String =
       "an ephemeral grid cannot be registered as persistent"
 
-  final case class PersistentGridRequiresPersistentFrame(id: GridId)
-      extends GeometryError:
+  final case class PersistentGridRequiresPersistentFrame(id: GridId) extends GeometryError:
     val message: String =
       s"persistent grid ${id.value} requires a persistent frame key"
 
-  final case class FrameRestoreDuplicateOwner(id: FrameId)
-      extends GeometryError:
+  final case class FrameRestoreDuplicateOwner(id: FrameId) extends GeometryError:
     val message: String =
       s"frame ${id.value} is already registered to another live owner"
 
@@ -205,13 +188,11 @@ object GeometryError:
     val message: String =
       s"grid ${id.value} has conflicting persistent structural keys"
 
-  final case class NonCanonicalGridAffineRecord(id: GridId)
-      extends GeometryError:
+  final case class NonCanonicalGridAffineRecord(id: GridId) extends GeometryError:
     val message: String =
       s"grid ${id.value} affine record must use the canonical homogeneous row"
 
-  final case class GridRestoreDuplicateOwner(id: GridId)
-      extends GeometryError:
+  final case class GridRestoreDuplicateOwner(id: GridId) extends GeometryError:
     val message: String =
       s"grid ${id.value} is already registered to another live owner"
 
@@ -222,12 +203,10 @@ object GeometryError:
     val message: String =
       s"grid ${gridId.value} is registered against another live owner of frame ${frameId.value}"
 
-  final case class InvalidCongruenceTolerance(value: Double)
-      extends GeometryError:
+  final case class InvalidCongruenceTolerance(value: Double) extends GeometryError:
     val message: String =
       s"grid congruence tolerance must be finite and non-negative, got $value"
 
-  final case class GridsNotCongruent(tolerance: Double)
-      extends GeometryError:
+  final case class GridsNotCongruent(tolerance: Double) extends GeometryError:
     val message: String =
       s"grids are not geometrically congruent at tolerance $tolerance"

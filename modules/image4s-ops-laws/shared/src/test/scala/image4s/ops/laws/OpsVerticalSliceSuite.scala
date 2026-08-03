@@ -26,9 +26,8 @@ import ravel.DType.given
 import ravel.NDArray
 import ravel.Rank
 
-/** The epic's demonstration pipeline: frame-scaled Gaussian smoothing, frame
-  * gradients, thresholding to a mask, and binary opening/closing, on D2 and D3
-  * anisotropic grids.
+/** The epic's demonstration pipeline: frame-scaled Gaussian smoothing, frame gradients,
+  * thresholding to a mask, and binary opening/closing, on D2 and D3 anisotropic grids.
   */
 final class OpsVerticalSliceSuite extends FunSuite:
   test("D2 vertical slice: Gaussian(frame) -> frame gradient -> threshold -> open/close"):
@@ -106,8 +105,7 @@ final class OpsVerticalSliceSuite extends FunSuite:
         Affine.fromOriginSpacingDirection[D3](
           origin = Vector(0.0, 0.0, 0.0),
           spacing = spacing,
-          directionRowMajor =
-            Vector(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+          directionRowMajor = Vector(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
         )
       )
     val grid = geometryRight(Grid.in(frame)(Vector(9, 9, 9), affine))
@@ -170,14 +168,14 @@ final class OpsVerticalSliceSuite extends FunSuite:
   private def opsRight[A](value: Either[OpError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def geometryRight[A](value: Either[GeometryError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def imageRight[A](value: Either[ImageError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)

@@ -64,11 +64,13 @@ final class GridDomainAllocationSuite extends FunSuite:
       warmup += 1
 
     val samples =
-      Vector.fill(21) {
-        allocatedBytes {
-          consume(right(bridge.spatialField(image)))
+      Vector
+        .fill(21) {
+          allocatedBytes {
+            consume(right(bridge.spatialField(image)))
+          }
         }
-      }.sorted
+        .sorted
     val median = samples(samples.size / 2)
     val field = right(bridge.spatialField(image))
 
@@ -89,10 +91,8 @@ final class GridDomainAllocationSuite extends FunSuite:
   private def allocatedBytes(body: => Unit): Long =
     val bean =
       ManagementFactory.getThreadMXBean match
-        case value: ThreadMXBean
-            if value.isThreadAllocatedMemorySupported =>
-          if !value.isThreadAllocatedMemoryEnabled then
-            value.setThreadAllocatedMemoryEnabled(true)
+        case value: ThreadMXBean if value.isThreadAllocatedMemorySupported =>
+          if !value.isThreadAllocatedMemoryEnabled then value.setThreadAllocatedMemoryEnabled(true)
           value
         case _ =>
           fail("this JVM does not expose per-thread allocation accounting")
@@ -104,4 +104,4 @@ final class GridDomainAllocationSuite extends FunSuite:
   private def right[E, A](value: Either[E, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(s"expected Right, found Left($error)")
+      case Left(error) => fail(s"expected Right, found Left($error)")

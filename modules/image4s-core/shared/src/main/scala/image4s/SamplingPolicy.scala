@@ -11,8 +11,7 @@ object PartialWeight:
     if value.isFinite && value > 0.0 && value < 1.0 then Right(value)
     else Left(ImageError.InvalidPartialWeight(value))
 
-  extension (weight: PartialWeight)
-    def value: Double = weight
+  extension (weight: PartialWeight) def value: Double = weight
 
 sealed trait Validity derives CanEqual
 

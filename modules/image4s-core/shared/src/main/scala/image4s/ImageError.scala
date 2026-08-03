@@ -41,18 +41,15 @@ object ImageError:
     val message: String =
       s"custom axis unit identifier '$value' is reserved by image4s"
 
-  final case class NonPositiveAxisExtent(name: String, extent: Int)
-      extends ImageError:
+  final case class NonPositiveAxisExtent(name: String, extent: Int) extends ImageError:
     val message: String =
       s"non-spatial axis $name must have positive extent, got $extent"
 
-  final case class NonFiniteAxisOrigin(name: String, value: Double)
-      extends ImageError:
+  final case class NonFiniteAxisOrigin(name: String, value: Double) extends ImageError:
     val message: String =
       s"non-spatial axis $name must have a finite coordinate origin, got $value"
 
-  final case class InvalidAxisStep(name: String, value: Double)
-      extends ImageError:
+  final case class InvalidAxisStep(name: String, value: Double) extends ImageError:
     val message: String =
       s"non-spatial axis $name must have a finite nonzero coordinate step, got $value"
 
@@ -83,7 +80,7 @@ object ImageError:
   ) extends ImageError:
     val message: String =
       s"sampled data shape ${actual.mkString("x")} does not match " +
-      s"grid and non-spatial axes ${expected.mkString("x")}"
+        s"grid and non-spatial axes ${expected.mkString("x")}"
 
   final case class SampleSpaceGridRecordMismatch(
       expected: GridRecord,
@@ -108,8 +105,7 @@ object ImageError:
     val message: String =
       s"ordered non-spatial sampling differs: left=$left, right=$right"
 
-  final case class SpatialIndexRankMismatch(expected: Int, actual: Int)
-      extends ImageError:
+  final case class SpatialIndexRankMismatch(expected: Int, actual: Int) extends ImageError:
     val message: String =
       s"expected $expected spatial indices, got $actual"
 
@@ -136,18 +132,15 @@ object ImageError:
     val message: String =
       s"index $index is outside non-spatial axis ${axis.value} of extent $extent"
 
-  final case class StorageRankMismatch(expected: Int, actual: Int)
-      extends ImageError:
+  final case class StorageRankMismatch(expected: Int, actual: Int) extends ImageError:
     val message: String =
       s"expected sampled storage rank $expected, got $actual"
 
-  final case class SpatialDimensionMismatch(expected: Int, actual: Int)
-      extends ImageError:
+  final case class SpatialDimensionMismatch(expected: Int, actual: Int) extends ImageError:
     val message: String =
       s"expected sampled spatial rank $expected, got $actual"
 
-  final case class NonSpatialAxisOutOfBounds(index: Int, axisCount: Int)
-      extends ImageError:
+  final case class NonSpatialAxisOutOfBounds(index: Int, axisCount: Int) extends ImageError:
     val message: String =
       s"non-spatial axis $index is outside $axisCount declared axes"
 
@@ -166,8 +159,7 @@ object ImageError:
       s"non-spatial axis permutation ${order.mkString("[", ", ", "]")} must " +
         s"contain every index from 0 until $axisCount exactly once"
 
-  final case class MissingNonSpatialAxisKind(kind: AxisKind)
-      extends ImageError:
+  final case class MissingNonSpatialAxisKind(kind: AxisKind) extends ImageError:
     val message: String =
       s"sampled image has no non-spatial axis of kind $kind"
 
@@ -187,8 +179,7 @@ object ImageError:
       s"spatial view requires origin and shape rank $expected, got " +
         s"$originRank and $shapeRank"
 
-  final case class NonPositiveSpatialViewExtent(axis: Int, extent: Int)
-      extends ImageError:
+  final case class NonPositiveSpatialViewExtent(axis: Int, extent: Int) extends ImageError:
     val message: String =
       s"spatial view axis $axis must have positive extent, got $extent"
 
@@ -236,13 +227,11 @@ object ImageError:
     val message: String =
       s"lattice map target axis $targetAxis must have a nonzero step"
 
-  final case class InvalidSpatialStride(axis: Int, step: Int)
-      extends ImageError:
+  final case class InvalidSpatialStride(axis: Int, step: Int) extends ImageError:
     val message: String =
       s"spatial stride axis $axis must have a positive step, got $step"
 
-  final case class InvalidSpatialAxis(axis: Int, rank: Int)
-      extends ImageError:
+  final case class InvalidSpatialAxis(axis: Int, rank: Int) extends ImageError:
     val message: String =
       s"spatial axis $axis is outside rank $rank"
 
@@ -288,8 +277,7 @@ object ImageError:
     val message: String =
       s"lattice map target index $index is outside axis $axis of extent $extent"
 
-  final case class OutsideGrid(continuousIndex: Vector[Double])
-      extends ImageError:
+  final case class OutsideGrid(continuousIndex: Vector[Double]) extends ImageError:
     val message: String =
       s"continuous index ${continuousIndex.mkString("(", ", ", ")")} is outside the grid"
 

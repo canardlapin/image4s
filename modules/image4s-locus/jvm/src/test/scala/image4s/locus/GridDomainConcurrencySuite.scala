@@ -64,4 +64,4 @@ final class GridDomainConcurrencySuite extends FunSuite:
   private def right[E, A](value: Either[E, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(s"expected Right, found Left($error)")
+      case Left(error) => fail(s"expected Right, found Left($error)")

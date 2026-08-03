@@ -135,14 +135,14 @@ final class EncodedSampledSuite extends FunSuite:
   private def encodingRight[A](value: Either[EncodingError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def imageRight[A](value: Either[ImageError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def geometryRight[A](value: Either[GeometryError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)

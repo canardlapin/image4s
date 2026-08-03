@@ -23,8 +23,7 @@ object NumericTolerance:
       relative: Double = 0.0,
       equalNaN: Boolean = false
   ): Either[ImageError, NumericTolerance] =
-    if
-      absolute.isFinite && absolute >= 0.0 &&
+    if absolute.isFinite && absolute >= 0.0 &&
       relative.isFinite && relative >= 0.0
     then Right(new NumericTolerance(absolute, relative, equalNaN))
     else Left(ImageError.InvalidNumericTolerance(absolute, relative))
@@ -81,7 +80,7 @@ object ImageLaws:
   ): Boolean =
     val mapped = sampled.mapValues(identity)
     (mapped.sampleSpace eq sampled.sampleSpace) &&
-      sampled.sameValuesAs(mapped)(equal)
+    sampled.sameValuesAs(mapped)(equal)
 
   def mapComposition[
       S <: SampleSpace[?, ?],
@@ -145,8 +144,8 @@ object ImageLaws:
     (sequential, direct) match
       case (Right(left), Right(right)) =>
         left.logicalShape == right.logicalShape &&
-          left.grid.indexToFrame.rowMajor ==
-            right.grid.indexToFrame.rowMajor &&
+        left.grid.indexToFrame.rowMajor ==
+          right.grid.indexToFrame.rowMajor &&
           left.sameValuesAs(right)(equal)
       case _ =>
         false
@@ -161,7 +160,7 @@ object ImageLaws:
   ): Boolean =
     val canonical = sampled.canonicalLayout
     canonical.data.isCanonicalLayout &&
-      (canonical.canonicalLayout eq canonical)
+    (canonical.canonicalLayout eq canonical)
 
   def materializedCopyPreservesValues[
       S <: SampleSpace[?, ?],
@@ -175,8 +174,8 @@ object ImageLaws:
   ): Boolean =
     val copied = sampled.materializedCopy
     (copied.data ne sampled.data) &&
-      (copied.sampleSpace eq sampled.sampleSpace) &&
-      copied.sameValuesAs(sampled)(equal)
+    (copied.sampleSpace eq sampled.sampleSpace) &&
+    copied.sameValuesAs(sampled)(equal)
 
   def rebindSharesData[
       L <: SampleSpace[?, ?],
@@ -190,8 +189,8 @@ object ImageLaws:
   ): Boolean =
     val rebound = sampled.rebind(alignment)
     (rebound.sampleSpace eq alignment.right) &&
-      (rebound.data eq sampled.data) &&
-      rebound.metadata == sampled.metadata
+    (rebound.data eq sampled.data) &&
+    rebound.metadata == sampled.metadata
 
   def alignedZipAgreesPointwise[
       L <: SampleSpace[?, ?],
@@ -224,21 +223,19 @@ object ImageLaws:
     val leftValues = left.data.elementsIterator
     val rightValues = right.data.elementsIterator
     var agrees = true
-    while
-      agrees &&
+    while agrees &&
       actual.hasNext &&
       leftValues.hasNext &&
       rightValues.hasNext
     do
-      agrees =
-        equal(
-          actual.next(),
-          combine(leftValues.next(), rightValues.next())
-        )
+      agrees = equal(
+        actual.next(),
+        combine(leftValues.next(), rightValues.next())
+      )
     agrees &&
-      !actual.hasNext &&
-      !leftValues.hasNext &&
-      !rightValues.hasNext
+    !actual.hasNext &&
+    !leftValues.hasNext &&
+    !rightValues.hasNext
 
   def zipPreservingAgreesPointwise[
       S <: SampleSpace[?, ?],
@@ -293,21 +290,19 @@ object ImageLaws:
     val leftValues = left.data.elementsIterator
     val rightValues = right.data.elementsIterator
     var agrees = true
-    while
-      agrees &&
+    while agrees &&
       actual.hasNext &&
       leftValues.hasNext &&
       rightValues.hasNext
     do
-      agrees =
-        equal(
-          actual.next(),
-          combine(leftValues.next(), rightValues.next())
-        )
+      agrees = equal(
+        actual.next(),
+        combine(leftValues.next(), rightValues.next())
+      )
     agrees &&
-      !actual.hasNext &&
-      !leftValues.hasNext &&
-      !rightValues.hasNext
+    !actual.hasNext &&
+    !leftValues.hasNext &&
+    !rightValues.hasNext
 
   private def compareValues[
       S <: SampleSpace[?, ?],
@@ -326,8 +321,7 @@ object ImageLaws:
       tolerance: NumericTolerance
   ): Boolean =
     if left == right then true
-    else if left.isNaN || right.isNaN then
-      tolerance.equalNaN && left.isNaN && right.isNaN
+    else if left.isNaN || right.isNaN then tolerance.equalNaN && left.isNaN && right.isNaN
     else if !left.isFinite || !right.isFinite then false
     else
       val difference = math.abs(left - right)

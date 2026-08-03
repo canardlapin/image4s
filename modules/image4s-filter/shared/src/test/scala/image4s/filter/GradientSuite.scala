@@ -20,9 +20,7 @@ import ravel.Rank
 final class GradientSuite extends FunSuite:
   test("Sobel and Scharr reproduce an index-space affine field"):
     val image =
-      float2D(Affine.identity[D2])((row, column) =>
-        row.toFloat + 2.0f * column.toFloat
-      )
+      float2D(Affine.identity[D2])((row, column) => row.toFloat + 2.0f * column.toFloat)
     val sobel = opsRight(image.sobel(IndexCoordinates))
     val scharr = opsRight(image.scharr(IndexCoordinates))
 
@@ -43,9 +41,7 @@ final class GradientSuite extends FunSuite:
         )
       )
     val image =
-      float2D(affine)((row, column) =>
-        row.toFloat + 2.0f * column.toFloat
-      )
+      float2D(affine)((row, column) => row.toFloat + 2.0f * column.toFloat)
     val index = opsRight(image.gradient(IndexCoordinates))
     val frame = opsRight(image.gradient(FrameCoordinates))
 
@@ -64,9 +60,7 @@ final class GradientSuite extends FunSuite:
         )
       )
     val image =
-      float2D(affine)((row, column) =>
-        row.toFloat + 2.0f * column.toFloat
-      )
+      float2D(affine)((row, column) => row.toFloat + 2.0f * column.toFloat)
     val frame = opsRight(image.gradient(FrameCoordinates))
 
     assertEqualsDouble(frame.components(0).data(3, 3).toDouble, -0.5, 1.0e-6)
@@ -80,9 +74,7 @@ final class GradientSuite extends FunSuite:
       imageRight(
         Sampled.continuous[Byte, Rank[2]](
           space,
-          NDArray.tabulate[Byte](7, 7)((row, column) =>
-            (row + 2 * column).toByte
-          )
+          NDArray.tabulate[Byte](7, 7)((row, column) => (row + 2 * column).toByte)
         )
       )
     val output = opsRight(image.gradientTo[Float](IndexCoordinates))
@@ -128,14 +120,14 @@ final class GradientSuite extends FunSuite:
   private def opsRight[A](value: Either[OpError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def geometryRight[A](value: Either[GeometryError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def imageRight[A](value: Either[image4s.ImageError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)

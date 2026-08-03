@@ -18,8 +18,7 @@ private object NodeNiftiFileSystem extends NiftiFileSystem[String]:
     NodeFs.existsSync(path)
 
   override def ioStrategy(path: String): NiftiIoStrategy =
-    if isCompressed(path) then
-      NiftiIoStrategy.WholeFileCompressedCompatibility
+    if isCompressed(path) then NiftiIoStrategy.WholeFileCompressedCompatibility
     else NiftiIoStrategy.BoundedStreaming
 
   def readBytes(
@@ -98,19 +97,18 @@ private object NodeNiftiFileSystem extends NiftiFileSystem[String]:
                 (startOffset + consumed).toDouble
               )
             if read != requested then
-              failure =
-                Some(
-                  NiftiError.UnexpectedEndOfFile(
-                    operation,
-                    clampToInt(startOffset + byteCount),
-                    clampToInt(startOffset + consumed + math.max(read, 0))
-                  )
+              failure = Some(
+                NiftiError.UnexpectedEndOfFile(
+                  operation,
+                  clampToInt(startOffset + byteCount),
+                  clampToInt(startOffset + consumed + math.max(read, 0))
                 )
+              )
             else
               copyToScala(physical, logical, requested)
               consume(logical, requested) match
                 case Left(error) => failure = Some(error)
-                case Right(_)    => consumed += requested.toLong
+                case Right(_) => consumed += requested.toLong
           failure.toLeft(())
         finally NodeFs.closeSync(descriptor)
       }
@@ -230,8 +228,7 @@ private object NodeNiftiFileSystem extends NiftiFileSystem[String]:
           bytes.length - written,
           position + written.toDouble
         )
-      if count <= 0 then
-        throw new IllegalStateException("Node writeSync made no progress")
+      if count <= 0 then throw new IllegalStateException("Node writeSync made no progress")
       written += count
 
   private def clampToInt(value: Long): Int =
@@ -255,7 +252,7 @@ private object NodeNiftiFileSystem extends NiftiFileSystem[String]:
         )
 
 @js.native
-@JSImport("node:fs",JSImport.Namespace)
+@JSImport("node:fs", JSImport.Namespace)
 private object NodeFs extends js.Object:
   def existsSync(path: String): Boolean = js.native
 
@@ -286,7 +283,7 @@ private object NodeFs extends js.Object:
   ): Int = js.native
 
 @js.native
-@JSImport("node:path",JSImport.Namespace)
+@JSImport("node:path", JSImport.Namespace)
 private object NodePath extends js.Object:
   def basename(path: String): String = js.native
 
@@ -295,7 +292,7 @@ private object NodePath extends js.Object:
   def join(parts: String*): String = js.native
 
 @js.native
-@JSImport("node:zlib",JSImport.Namespace)
+@JSImport("node:zlib", JSImport.Namespace)
 private object NodeZlib extends js.Object:
   def gunzipSync(bytes: Uint8Array): Uint8Array = js.native
 

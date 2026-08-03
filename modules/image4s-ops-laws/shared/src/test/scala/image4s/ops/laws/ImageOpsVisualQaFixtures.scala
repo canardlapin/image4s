@@ -43,8 +43,8 @@ import ravel.NDArray
 import ravel.Rank
 import ravel.map
 
-/** Shared image-operation fixtures used by both cross-platform tests and the
-  * JVM visual-review gallery. Every raster is lowered through DisplayBridge.
+/** Shared image-operation fixtures used by both cross-platform tests and the JVM visual-review
+  * gallery. Every raster is lowered through DisplayBridge.
   */
 object ImageOpsVisualQaFixtures:
   final case class VisualCase(name: String, raster: RasterImage)
@@ -226,13 +226,12 @@ object ImageOpsVisualQaFixtures:
     }
 
   private def pipelineSource3D =
-    continuous3D("visual-pipeline-3d", Vector(7, 6, 5)) {
-      (x, y, z) =>
-        val plateau =
-          x >= 2 && x <= 4 && y >= 2 && y <= 4 && z >= 1 && z <= 3 &&
-            !(x == 3 && y == 3 && z == 2)
-        val speck = x == 1 && y == 1 && z == 4
-        if plateau || speck then 10.0 else 0.0
+    continuous3D("visual-pipeline-3d", Vector(7, 6, 5)) { (x, y, z) =>
+      val plateau =
+        x >= 2 && x <= 4 && y >= 2 && y <= 4 && z >= 1 && z <= 3 &&
+          !(x == 3 && y == 3 && z == 2)
+      val speck = x == 1 && y == 1 && z == 4
+      if plateau || speck then 10.0 else 0.0
     }
 
   private def continuous2D(
@@ -305,19 +304,19 @@ object ImageOpsVisualQaFixtures:
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => throw new IllegalStateException(error.message)
+      case Left(error) => throw new IllegalStateException(error.message)
 
   private def opsRight[A](value: Either[OpError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => throw new IllegalStateException(error.message)
+      case Left(error) => throw new IllegalStateException(error.message)
 
   private def geometryRight[A](value: Either[GeometryError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => throw new IllegalStateException(error.message)
+      case Left(error) => throw new IllegalStateException(error.message)
 
   private def imageRight[A](value: Either[ImageError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => throw new IllegalStateException(error.message)
+      case Left(error) => throw new IllegalStateException(error.message)

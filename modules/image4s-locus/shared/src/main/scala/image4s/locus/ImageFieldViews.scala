@@ -11,8 +11,8 @@ import ravel.NDArray
 
 /** Zero-copy field view of one spatial-only image.
   *
-  * The image remains the sole owner of Ravel storage. This wrapper contains
-  * only the checked grid-domain bridge and an image reference.
+  * The image remains the sole owner of Ravel storage. This wrapper contains only the checked
+  * grid-domain bridge and an image reference.
   */
 final class SpatialFieldView[
     S,

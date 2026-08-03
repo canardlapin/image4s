@@ -55,8 +55,8 @@ private[filter] trait PreparedFilterExecution[
 
 /** Closed primitive output family for linear filters.
   *
-  * Dispatch happens once while preparing the pass. Float and Double reducers
-  * then retain primitive weights and accumulators throughout the stencil loop.
+  * Dispatch happens once while preparing the pass. Float and Double reducers then retain primitive
+  * weights and accumulators throughout the stencil loop.
   */
 sealed trait FilterOutput[A]:
   private[filter] def zero: A
@@ -318,10 +318,9 @@ object FilterOutput:
 
 /** Sequential reusable filter schedule.
   *
-  * The plan owns one mutable primitive workspace and reuses Ravel's prepared
-  * address schedule. Each returned image receives a fresh immutable buffer, so
-  * later runs cannot change earlier results. A plan is not thread-safe; create
-  * one plan per concurrent caller.
+  * The plan owns one mutable primitive workspace and reuses Ravel's prepared address schedule. Each
+  * returned image receives a fresh immutable buffer, so later runs cannot change earlier results. A
+  * plan is not thread-safe; create one plan per concurrent caller.
   */
 final class PreparedLinearFilter[
     D <: Dim,
@@ -733,8 +732,7 @@ object LinearFilter:
           passes = 1,
           inputMaterialized = inputMaterialized,
           outputShape = Vector.tabulate(shape.rank)(shape.apply),
-          workspaceBytes =
-            shape.size.toLong * target.bytesPerElement.toLong
+          workspaceBytes = shape.size.toLong * target.bytesPerElement.toLong
         )
       )
     yield plan
@@ -801,8 +799,7 @@ object LinearFilter:
             passes = dimension.rank,
             inputMaterialized = inputMaterialized,
             outputShape = Vector.tabulate(shape.rank)(shape.apply),
-            workspaceBytes =
-              shape.size.toLong * target.bytesPerElement.toLong * 2L
+            workspaceBytes = shape.size.toLong * target.bytesPerElement.toLong * 2L
           )
         )
       case _ =>
@@ -841,20 +838,21 @@ object LinearFilter:
         axes.zipWithIndex.map { case (axis, factorAxis) =>
           NeighborhoodSpec(
             spatialAxes = 1,
-            offsets =
-              axis.weights.indices.map { index =>
-                val offset = index - axis.anchor
-                Vector(if reverse then -offset else offset)
-              }.toVector,
+            offsets = axis.weights.indices.map { index =>
+              val offset = index - axis.anchor
+              Vector(if reverse then -offset else offset)
+            }.toVector,
             border = border._1,
             outputOrigin = Vector(0),
             outputSpatialShape = Vector(source.shape(factorAxis))
           )
         }
       val constants =
-        axes.scanLeft(border._2) { (constant, axis) =>
-          target.multiply(constant, sumWeights(axis.weights))
-        }.dropRight(1)
+        axes
+          .scanLeft(border._2) { (constant, axis) =>
+            target.multiply(constant, sumWeights(axis.weights))
+          }
+          .dropRight(1)
       val firstPass =
         target.prepare(
           source.permuteAxes(orders(0)*),
@@ -878,25 +876,26 @@ object LinearFilter:
             constants(axis)
           )
         }
-      Right(new PreparedFilterExecution[B, R]:
-        def run(nextSource: NDArray[B, R]): MutableNDArray[B, R] =
-          firstPass.run(
-            nextSource.permuteAxes(orders(0)*),
-            firstWorkspace.permuteAxes(orders(0)*)
-          )
-          var current = firstWorkspace
-          var axis = 1
-          while axis < dimension.rank do
-            val destination =
-              if current eq firstWorkspace then secondWorkspace
-              else firstWorkspace
-            remaining(axis - 1).runMutable(
-              current.permuteAxes(orders(axis)*),
-              destination.permuteAxes(orders(axis)*)
+      Right(
+        new PreparedFilterExecution[B, R]:
+          def run(nextSource: NDArray[B, R]): MutableNDArray[B, R] =
+            firstPass.run(
+              nextSource.permuteAxes(orders(0)*),
+              firstWorkspace.permuteAxes(orders(0)*)
             )
-            current = destination
-            axis += 1
-          current
+            var current = firstWorkspace
+            var axis = 1
+            while axis < dimension.rank do
+              val destination =
+                if current eq firstWorkspace then secondWorkspace
+                else firstWorkspace
+              remaining(axis - 1).runMutable(
+                current.permuteAxes(orders(axis)*),
+                destination.permuteAxes(orders(axis)*)
+              )
+              current = destination
+              axis += 1
+            current
       )
 
   private def axisOrder(rank: Int, leadingAxis: Int): Vector[Int] =
@@ -948,9 +947,7 @@ object LinearFilter:
     if reverse then
       Support
         .create(
-          offsets.map(coordinates =>
-            image4s.ops.Offset.unsafe[D](coordinates)
-          )
+          offsets.map(coordinates => image4s.ops.Offset.unsafe[D](coordinates))
         )
         .map(reversed => (offsets, weights, reversed))
     else Right((offsets, weights, support))
@@ -1253,7 +1250,7 @@ object Gaussian:
 
   private def unitScale(unit: LengthUnit): Double =
     unit match
-      case LengthUnit.Meter      => 1.0
+      case LengthUnit.Meter => 1.0
       case LengthUnit.Millimeter => 1.0e-3
       case LengthUnit.Micrometer => 1.0e-6
 

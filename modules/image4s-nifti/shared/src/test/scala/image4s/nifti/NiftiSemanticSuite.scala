@@ -34,7 +34,8 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
     forAll(
       Gen.listOfN(
         348,
-        Gen.choose(Byte.MinValue.toInt, Byte.MaxValue.toInt)
+        Gen
+          .choose(Byte.MinValue.toInt, Byte.MaxValue.toInt)
           .map(_.toByte)
       )
     ): bytes =>
@@ -91,10 +92,9 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
           first <- 0 until x
           second <- 0 until y
           third <- 0 until z
-        yield
-          values(
-            first + x * (second + y * third)
-          )).toVector
+        yield values(
+          first + x * (second + y * third)
+        )).toVector
       assertEquals(decoded.header.dimensions, Vector(x, y, z))
       assertEquals(decoded.header.byteOrder, order)
       assertEquals(decoded.header.datatype, datatype)
@@ -523,8 +523,7 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
           NiftiDatatype.Int16,
           slope = 1.0,
           intercept = 0.0,
-          integerConversion =
-            NiftiIntegerConversion.RoundToNearestEven
+          integerConversion = NiftiIntegerConversion.RoundToNearestEven
         )
         .fold(error => fail(error.message), identity)
     assertEquals(
@@ -580,8 +579,7 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
       api.readScaledDouble(
         unknownPath,
         NiftiReadOptions.default.copy(
-          unknownTemporalUnit =
-            NiftiUnknownTemporalUnitPolicy.Reject
+          unknownTemporalUnit = NiftiUnknownTemporalUnitPolicy.Reject
         )
       ),
       Left(NiftiError.UnknownTemporalUnitForFourthDimension)
@@ -593,8 +591,7 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
           api.readScaledDouble(
             unknownPath,
             NiftiReadOptions.default.copy(
-              unknownTemporalUnit =
-                NiftiUnknownTemporalUnitPolicy.AssumeMilliseconds
+              unknownTemporalUnit = NiftiUnknownTemporalUnitPolicy.AssumeMilliseconds
             )
           )
         ).image
@@ -610,19 +607,13 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
     val shifted =
       affine(
         Vector(
-          1.0, 0.0, 0.0, 10.0,
-          0.0, 1.0, 0.0, 20.0,
-          0.0, 0.0, 1.0, 30.0,
-          0.0, 0.0, 0.0, 1.0
+          1.0, 0.0, 0.0, 10.0, 0.0, 1.0, 0.0, 20.0, 0.0, 0.0, 1.0, 30.0, 0.0, 0.0, 0.0, 1.0
         )
       )
     val explicit =
       affine(
         Vector(
-          1.0, 0.0, 0.0, 99.0,
-          0.0, 1.0, 0.0, 0.0,
-          0.0, 0.0, 1.0, 0.0,
-          0.0, 0.0, 0.0, 1.0
+          1.0, 0.0, 0.0, 99.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0
         )
       )
 
@@ -666,8 +657,7 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
         api.readScaledDouble(
           agreement,
           NiftiReadOptions.default.copy(
-            affinePolicy =
-              NiftiAffinePolicy.RequireAgreement(0.0)
+            affinePolicy = NiftiAffinePolicy.RequireAgreement(0.0)
           )
         )
       )
@@ -714,8 +704,7 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
       api.readScaledDouble(
         disagreement,
         NiftiReadOptions.default.copy(
-          affinePolicy =
-            NiftiAffinePolicy.RequireAgreement(1e-6)
+          affinePolicy = NiftiAffinePolicy.RequireAgreement(1e-6)
         )
       ),
       Left(NiftiError.AffineFormsDisagree(30.0, 1e-6))
@@ -723,8 +712,7 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
     api.readScaledDouble(
       disagreement,
       NiftiReadOptions.default.copy(
-        affinePolicy =
-          NiftiAffinePolicy.RequireAgreement(Double.NaN)
+        affinePolicy = NiftiAffinePolicy.RequireAgreement(Double.NaN)
       )
     ) match
       case Left(NiftiError.InvalidAffineAgreementTolerance(value)) =>
@@ -894,31 +882,30 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
   private def javaOrder(order: NiftiByteOrder): ByteOrder =
     order match
       case NiftiByteOrder.LittleEndian => ByteOrder.LITTLE_ENDIAN
-      case NiftiByteOrder.BigEndian    => ByteOrder.BIG_ENDIAN
+      case NiftiByteOrder.BigEndian => ByteOrder.BIG_ENDIAN
 
   private def geometryRight[A](
       value: Either[GeometryError, A]
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def imageRight[A](
       value: Either[image4s.ImageError, A]
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def niftiRight[A](
       value: Either[NiftiError, A]
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
-private final class MemoryNiftiFileSystem
-    extends NiftiFileSystem[String]:
+private final class MemoryNiftiFileSystem extends NiftiFileSystem[String]:
   private val bytesByPath =
     mutable.Map.empty[String, Array[Byte]]
 

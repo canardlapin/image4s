@@ -86,9 +86,7 @@ final class ImageRepresentationContractSuite extends ScalaCheckSuite:
         Grid.in(frame)(Vector(4, 3, 2), Affine.identity[D3])
       )
     val base =
-      NDArray.tabulate[Double](4, 3, 2)((i, j, k) =>
-        logicalValue(i, j, k, 0)
-      )
+      NDArray.tabulate[Double](4, 3, 2)((i, j, k) => logicalValue(i, j, k, 0))
     val reversed = base.reverse(0)
     val sampled =
       imageRight(Sampled.continuous(grid, NonSpatialAxes.empty, reversed))
@@ -109,15 +107,7 @@ final class ImageRepresentationContractSuite extends ScalaCheckSuite:
           origin = Vector(0.0, 0.0, 0.0),
           spacing = Vector(1.0, 1.0, 1.0),
           directionRowMajor = Vector(
-            0.0,
-            0.0,
-            1.0,
-            0.0,
-            1.0,
-            0.0,
-            1.0,
-            0.0,
-            0.0
+            0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0
           )
         )
       )
@@ -218,8 +208,7 @@ final class ImageRepresentationContractSuite extends ScalaCheckSuite:
         while j < ny do
           var i = 0
           while i < nx do
-            values(legacyIndex4(nx, ny, nz, i, j, k, t)) =
-              logicalValue(i, j, k, t)
+            values(legacyIndex4(nx, ny, nz, i, j, k, t)) = logicalValue(i, j, k, t)
             i += 1
           j += 1
         k += 1
@@ -259,11 +248,11 @@ final class ImageRepresentationContractSuite extends ScalaCheckSuite:
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def imageRight[A](
       value: Either[ImageError, A]
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)

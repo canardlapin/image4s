@@ -35,7 +35,7 @@ final class SamplingAlignmentSuite extends FunSuite:
           space,
           NDArray.fromSeq(Shape(2, 2), Vector(5.0, 6.0, 7.0, 8.0))
         )
-    )
+      )
     val combined =
       left.zipWithAs[Continuous, Double, Continuous](right)(_ + _)
 
@@ -232,15 +232,7 @@ def invalid[
       geometryRight(
         Affine.fromRowMajor[D2](
           Vector(
-            1.0,
-            0.0,
-            1e-6,
-            0.0,
-            1.0,
-            0.0,
-            0.0,
-            0.0,
-            1.0
+            1.0, 0.0, 1e-6, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0
           )
         )
       )
@@ -380,9 +372,7 @@ def invalid[
     assertNotEquals(left, right)
     assert(!left.sameValuesAs(right)(_ == _))
     assert(
-      left.sameValuesAs(right)((a, b) =>
-        (a.isNaN && b.isNaN) || a == b
-      )
+      left.sameValuesAs(right)((a, b) => (a.isNaN && b.isNaN) || a == b)
     )
     assert(
       !left.sameValuesAs(right)((a, b) =>
@@ -426,11 +416,11 @@ def invalid[
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def imageRight[A](
       value: Either[ImageError, A]
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)

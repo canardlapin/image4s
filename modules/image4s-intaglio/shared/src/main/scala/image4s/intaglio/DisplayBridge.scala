@@ -17,25 +17,26 @@ import ravel.Rank
 
 /** Lowers D2 continuous images to Intaglio display intermediates.
   *
-  * This bridge owns no scientific image operation. Field lowering is available
-  * only for axis-aligned affine grids. Raster lowering always retains raster
-  * pixels in source-index coordinates; callers that need a rotated or sheared
-  * display either resample explicitly with reframe4s or place the resulting
-  * raster in an Intaglio scene with the appropriate transform.
+  * This bridge owns no scientific image operation. Field lowering is available only for
+  * axis-aligned affine grids. Raster lowering always retains raster pixels in source-index
+  * coordinates; callers that need a rotated or sheared display either resample explicitly with
+  * reframe4s or place the resulting raster in an Intaglio scene with the appropriate transform.
   */
 object DisplayBridge:
   /** Lower an axis-aligned D2 scalar image into an Intaglio regular field.
     *
-    * Reflected affine axes are represented by reversing display values so both
-    * Intaglio axes remain increasing. Sheared or rotated grids are rejected
-    * rather than being silently reinterpreted as a regular field.
+    * Reflected affine axes are represented by reversing display values so both Intaglio axes remain
+    * increasing. Sheared or rotated grids are rejected rather than being silently reinterpreted as
+    * a regular field.
     */
   def toIntaglioField[
       S <: SampleSpace[?, D2],
       A
   ](
       image: Sampled[S, A, Continuous, Rank[2]]
-  )(using values: LinearInterpolable[A]): Either[
+  )(using
+      values: LinearInterpolable[A]
+  ): Either[
     DisplayBridgeError,
     ScalarField2D
   ] =
@@ -68,10 +69,9 @@ object DisplayBridge:
 
   /** Render a D2 scalar image into a visual-top-row raster.
     *
-    * The source is not copied or reoriented before packing. The one primitive
-    * `Array[Int]` is allocated by Intaglio's `RasterImage.tabulate`; source
-    * lookup, windowing, palette lookup, and orientation all occur in its
-    * pixel loop.
+    * The source is not copied or reoriented before packing. The one primitive `Array[Int]` is
+    * allocated by Intaglio's `RasterImage.tabulate`; source lookup, windowing, palette lookup, and
+    * orientation all occur in its pixel loop.
     */
   def renderRaster[
       S <: SampleSpace[?, D2],
@@ -98,8 +98,8 @@ object DisplayBridge:
       colorizer.color(values.toDouble(image.data(sourceX, sourceY)))
     }
 
-  /** Render a scalar D2 raster with a Boolean mask composited in the same
-    * display coordinate mapping as the base raster.
+  /** Render a scalar D2 raster with a Boolean mask composited in the same display coordinate
+    * mapping as the base raster.
     */
   def renderRasterWithMask[
       S <: SampleSpace[?, D2],
@@ -166,9 +166,8 @@ object DisplayBridge:
 
   /** Lower one orthogonal D3 slice directly to an Intaglio raster.
     *
-    * Slice axes are source-grid axes. This method owns only extraction and
-    * pixel packing; it does not resample oblique slices or interpret affine
-    * geometry as a display transform.
+    * Slice axes are source-grid axes. This method owns only extraction and pixel packing; it does
+    * not resample oblique slices or interpret affine geometry as a display transform.
     */
   def renderSliceRaster[
       S <: SampleSpace[?, D3],
@@ -278,8 +277,7 @@ object DisplayBridge:
       val offset = y * width
       while x < width do
         val sourceX = if geometry.spacingX > 0.0 then x else width - 1 - x
-        result(offset + x) =
-          values.toDouble(image.data(sourceX, sourceY))
+        result(offset + x) = values.toDouble(image.data(sourceX, sourceY))
         x += 1
       y += 1
     result

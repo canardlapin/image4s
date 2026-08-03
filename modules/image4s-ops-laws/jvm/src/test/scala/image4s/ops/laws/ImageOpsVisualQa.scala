@@ -14,9 +14,8 @@ import javax.imageio.ImageIO
 
 /** JVM-only visual-review artifact generator for image-operation stages.
   *
-  * Run with `sbt imageOpsVisualQaJVM`; the output directory contains
-  * nearest-neighbour presentations of the exact rasters used by
-  * [[ImageOpsVisualQaSuite]], plus a small HTML index.
+  * Run with `sbt imageOpsVisualQaJVM`; the output directory contains nearest-neighbour
+  * presentations of the exact rasters used by [[ImageOpsVisualQaSuite]], plus a small HTML index.
   */
 object ImageOpsVisualQa:
   private val PixelScale = 24
@@ -31,11 +30,13 @@ object ImageOpsVisualQa:
     }
     Files.writeString(
       root.resolve("manifest.tsv"),
-      cases.map(example => s"${example.name}\t${example.name}.png").mkString(
-        "case\tfile\n",
-        "\n",
-        "\n"
-      ),
+      cases
+        .map(example => s"${example.name}\t${example.name}.png")
+        .mkString(
+          "case\tfile\n",
+          "\n",
+          "\n"
+        ),
       StandardCharsets.UTF_8
     )
     Files.writeString(
@@ -79,12 +80,14 @@ object ImageOpsVisualQa:
       throw new IllegalStateException(s"PNG writer unavailable for $path")
 
   private def html(names: Vector[String]): String =
-    val sections = names.map { name =>
-      s"""      <figure>
+    val sections = names
+      .map { name =>
+        s"""      <figure>
          |        <figcaption>$name</figcaption>
          |        <img src="$name.png" alt="$name image-operation stage">
          |      </figure>""".stripMargin
-    }.mkString("\n")
+      }
+      .mkString("\n")
     s"""<!doctype html>
        |<html lang="en">
        |  <head>

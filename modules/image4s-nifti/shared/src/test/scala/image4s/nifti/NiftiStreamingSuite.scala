@@ -190,9 +190,8 @@ final class NiftiStreamingSuite extends FunSuite:
       Sampled.continuous(
         grid,
         axes,
-        NDArray.tabulate[Double](nx, ny, nz, timePoints) {
-          (i, j, k, t) =>
-            (i + 17 * j + 101 * k + 1009 * t).toDouble
+        NDArray.tabulate[Double](nx, ny, nz, timePoints) { (i, j, k, t) =>
+          (i + 17 * j + 101 * k + 1009 * t).toDouble
         }
       )
     )
@@ -231,8 +230,7 @@ final class NiftiStreamingSuite extends FunSuite:
   ): A =
     value.fold(error => fail(error.message), identity)
 
-private final class ProbedNiftiFileSystem
-    extends NiftiFileSystem[String]:
+private final class ProbedNiftiFileSystem extends NiftiFileSystem[String]:
   private val bytesByPath =
     mutable.Map.empty[String, Array[Byte]]
 
@@ -314,15 +312,16 @@ private final class ProbedNiftiFileSystem
     bytesByPath.get(path) match
       case None =>
         Left(NiftiError.IoFailure(path, operation, "missing"))
-      case Some(source)
-          if startOffset + byteCount > source.length.toLong =>
+      case Some(source) if startOffset + byteCount > source.length.toLong =>
         Left(
           NiftiError.UnexpectedEndOfFile(
             operation,
-            math.min(
-              startOffset + byteCount,
-              Int.MaxValue.toLong
-            ).toInt,
+            math
+              .min(
+                startOffset + byteCount,
+                Int.MaxValue.toLong
+              )
+              .toInt,
             source.length
           )
         )
@@ -345,7 +344,7 @@ private final class ProbedNiftiFileSystem
           )
           consume(buffer, length) match
             case Left(error) => failure = Some(error)
-            case Right(_)    => offset += length.toLong
+            case Right(_) => offset += length.toLong
         failure.toLeft(())
 
   def writeBytes(

@@ -35,11 +35,11 @@ final class BorrowedJvmSuite extends FunSuite:
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def imageRight[A](
       value: Either[ImageError, A]
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)

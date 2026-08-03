@@ -735,9 +735,7 @@ Sampled.create[
         Sampled.continuous(
           planeGrid,
           NonSpatialAxes.empty,
-          NDArray.tabulate[Double](2, 3)((i, j) =>
-            10.0 * i.toDouble + j.toDouble
-          )
+          NDArray.tabulate[Double](2, 3)((i, j) => 10.0 * i.toDouble + j.toDouble)
         )
       )
     assertEquals(plane(1, 2), 12.0)
@@ -788,11 +786,10 @@ Sampled.create[
               j <- 0 until 3
               k <- 0 until 4
               t <- 0 until 2
-            yield
-              100.0 * i.toDouble +
-                10.0 * j.toDouble +
-                k.toDouble +
-                1000.0 * t.toDouble
+            yield 100.0 * i.toDouble +
+              10.0 * j.toDouble +
+              k.toDouble +
+              1000.0 * t.toDouble
           )
         )
       )
@@ -1041,15 +1038,7 @@ Sampled.create[
           origin = Vector(10.0, 20.0, 30.0),
           spacing = Vector(2.0, 3.0, 4.0),
           directionRowMajor = Vector(
-            0.0,
-            0.0,
-            1.0,
-            0.0,
-            1.0,
-            0.0,
-            1.0,
-            0.0,
-            0.0
+            0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0
           )
         )
       )
@@ -1160,7 +1149,8 @@ Sampled.create[
           assert(d2.value eq sampled)
           assertEquals(d2.dimension.rank, 2)
           assert(d2.value.frame eq frame)
-          d2.value.logicalShape,
+          d2.value.logicalShape
+        ,
         _ => fail("expected D2")
       )
 
@@ -1269,18 +1259,18 @@ series(0, 0, 0)
   private def dynamicShape(dimensions: Int*): Shape[AnyRank] =
     Shape.from(dimensions) match
       case Right(shape) => shape
-      case Left(error)  => fail(error.toString)
+      case Left(error) => fail(error.toString)
 
   private def geometryRight[A](
       value: Either[GeometryError, A]
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def imageRight[A](
       value: Either[ImageError, A]
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)

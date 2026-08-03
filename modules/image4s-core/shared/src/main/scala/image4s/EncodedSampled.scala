@@ -7,12 +7,12 @@ import ravel.DType
 import ravel.NDArray
 import ravel.map
 
-/** An immutable sampled image whose stored representation is decoded by a
-  * structural [[ValueEncoding]].
+/** An immutable sampled image whose stored representation is decoded by a structural
+  * [[ValueEncoding]].
   *
-  * `Stored` describes Ravel storage; `Domain` is what callers observe through
-  * [[valueAt]] and [[materializeTo]]. The wrapped raw `Sampled` owner keeps
-  * image geometry, metadata, and zero-copy view behavior centralized.
+  * `Stored` describes Ravel storage; `Domain` is what callers observe through [[valueAt]] and
+  * [[materializeTo]]. The wrapped raw `Sampled` owner keeps image geometry, metadata, and zero-copy
+  * view behavior centralized.
   */
 final class EncodedSampled[
     S <: SampleSpace[?, ?],
@@ -65,12 +65,12 @@ final class EncodedSampled[
           .map(ImageError.ValueEncoding.apply)
       )
 
-  /** Decode into the domain dtype while retaining the complete sample space,
-    * metadata, and semantic role.
+  /** Decode into the domain dtype while retaining the complete sample space, metadata, and semantic
+    * role.
     *
-    * Identity and uniform-affine encodings use Ravel's shape-preserving
-    * elementwise path. Coordinate-dependent and codebook encodings use the
-    * same one-output-buffer builder while preserving C-order logical values.
+    * Identity and uniform-affine encodings use Ravel's shape-preserving elementwise path.
+    * Coordinate-dependent and codebook encodings use the same one-output-buffer builder while
+    * preserving C-order logical values.
     */
   def materializeTo(using
       domainDType: DType[Domain]
@@ -85,18 +85,20 @@ final class EncodedSampled[
   ] =
     decodeData.flatMap(decoded =>
       Sampled
-        .create[Domain, Sem, R](sampleSpace, decoded, metadata)(
-          using domainSemantics
+        .create[Domain, Sem, R](sampleSpace, decoded, metadata)(using
+          domainSemantics
         )
     )
 
-  /** Apply an affine-correct zero-copy spatial crop to stored data. Encoding
-    * coefficients retain their non-spatial alignment unchanged.
+  /** Apply an affine-correct zero-copy spatial crop to stored data. Encoding coefficients retain
+    * their non-spatial alignment unchanged.
     */
   def spatialView(
       origin: Vector[Int],
       shape: Vector[Int]
-  )(using dimension: Dimension[sampleSpace.D]): Either[
+  )(using
+      dimension: Dimension[sampleSpace.D]
+  ): Either[
     ImageError,
     EncodedSampled[
       ? <: SampleSpace[?, ?],
@@ -107,8 +109,8 @@ final class EncodedSampled[
     ]
   ] =
     stored
-      .spatialView(origin, shape)(
-        using dimension.asInstanceOf[Dimension[stored.sampleSpace.D]]
+      .spatialView(origin, shape)(using
+        dimension.asInstanceOf[Dimension[stored.sampleSpace.D]]
       )
       .map(viewed =>
         new EncodedSampled(
@@ -121,7 +123,9 @@ final class EncodedSampled[
   def crop(
       origin: Vector[Int],
       shape: Vector[Int]
-  )(using dimension: Dimension[sampleSpace.D]): Either[
+  )(using
+      dimension: Dimension[sampleSpace.D]
+  ): Either[
     ImageError,
     EncodedSampled[
       ? <: SampleSpace[?, ?],
@@ -158,9 +162,7 @@ final class EncodedSampled[
       data.foreachIndex { index =>
         if failure.isEmpty then
           val nonSpatialIndex =
-            Vector.tabulate(nonSpatialAxes.size)(axis =>
-              index(grid.spatialRank + axis)
-            )
+            Vector.tabulate(nonSpatialAxes.size)(axis => index(grid.spatialRank + axis))
           encoding.decode(data.at(index), nonSpatialIndex) match
             case Right(value) =>
               builder.writeLinear(linear, value)
@@ -171,11 +173,11 @@ final class EncodedSampled[
     }
     failure match
       case Some(error) => Left(ImageError.ValueEncoding(error))
-      case None        => Right(decoded)
+      case None => Right(decoded)
 
 object EncodedSampled:
-  /** Internal semantic tag for stored values. It never exposes a second public
-    * image meaning: callers interact with `Domain` and `Sem`.
+  /** Internal semantic tag for stored values. It never exposes a second public image meaning:
+    * callers interact with `Domain` and `Sem`.
     */
   sealed trait Stored
 

@@ -276,7 +276,7 @@ final class GeometrySuite extends ScalaCheckSuite:
         .toOption
         .exists {
           case _: GeometryError.FrameKeyConflict => true
-          case _                                 => false
+          case _ => false
         }
     )
     assert(
@@ -293,7 +293,7 @@ final class GeometrySuite extends ScalaCheckSuite:
         .toOption
         .exists {
           case _: GeometryError.FrameKeyConflict => true
-          case _                                 => false
+          case _ => false
         }
     )
     assert(
@@ -308,7 +308,7 @@ final class GeometrySuite extends ScalaCheckSuite:
         .toOption
         .exists {
           case _: GeometryError.FrameKeyConflict => true
-          case _                                 => false
+          case _ => false
         }
     )
 
@@ -478,9 +478,7 @@ Grid.in[D2](patient)(Vector(64, 64), Affine.identity[D2])
       right(
         Affine.fromRowMajor[D2](
           Vector(
-            1.0, 0.0, 3.0,
-            0.0, 1.0, -2.0,
-            0.0, 0.0, 1.0
+            1.0, 0.0, 3.0, 0.0, 1.0, -2.0, 0.0, 0.0, 1.0
           )
         )
       )
@@ -488,9 +486,7 @@ Grid.in[D2](patient)(Vector(64, 64), Affine.identity[D2])
       right(
         Affine.fromRowMajor[D2](
           Vector(
-            2.0, 0.0, 0.0,
-            0.0, 4.0, 0.0,
-            0.0, 0.0, 1.0
+            2.0, 0.0, 0.0, 0.0, 4.0, 0.0, 0.0, 0.0, 1.0
           )
         )
       )
@@ -502,15 +498,7 @@ Grid.in[D2](patient)(Vector(64, 64), Affine.identity[D2])
   test("affines reject invalid homogeneous rows and copy borrowed data"):
     val invalid = Affine.fromRowMajor[D2](
       Vector(
-        1.0,
-        0.0,
-        0.0,
-        0.0,
-        1.0,
-        0.0,
-        0.0,
-        1.0,
-        1.0
+        1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0
       )
     )
     assert(invalid.isLeft)
@@ -526,15 +514,7 @@ Grid.in[D2](patient)(Vector(64, 64), Affine.identity[D2])
 
   test("affine tolerance is bounded and accepted bottom rows are canonicalized"):
     val projective = Vector(
-      1.0,
-      0.0,
-      1.0,
-      0.0,
-      1.0,
-      0.0,
-      0.5,
-      0.0,
-      1.0
+      1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.5, 0.0, 1.0
     )
     assert(Affine.fromRowMajor[D2](projective, tolerance = 0.5).isLeft)
 
@@ -558,7 +538,7 @@ Grid.in[D2](patient)(Vector(64, 64), Affine.identity[D2])
       nonOrthonormal.left.toOption.exists(
         _ match
           case _: GeometryError.NonOrthonormalDirection => true
-          case _                                        => false
+          case _ => false
       )
     )
 
@@ -581,9 +561,7 @@ Grid.in[D2](patient)(Vector(64, 64), Affine.identity[D2])
       right(
         Affine.fromRowMajor[D2](
           Vector(
-            2.0, 0.2, 4.0,
-            0.1, 3.0, -2.0,
-            0.0, 0.0, 1.0
+            2.0, 0.2, 4.0, 0.1, 3.0, -2.0, 0.0, 0.0, 1.0
           )
         )
       )
@@ -596,9 +574,7 @@ Grid.in[D2](patient)(Vector(64, 64), Affine.identity[D2])
       right(
         Affine.fromRowMajor[D2](
           Vector(
-            1.0, 0.0, 1e15,
-            0.0, 1.0, -1e15,
-            0.0, 0.0, 1.0
+            1.0, 0.0, 1e15, 0.0, 1.0, -1e15, 0.0, 0.0, 1.0
           )
         )
       )
@@ -610,16 +586,14 @@ Grid.in[D2](patient)(Vector(64, 64), Affine.identity[D2])
     val nearSingular =
       Affine.fromRowMajor[D2](
         Vector(
-          1.0, 0.0, 0.0,
-          0.0, 1e-14, 0.0,
-          0.0, 0.0, 1.0
+          1.0, 0.0, 0.0, 0.0, 1e-14, 0.0, 0.0, 0.0, 1.0
         )
       )
     assert(
       nearSingular.left.toOption.exists(
         _ match
           case _: GeometryError.IllConditionedAffine => true
-          case _                                     => false
+          case _ => false
       )
     )
     assertEquals(
@@ -638,7 +612,7 @@ Grid.in[D2](patient)(Vector(64, 64), Affine.identity[D2])
       strictResidual.left.toOption.exists(
         _ match
           case _: GeometryError.AffineInverseResidualTooLarge => true
-          case _                                              => false
+          case _ => false
       )
     )
 
@@ -676,9 +650,7 @@ Grid.in[D2](patient)(Vector(64, 64), Affine.identity[D2])
       right(
         Affine.fromRowMajor[D2](
           Vector(
-            1.0, 0.0, 2.0,
-            0.0, 1.0, 3.0,
-            0.0, 0.0, 1.0
+            1.0, 0.0, 2.0, 0.0, 1.0, 3.0, 0.0, 0.0, 1.0
           ),
           tolerance = 1e-10
         )
@@ -765,7 +737,7 @@ Grid.in[D2](patient)(Vector(64, 64), Affine.identity[D2])
         .toOption
         .exists {
           case _: GeometryError.GridKeyConflict => true
-          case _                                => false
+          case _ => false
         }
     )
     assert(
@@ -783,7 +755,7 @@ Grid.in[D2](patient)(Vector(64, 64), Affine.identity[D2])
         .toOption
         .exists {
           case _: GeometryError.GridKeyConflict => true
-          case _                                => false
+          case _ => false
         }
     )
     assert(
@@ -793,7 +765,7 @@ Grid.in[D2](patient)(Vector(64, 64), Affine.identity[D2])
         .toOption
         .exists {
           case _: GeometryError.GridFrameKeyMismatch => true
-          case _                                     => false
+          case _ => false
         }
     )
 
@@ -826,7 +798,7 @@ Grid.in[D2](patient)(Vector(64, 64), Affine.identity[D2])
         .exists(
           _ match
             case _: GeometryError.GridRestoreFrameOwnerConflict => true
-            case _                                              => false
+            case _ => false
         )
     )
 
@@ -857,9 +829,7 @@ Grid.in[D2](patient)(Vector(64, 64), Affine.identity[D2])
       right(
         Affine.fromRowMajor[D2](
           Vector(
-            1.0, 0.0, 1e-9,
-            0.0, 1.0, 0.0,
-            0.0, 0.0, 1.0
+            1.0, 0.0, 1e-9, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0
           )
         )
       )
@@ -976,9 +946,7 @@ Grid.in[D2](patient)(Vector(64, 64), Affine.identity[D2])
           right(
             Affine.fromRowMajor[D2](
               Vector(
-                2.0, 0.0, 10.0,
-                0.0, 3.0, -4.0,
-                0.0, 0.0, 1.0
+                2.0, 0.0, 10.0, 0.0, 3.0, -4.0, 0.0, 0.0, 1.0
               )
             )
           )
@@ -1055,9 +1023,15 @@ Grid.in[D2](patient)(Vector(64, 64), Affine.identity[D2])
     right(
       Affine.fromRowMajor[D2](
         Vector(
-          sx, 0.0, tx,
-          0.0, sy, ty,
-          0.0, 0.0, 1.0
+          sx,
+          0.0,
+          tx,
+          0.0,
+          sy,
+          ty,
+          0.0,
+          0.0,
+          1.0
         )
       )
     )
@@ -1075,4 +1049,4 @@ Grid.in[D2](patient)(Vector(64, 64), Affine.identity[D2])
   private def right[A](value: Either[GeometryError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)

@@ -109,9 +109,7 @@ final class DenseGenericImageSuite extends FunSuite:
         Sampled.categorical(
           grid,
           axes,
-          NDArray.tabulate[Int](4, 3, 2, 2)((i, j, k, t) =>
-            1000 * i + 100 * j + 10 * k + t
-          )
+          NDArray.tabulate[Int](4, 3, 2, 2)((i, j, k, t) => 1000 * i + 100 * j + 10 * k + t)
         )
       )
 
@@ -248,11 +246,11 @@ final class DenseGenericImageSuite extends FunSuite:
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def imageRight[A](
       value: Either[ImageError, A]
   ): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)

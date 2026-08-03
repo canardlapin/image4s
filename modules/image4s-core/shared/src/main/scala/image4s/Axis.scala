@@ -10,8 +10,7 @@ object AxisName:
     if normalized.nonEmpty && normalized == value then Right(value)
     else Left(ImageError.InvalidAxisName(value))
 
-  extension (name: AxisName)
-    def value: String = name
+  extension (name: AxisName) def value: String = name
 
 opaque type AxisKindId = String
 
@@ -20,13 +19,12 @@ object AxisKindId:
     if AxisIdentifier.isValid(value) then Right(value)
     else Left(ImageError.InvalidAxisKindId(value))
 
-  extension (id: AxisKindId)
-    def value: String = id
+  extension (id: AxisKindId) def value: String = id
 
 /** Semantic category of a non-spatial sampling axis.
   *
-  * Known kinds support concise common APIs. `Custom` lets downstream domains
-  * retain their own stable meaning without extending image4s.
+  * Known kinds support concise common APIs. `Custom` lets downstream domains retain their own
+  * stable meaning without extending image4s.
   */
 enum AxisKind derives CanEqual:
   case Time, Channel, Echo, Coil, Direction, Batch, Other
@@ -34,13 +32,13 @@ enum AxisKind derives CanEqual:
 
   def id: String =
     this match
-      case Time       => "time"
-      case Channel    => "channel"
-      case Echo       => "echo"
-      case Coil       => "coil"
-      case Direction  => "direction"
-      case Batch      => "batch"
-      case Other      => "other"
+      case Time => "time"
+      case Channel => "channel"
+      case Echo => "echo"
+      case Coil => "coil"
+      case Direction => "direction"
+      case Batch => "batch"
+      case Other => "other"
       case Custom(customId) => customId.value
 
 object AxisKind:
@@ -50,12 +48,11 @@ object AxisKind:
   def fromId(value: String): Either[ImageError, AxisKind] =
     known.find(_.id == value) match
       case Some(kind) => Right(kind)
-      case None       => custom(value)
+      case None => custom(value)
 
   def custom(value: String): Either[ImageError, AxisKind] =
     AxisKindId.parse(value).flatMap { id =>
-      if known.exists(_.id == id.value) then
-        Left(ImageError.ReservedAxisKindId(value))
+      if known.exists(_.id == id.value) then Left(ImageError.ReservedAxisKindId(value))
       else Right(Custom(id))
     }
 
@@ -66,13 +63,12 @@ object AxisUnitId:
     if AxisIdentifier.isValid(value) then Right(value)
     else Left(ImageError.InvalidAxisUnitId(value))
 
-  extension (id: AxisUnitId)
-    def value: String = id
+  extension (id: AxisUnitId) def value: String = id
 
 /** Unit attached to numeric non-spatial coordinates.
   *
-  * This is an identifier vocabulary rather than a units-of-measure system.
-  * Conversion and dimensional compatibility remain explicit operations.
+  * This is an identifier vocabulary rather than a units-of-measure system. Conversion and
+  * dimensional compatibility remain explicit operations.
   */
 enum AxisUnit derives CanEqual:
   case Unitless
@@ -88,16 +84,16 @@ enum AxisUnit derives CanEqual:
 
   def id: String =
     this match
-      case Unitless        => "unitless"
-      case Seconds         => "s"
-      case Milliseconds    => "ms"
-      case Microseconds    => "us"
-      case Hertz           => "hz"
+      case Unitless => "unitless"
+      case Seconds => "s"
+      case Milliseconds => "ms"
+      case Microseconds => "us"
+      case Hertz => "hz"
       case PartsPerMillion => "ppm"
       case RadiansPerSecond =>
         "rad/s"
-      case Degrees    => "degree"
-      case Radians    => "radian"
+      case Degrees => "degree"
+      case Radians => "radian"
       case Custom(customId) => customId.value
 
 object AxisUnit:
@@ -117,12 +113,11 @@ object AxisUnit:
   def fromId(value: String): Either[ImageError, AxisUnit] =
     known.find(_.id == value) match
       case Some(unit) => Right(unit)
-      case None       => custom(value)
+      case None => custom(value)
 
   def custom(value: String): Either[ImageError, AxisUnit] =
     AxisUnitId.parse(value).flatMap { id =>
-      if known.exists(_.id == id.value) then
-        Left(ImageError.ReservedAxisUnitId(value))
+      if known.exists(_.id == id.value) then Left(ImageError.ReservedAxisUnitId(value))
       else Right(Custom(id))
     }
 
@@ -134,8 +129,8 @@ enum AxisCoordinate derives CanEqual:
 
 /** Neutral, untrusted serialization record for axis coordinates.
   *
-  * Record constructors do not validate external input. Use
-  * [[Axis.fromRecord]] to recover a checked live axis.
+  * Record constructors do not validate external input. Use [[Axis.fromRecord]] to recover a checked
+  * live axis.
   */
 enum AxisCoordinatesRecord derives CanEqual:
   case Ordinal(extent: Int)
@@ -177,8 +172,8 @@ private enum ValidatedAxisCoordinates:
 
 /** Validated finite coordinates for a non-spatial axis.
   *
-  * Structural equality is intentional for this small immutable descriptor.
-  * A live [[Axis]] retains reference identity.
+  * Structural equality is intentional for this small immutable descriptor. A live [[Axis]] retains
+  * reference identity.
   */
 final class AxisCoordinates private (
     private val validated: ValidatedAxisCoordinates
@@ -285,10 +280,12 @@ object AxisCoordinates:
       case AxisCoordinatesRecord.Explicit(values, unitId) =>
         for
           _ <- positiveExtent(axisName, values.size)
-          _ <- values.zipWithIndex.collectFirst {
-            case (value, index) if !value.isFinite =>
-              ImageError.NonFiniteAxisCoordinate(axisName, index, value)
-          }.toLeft(())
+          _ <- values.zipWithIndex
+            .collectFirst {
+              case (value, index) if !value.isFinite =>
+                ImageError.NonFiniteAxisCoordinate(axisName, index, value)
+            }
+            .toLeft(())
           unit <- AxisUnit.fromId(unitId)
         yield new AxisCoordinates(
           ValidatedAxisCoordinates.Explicit(values, unit)
@@ -296,10 +293,12 @@ object AxisCoordinates:
       case AxisCoordinatesRecord.Categorical(labels) =>
         for
           _ <- positiveExtent(axisName, labels.size)
-          _ <- labels.zipWithIndex.collectFirst {
-            case (label, index) if !AxisLabel.isValid(label) =>
-              ImageError.InvalidCategoricalAxisLabel(axisName, index, label)
-          }.toLeft(())
+          _ <- labels.zipWithIndex
+            .collectFirst {
+              case (label, index) if !AxisLabel.isValid(label) =>
+                ImageError.InvalidCategoricalAxisLabel(axisName, index, label)
+            }
+            .toLeft(())
         yield new AxisCoordinates(
           ValidatedAxisCoordinates.Categorical(labels)
         )
@@ -454,8 +453,7 @@ final class NonSpatialAxes private (
         count += 1
       axis += 1
     if count == 0 then Left(ImageError.MissingNonSpatialAxisKind(kind))
-    else if count > 1 then
-      Left(ImageError.AmbiguousNonSpatialAxisKind(kind, count))
+    else if count > 1 then Left(ImageError.AmbiguousNonSpatialAxisKind(kind, count))
     else Right(found)
 
   def append(axis: Axis): Either[ImageError, NonSpatialAxes] =
@@ -487,8 +485,7 @@ final class NonSpatialAxes private (
       )
     else if copied.sorted != values.indices.toVector then
       Left(ImageError.InvalidNonSpatialAxisPermutation(copied, size))
-    else
-      Right(new NonSpatialAxes(copied.map(values)))
+    else Right(new NonSpatialAxes(copied.map(values)))
 
   private[image4s] def without(index: Int): NonSpatialAxes =
     new NonSpatialAxes(values.patch(index, Vector.empty, 1))
@@ -503,19 +500,21 @@ object NonSpatialAxes:
     val copied = axes.iterator.toVector
     firstDuplicateName(copied.toList, Set.empty) match
       case Some(name) => Left(ImageError.DuplicateAxisName(name))
-      case None       => Right(new NonSpatialAxes(copied))
+      case None => Right(new NonSpatialAxes(copied))
 
   def fromRecords(
       records: IterableOnce[AxisRecord]
   ): Either[ImageError, NonSpatialAxes] =
-    records.iterator.foldLeft[
-      Either[ImageError, Vector[Axis]]
-    ](Right(Vector.empty)) { (accumulated, record) =>
-      for
-        axes <- accumulated
-        axis <- Axis.fromRecord(record)
-      yield axes :+ axis
-    }.flatMap(from)
+    records.iterator
+      .foldLeft[
+        Either[ImageError, Vector[Axis]]
+      ](Right(Vector.empty)) { (accumulated, record) =>
+        for
+          axes <- accumulated
+          axis <- Axis.fromRecord(record)
+        yield axes :+ axis
+      }
+      .flatMap(from)
 
   @tailrec
   private def firstDuplicateName(

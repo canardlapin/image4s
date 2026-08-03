@@ -85,9 +85,7 @@ final class Point[F <: Frame[D], D <: Dim] private (
   def +(vector: Vec[F, D]): Point[F, D] =
     new Point(
       frame,
-      DVec.tabulate(values.length)(axis =>
-        values(axis) + vector.coordinateUnsafe(axis)
-      )
+      DVec.tabulate(values.length)(axis => values(axis) + vector.coordinateUnsafe(axis))
     )
 
   /** Translate after runtime owner information has been erased. */
@@ -98,9 +96,7 @@ final class Point[F <: Frame[D], D <: Dim] private (
       Right(
         new Point(
           frame,
-          DVec.tabulate(values.length)(axis =>
-            values(axis) + vector.coordinateUnsafe(axis)
-          )
+          DVec.tabulate(values.length)(axis => values(axis) + vector.coordinateUnsafe(axis))
         )
       )
     else Left(frame.mismatchWith(vector.frame))
@@ -109,9 +105,7 @@ final class Point[F <: Frame[D], D <: Dim] private (
   def -(other: Point[F, D]): Vec[F, D] =
     Vec.fromDVecAs(
       frame,
-      DVec.tabulate(values.length)(axis =>
-        values(axis) - other.coordinateUnsafe(axis)
-      )
+      DVec.tabulate(values.length)(axis => values(axis) - other.coordinateUnsafe(axis))
     )
 
   /** Subtract after runtime owner information has been erased. */
@@ -143,17 +137,17 @@ object Point:
   )(using
       dimension: Dimension[D]
   ): Either[GeometryError, Point[frame.type, D]] =
-    Coordinates.validate[D](coordinates).map(values =>
-      new Point(frame, DVec.tabulate(dimension.rank)(values))
-    )
+    Coordinates
+      .validate[D](coordinates)
+      .map(values => new Point(frame, DVec.tabulate(dimension.rank)(values)))
 
   private[geometry] def fromVectorAs[D <: Dim, F <: Frame[D]](
       frame: F,
       coordinates: Vector[Double]
   )(using dimension: Dimension[D]): Either[GeometryError, Point[F, D]] =
-    Coordinates.validate[D](coordinates).map(values =>
-      new Point(frame, DVec.tabulate(dimension.rank)(values))
-    )
+    Coordinates
+      .validate[D](coordinates)
+      .map(values => new Point(frame, DVec.tabulate(dimension.rank)(values)))
 
 final class Vec[F <: Frame[D], D <: Dim] private (
     val frame: F,
@@ -172,9 +166,7 @@ final class Vec[F <: Frame[D], D <: Dim] private (
   def +(other: Vec[F, D]): Vec[F, D] =
     new Vec(
       frame,
-      DVec.tabulate(values.length)(axis =>
-        values(axis) + other.coordinateUnsafe(axis)
-      )
+      DVec.tabulate(values.length)(axis => values(axis) + other.coordinateUnsafe(axis))
     )
 
   /** Add after runtime owner information has been erased. */
@@ -185,9 +177,7 @@ final class Vec[F <: Frame[D], D <: Dim] private (
       Right(
         new Vec(
           frame,
-          DVec.tabulate(values.length)(axis =>
-            values(axis) + other.coordinateUnsafe(axis)
-          )
+          DVec.tabulate(values.length)(axis => values(axis) + other.coordinateUnsafe(axis))
         )
       )
     else Left(frame.mismatchWith(other.frame))
@@ -215,17 +205,17 @@ object Vec:
   )(using
       dimension: Dimension[D]
   ): Either[GeometryError, Vec[frame.type, D]] =
-    Coordinates.validate[D](coordinates).map(values =>
-      new Vec(frame, DVec.tabulate(dimension.rank)(values))
-    )
+    Coordinates
+      .validate[D](coordinates)
+      .map(values => new Vec(frame, DVec.tabulate(dimension.rank)(values)))
 
   private[geometry] def fromVectorAs[D <: Dim, F <: Frame[D]](
       frame: F,
       coordinates: Vector[Double]
   )(using dimension: Dimension[D]): Either[GeometryError, Vec[F, D]] =
-    Coordinates.validate[D](coordinates).map(values =>
-      new Vec(frame, DVec.tabulate(dimension.rank)(values))
-    )
+    Coordinates
+      .validate[D](coordinates)
+      .map(values => new Vec(frame, DVec.tabulate(dimension.rank)(values)))
 
 private object Coordinates:
   def validate[D <: Dim](

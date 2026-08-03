@@ -268,9 +268,7 @@ final class FilterSuite extends FunSuite:
 
     assertEquals(first.data.elementsIterator.toVector, firstValues)
     assert(
-      second.data.elementsIterator.forall(value =>
-        math.abs(value - 2.0f) < 1.0e-5f
-      ),
+      second.data.elementsIterator.forall(value => math.abs(value - 2.0f) < 1.0e-5f),
       "prepared run did not replace every workspace value"
     )
     assertEquals(plan.report.passes, 1)
@@ -359,15 +357,7 @@ final class FilterSuite extends FunSuite:
       geometryRight(
         Affine.fromRowMajor[D2](
           Vector(
-            1.0,
-            0.5,
-            0.0,
-            0.0,
-            1.0,
-            0.0,
-            0.0,
-            0.0,
-            1.0
+            1.0, 0.5, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0
           )
         )
       )
@@ -428,26 +418,26 @@ final class FilterSuite extends FunSuite:
   private def opsRight[A](value: Either[OpError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def geometryRight[A](value: Either[GeometryError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def axisRight(value: Either[image4s.ImageError, Axis]): Axis =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def nonSpatialRight(
       value: Either[image4s.ImageError, NonSpatialAxes]
   ): NonSpatialAxes =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def imageRight[A](value: Either[image4s.ImageError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)

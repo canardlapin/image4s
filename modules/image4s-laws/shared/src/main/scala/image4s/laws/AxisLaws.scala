@@ -17,9 +17,11 @@ object AxisLaws:
   def coordinateLookupMatchesRecord(axis: Axis): Boolean =
     axis.record.coordinates match
       case AxisCoordinatesRecord.Ordinal(extent) =>
-        Vector.tabulate(extent)(index =>
-          axis.coordinateAt(index).contains(AxisCoordinate.Ordinal(index))
-        ).forall(identity)
+        Vector
+          .tabulate(extent)(index =>
+            axis.coordinateAt(index).contains(AxisCoordinate.Ordinal(index))
+          )
+          .forall(identity)
       case AxisCoordinatesRecord.Regular(
             extent,
             origin,
@@ -27,14 +29,18 @@ object AxisLaws:
             unitId
           ) =>
         AxisUnit.fromId(unitId).exists { unit =>
-          Vector.tabulate(extent)(index =>
-            axis.coordinateAt(index).contains(
-              AxisCoordinate.Numeric(
-                origin + step * index.toDouble,
-                unit
-              )
+          Vector
+            .tabulate(extent)(index =>
+              axis
+                .coordinateAt(index)
+                .contains(
+                  AxisCoordinate.Numeric(
+                    origin + step * index.toDouble,
+                    unit
+                  )
+                )
             )
-          ).forall(identity)
+            .forall(identity)
         }
       case AxisCoordinatesRecord.Explicit(values, unitId) =>
         AxisUnit.fromId(unitId).exists { unit =>

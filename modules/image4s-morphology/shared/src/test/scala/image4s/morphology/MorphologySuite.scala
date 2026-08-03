@@ -84,11 +84,8 @@ final class MorphologySuite extends FunSuite:
     val source =
       mask2D(
         Vector(
-          false, false, false, false, false,
-          false, true, true, false, false,
-          false, true, false, true, false,
-          false, false, true, true, false,
-          false, false, false, false, false
+          false, false, false, false, false, false, true, true, false, false, false, true, false,
+          true, false, false, false, true, true, false, false, false, false, false, false
         ),
         Vector(5, 5)
       )
@@ -113,9 +110,7 @@ final class MorphologySuite extends FunSuite:
     val source =
       mask2D(
         Vector(
-          false, true, false,
-          true, false, false,
-          false, false, true
+          false, true, false, true, false, false, false, false, true
         ),
         Vector(3, 3)
       )
@@ -145,9 +140,7 @@ final class MorphologySuite extends FunSuite:
       imageRight(
         Sampled.mask(
           space,
-          NDArray.tabulate[Boolean](7, 7)((row, column) =>
-            row == 3 && column == 3
-          )
+          NDArray.tabulate[Boolean](7, 7)((row, column) => row == 3 && column == 3)
         )
       )
     val element = StructuringElement.disk[D2](opsRight(Radius.frame(2.0)))
@@ -277,14 +270,14 @@ final class MorphologySuite extends FunSuite:
   private def opsRight[A](value: Either[OpError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def geometryRight[A](value: Either[GeometryError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def imageRight[A](value: Either[ImageError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)

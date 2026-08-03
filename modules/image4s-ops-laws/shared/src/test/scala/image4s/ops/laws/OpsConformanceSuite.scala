@@ -141,21 +141,15 @@ final class OpsConformanceSuite extends FunSuite:
     val lower =
       maskImage(
         Vector(
-          false, false, false, false, false,
-          false, true, false, false, false,
-          false, false, false, false, false,
-          false, false, false, false, false,
-          false, false, false, false, false
+          false, false, false, false, false, false, true, false, false, false, false, false, false,
+          false, false, false, false, false, false, false, false, false, false, false, false
         )
       )
     val upper =
       maskImage(
         Vector(
-          false, false, false, false, false,
-          false, true, true, false, false,
-          false, false, true, false, false,
-          false, false, false, false, false,
-          false, false, false, false, false
+          false, false, false, false, false, false, true, true, false, false, false, false, true,
+          false, false, false, false, false, false, false, false, false, false, false, false
         )
       )
     val element = StructuringElement.cross[D2](opsRight(Radius.samples(1)))
@@ -185,9 +179,7 @@ final class OpsConformanceSuite extends FunSuite:
         Sampled.continuous[Double, Rank[2]](
           canonical.sampleSpace,
           NDArray
-            .tabulate[Double](7, 7)((row, column) =>
-              (((6 - row) * 7 + column) * 13 % 17).toDouble
-            )
+            .tabulate[Double](7, 7)((row, column) => (((6 - row) * 7 + column) * 13 % 17).toDouble)
             .reverse(0)
         )
       )
@@ -312,9 +304,7 @@ final class OpsConformanceSuite extends FunSuite:
         columnOffset <- Vector(-1, 0, 1)
       yield Vector(rowOffset, columnOffset)
     val weights =
-      offsets.map(offset =>
-        rowWeights(offset(0) + 1) * columnWeights(offset(1) + 1)
-      )
+      offsets.map(offset => rowWeights(offset(0) + 1) * columnWeights(offset(1) + 1))
     val support =
       opsRight(Support.create[D2](offsets.map(Offset.unsafe[D2](_))))
     val dense = opsRight(Kernel.dense(support, weights))
@@ -465,8 +455,8 @@ final class OpsConformanceSuite extends FunSuite:
         column += 1
       row += 1
 
-  /** Support.create canonically sorts offsets; sort taps identically so each
-    * weight stays attached to its offset.
+  /** Support.create canonically sorts offsets; sort taps identically so each weight stays attached
+    * to its offset.
     */
   private def sparseKernel(taps: Vector[(Vector[Int], Double)]) =
     val sorted =
@@ -516,14 +506,14 @@ final class OpsConformanceSuite extends FunSuite:
   private def opsRight[A](value: Either[OpError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def geometryRight[A](value: Either[GeometryError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)
 
   private def imageRight[A](value: Either[ImageError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)

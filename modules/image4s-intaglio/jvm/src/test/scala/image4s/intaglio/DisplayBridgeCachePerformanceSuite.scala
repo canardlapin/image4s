@@ -41,8 +41,7 @@ final class DisplayBridgeCachePerformanceSuite extends FunSuite:
     val plan = DisplayPlan(DisplayWindow.unsafe(0.0, (width * height - 1).toDouble))
     val cache = DisplayBridgeCache()
     val first = cache.renderRaster(image, plan)
-    val hit = () =>
-      retained = cache.renderRaster(image, plan)
+    val hit = () => retained = cache.renderRaster(image, plan)
 
     Vector.fill(3)(hit())
     val allocations = Vector.fill(7)(allocatedBytes(hit())).sorted
@@ -64,10 +63,8 @@ final class DisplayBridgeCachePerformanceSuite extends FunSuite:
   ): Long =
     val bean =
       ManagementFactory.getThreadMXBean match
-        case value: ThreadMXBean
-            if value.isThreadAllocatedMemorySupported =>
-          if !value.isThreadAllocatedMemoryEnabled then
-            value.setThreadAllocatedMemoryEnabled(true)
+        case value: ThreadMXBean if value.isThreadAllocatedMemorySupported =>
+          if !value.isThreadAllocatedMemoryEnabled then value.setThreadAllocatedMemoryEnabled(true)
           value
         case _ =>
           fail("this JVM does not expose per-thread allocation accounting")

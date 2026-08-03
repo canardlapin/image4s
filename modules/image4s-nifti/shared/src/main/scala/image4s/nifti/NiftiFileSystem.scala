@@ -1,14 +1,12 @@
 package image4s.nifti
 
-/**
- * Platform boundary for basic synchronous NIfTI filesystem operations.
- *
- * Format parsing, validation, byte order, storage variants, and numeric
- * conversion remain in shared code. JVM and Node.js implementations own only
- * path handling, physical file access, and gzip. The default chunk methods are
- * whole-file compatibility implementations for small in-memory test adapters;
- * production adapters declare their strategy and override them.
- */
+/** Platform boundary for basic synchronous NIfTI filesystem operations.
+  *
+  * Format parsing, validation, byte order, storage variants, and numeric conversion remain in
+  * shared code. JVM and Node.js implementations own only path handling, physical file access, and
+  * gzip. The default chunk methods are whole-file compatibility implementations for small in-memory
+  * test adapters; production adapters declare their strategy and override them.
+  */
 private[nifti] trait NiftiFileSystem[P]:
   def show(path: P): String
 
@@ -94,8 +92,7 @@ private[nifti] trait NiftiFileSystem[P]:
       fill: (Long, Array[Byte], Int) => Either[NiftiError, Unit]
   ): Either[NiftiError, Unit] =
     val total = prefix.length.toLong + payloadBytes
-    if total > Int.MaxValue.toLong then
-      Left(NiftiError.OutputTooLarge(total))
+    if total > Int.MaxValue.toLong then Left(NiftiError.OutputTooLarge(total))
     else
       val all = new Array[Byte](total.toInt)
       System.arraycopy(prefix, 0, all, 0, prefix.length)
@@ -121,7 +118,7 @@ private[nifti] trait NiftiFileSystem[P]:
             payloadOffset += length.toLong
       failure match
         case Some(error) => Left(error)
-        case None        => writeBytes(path, all)
+        case None => writeBytes(path, all)
 
 private[nifti] final case class NiftiBoundedRead(
     bytes: Array[Byte],

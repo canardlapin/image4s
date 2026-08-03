@@ -29,9 +29,9 @@ object PackedImageError:
 
 /** Code-to-value mapping for one packed representation.
   *
-  * Encodings are total: mask and label encodings are direct code embeddings
-  * (labels outside the code width are rejected while packing), and the
-  * uniform quantizer saturates to its window rather than failing.
+  * Encodings are total: mask and label encodings are direct code embeddings (labels outside the
+  * code width are rejected while packing), and the uniform quantizer saturates to its window rather
+  * than failing.
   */
 sealed trait PackedEncoding[A]:
   def bits: PackedBits
@@ -66,9 +66,9 @@ object PackedEncoding:
 
   /** Uniform scalar quantizer over a closed window.
     *
-    * Encoding clamps to `[lower, upper]` (saturation policy) and rounds to
-    * the nearest of `2^bits` evenly spaced levels, so the reconstruction
-    * error for in-window values is at most half of one step.
+    * Encoding clamps to `[lower, upper]` (saturation policy) and rounds to the nearest of `2^bits`
+    * evenly spaced levels, so the reconstruction error for in-window values is at most half of one
+    * step.
     */
   final class UniformQuantizer private (
       val lower: Double,
@@ -109,10 +109,9 @@ object PackedEncoding:
 
 /** Sub-byte packed companion to a dense [[Sampled]] image.
   *
-  * This wrapper deliberately lives beside `Sampled`; ordinary images never
-  * grow a storage type parameter. A packed image keeps the source sample
-  * space, the encoding, and canonical packed codes in row-major logical
-  * order.
+  * This wrapper deliberately lives beside `Sampled`; ordinary images never grow a storage type
+  * parameter. A packed image keeps the source sample space, the encoding, and canonical packed
+  * codes in row-major logical order.
   */
 final class PackedSampled[S <: SampleSpace[?, ?], A] private (
     val sampleSpace: S,
@@ -182,8 +181,8 @@ object PackedSampled:
 
 /** Wordwise set algebra over packed one-bit masks.
   *
-  * Operands must sample the same live grid and shape. Codes are combined
-  * thirty-two samples per word without any Boolean expansion.
+  * Operands must sample the same live grid and shape. Codes are combined thirty-two samples per
+  * word without any Boolean expansion.
   */
 extension [S <: SampleSpace[?, ?]](left: PackedSampled[S, Boolean])
   def union(

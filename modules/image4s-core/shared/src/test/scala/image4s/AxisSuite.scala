@@ -58,9 +58,7 @@ final class AxisSuite extends ScalaCheckSuite:
             Axis.explicit(
               "explicit",
               kind,
-              Vector.tabulate(extent)(index =>
-                origin + index.toDouble * step
-              ),
+              Vector.tabulate(extent)(index => origin + index.toDouble * step),
               unit
             )
           ),
@@ -78,9 +76,7 @@ final class AxisSuite extends ScalaCheckSuite:
         assertEquals(restored.record, axis.record)
         assertEquals(restored.extent, extent)
         assertEquals(
-          (0 until extent).count(index =>
-            restored.coordinates(index).nonEmpty
-          ),
+          (0 until extent).count(index => restored.coordinates(index).nonEmpty),
           extent
         )
         assertEquals(restored.coordinates(-1), None)
@@ -331,9 +327,7 @@ final class AxisSuite extends ScalaCheckSuite:
         Axis.explicit(
           "time",
           AxisKind.Time,
-          Vector.tabulate(240)(index =>
-            index.toDouble * 0.8 + (index % 3).toDouble * 0.01
-          ),
+          Vector.tabulate(240)(index => index.toDouble * 0.8 + (index % 3).toDouble * 0.01),
           AxisUnit.Seconds
         )
       )
@@ -725,4 +719,4 @@ final class AxisSuite extends ScalaCheckSuite:
   private def imageRight[A](value: Either[ImageError, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(error.message)
+      case Left(error) => fail(error.message)

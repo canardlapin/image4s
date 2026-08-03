@@ -199,8 +199,7 @@ final class NiftiProductionJvmSuite extends FunSuite:
         )
       )
     cases.foreach { case (name, path, readStored) =>
-      val readDouble = () =>
-        retained = niftiRight(Nifti.readScaledDouble(path)).image
+      val readDouble = () => retained = niftiRight(Nifti.readScaledDouble(path)).image
       readStored()
       readDouble()
       val storedAllocations =
@@ -323,10 +322,8 @@ final class NiftiProductionJvmSuite extends FunSuite:
   ): Long =
     val bean =
       ManagementFactory.getThreadMXBean match
-        case value: ThreadMXBean
-            if value.isThreadAllocatedMemorySupported =>
-          if !value.isThreadAllocatedMemoryEnabled then
-            value.setThreadAllocatedMemoryEnabled(true)
+        case value: ThreadMXBean if value.isThreadAllocatedMemorySupported =>
+          if !value.isThreadAllocatedMemoryEnabled then value.setThreadAllocatedMemoryEnabled(true)
           value
         case _ =>
           fail("this JVM does not expose per-thread allocation accounting")
@@ -382,9 +379,8 @@ final class NiftiProductionJvmSuite extends FunSuite:
       Sampled.continuous(
         grid,
         NonSpatialAxes.empty,
-        NDArray.tabulate[Double](shape(0), shape(1), shape(2)) {
-          (i, j, k) =>
-            (i + 17 * j + 101 * k).toDouble
+        NDArray.tabulate[Double](shape(0), shape(1), shape(2)) { (i, j, k) =>
+          (i + 17 * j + 101 * k).toDouble
         }
       )
     )
@@ -397,9 +393,8 @@ final class NiftiProductionJvmSuite extends FunSuite:
       Sampled.continuous(
         grid,
         NonSpatialAxes.empty,
-        NDArray.tabulate[Double](shape(0), shape(1), shape(2)) {
-          (i, j, k) =>
-            ((i + 17 * j + 101 * k) % 251).toDouble
+        NDArray.tabulate[Double](shape(0), shape(1), shape(2)) { (i, j, k) =>
+          ((i + 17 * j + 101 * k) % 251).toDouble
         }
       )
     )
@@ -435,9 +430,8 @@ final class NiftiProductionJvmSuite extends FunSuite:
       Sampled.categorical(
         grid,
         NonSpatialAxes.empty,
-        NDArray.tabulate[Long](shape(0), shape(1), shape(2)) {
-          (i, j, k) =>
-            ((i + 3 * j + 7 * k) % 127).toLong
+        NDArray.tabulate[Long](shape(0), shape(1), shape(2)) { (i, j, k) =>
+          ((i + 3 * j + 7 * k) % 127).toLong
         }
       )
     )

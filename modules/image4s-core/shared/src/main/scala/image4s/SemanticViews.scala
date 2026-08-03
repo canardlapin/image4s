@@ -6,8 +6,8 @@ import ravel.DropAxis
 
 /** Zero-copy evidence that an image has exactly one time axis.
   *
-  * This wrapper owns no samples. It retains the original [[Sampled]] value and
-  * the checked axis location.
+  * This wrapper owns no samples. It retains the original [[Sampled]] value and the checked axis
+  * location.
   */
 final class TimeSeriesView[
     S <: SampleSpace[?, ?],
@@ -19,7 +19,9 @@ final class TimeSeriesView[
     val axisIndex: Int,
     val axis: Axis
 ):
-  def at(index: Int)(using CanDropAxis[R]): Either[
+  def at(index: Int)(using
+      CanDropAxis[R]
+  ): Either[
     ImageError,
     Sampled[
       ? <: SampleSpace[image.sampleSpace.F, image.sampleSpace.D],
@@ -45,9 +47,9 @@ object TimeSeriesView:
 
 /** Zero-copy evidence that an image has exactly one declared component axis.
   *
-  * The caller supplies the axis kind whose uniqueness must be established.
-  * This wrapper proves only axis structure. It deliberately says nothing about
-  * how values transform under changes of physical frame.
+  * The caller supplies the axis kind whose uniqueness must be established. This wrapper proves only
+  * axis structure. It deliberately says nothing about how values transform under changes of
+  * physical frame.
   */
 final class ComponentAxisView[
     S <: SampleSpace[?, ?],
@@ -59,7 +61,9 @@ final class ComponentAxisView[
     val axisIndex: Int,
     val axis: Axis
 ):
-  def at(index: Int)(using CanDropAxis[R]): Either[
+  def at(index: Int)(using
+      CanDropAxis[R]
+  ): Either[
     ImageError,
     Sampled[
       ? <: SampleSpace[image.sampleSpace.F, image.sampleSpace.D],
