@@ -364,7 +364,7 @@ private[nifti] final class NiftiApi[P](
           header,
           selection,
           options,
-          (buffer, offset) => RavelUInt8.unsafe(buffer.get(offset) & 0xff)
+          NativePayloadReader.uint8
         ).map(image =>
           NiftiRawImage.UInt8(SomeSampled.d3(image))
         )
@@ -375,7 +375,7 @@ private[nifti] final class NiftiApi[P](
           header,
           selection,
           options,
-          (buffer, offset) => buffer.getShort(offset)
+          NativePayloadReader.short
         ).map(image =>
           NiftiRawImage.Int16(SomeSampled.d3(image))
         )
@@ -386,7 +386,7 @@ private[nifti] final class NiftiApi[P](
           header,
           selection,
           options,
-          (buffer, offset) => buffer.getInt(offset)
+          NativePayloadReader.int
         ).map(image =>
           NiftiRawImage.Int32(SomeSampled.d3(image))
         )
@@ -397,7 +397,7 @@ private[nifti] final class NiftiApi[P](
           header,
           selection,
           options,
-          (buffer, offset) => buffer.getFloat(offset)
+          NativePayloadReader.float
         ).map(image =>
           NiftiRawImage.Float32(SomeSampled.d3(image))
         )
@@ -408,7 +408,7 @@ private[nifti] final class NiftiApi[P](
           header,
           selection,
           options,
-          (buffer, offset) => buffer.getDouble(offset)
+          NativePayloadReader.double
         ).map(image =>
           NiftiRawImage.Float64(SomeSampled.d3(image))
         )
@@ -422,7 +422,7 @@ private[nifti] final class NiftiApi[P](
       header: NiftiHeader,
       selection: NiftiAffineSelection,
       options: NiftiReadOptions,
-      decode: (ByteBuffer, Int) => A
+      reader: NativePayloadReader[A]
   )(using DType[A], ValueSemantics[A, Sem]): Either[
     NiftiError,
     Sampled[
@@ -439,7 +439,7 @@ private[nifti] final class NiftiApi[P](
         .left
         .map(error => NiftiError.InvalidArrayShape(error.toString))
       logicalData <-
-        readPayloadNative(path, header, shape, decode, options.ioLimits)
+        readPayloadNative(path, header, shape, reader, options.ioLimits)
       grid <- Grid
         .in(frame)(header.spatialShape, selection.affine)
         .left
@@ -453,6 +453,130 @@ private[nifti] final class NiftiApi[P](
         .left
         .map(NiftiError.Image.apply)
     yield sampled
+
+  /** Typed native payload writers keep primitive storage on the hot decode path.
+    *
+    * The reader loop is shared, but each writer is compiled with a concrete
+    * Ravel dtype. Passing a generic `(ByteBuffer, Int) => A` decoder here would
+    * route opaque unsigned and primitive values through the generic builder
+    * path on some JVMs, allocating one boxed value per sample.
+    */
+  private trait NativePayloadReader[A]:
+    def bytesPerValue: Int
+
+    def write(
+        builder: ravel.ArrayBuilder[A],
+        logicalOffset: Int,
+        buffer: ByteBuffer,
+        byteOffset: Int
+    ): Unit
+
+    def read(
+        payloadPath: P,
+        header: NiftiHeader,
+        shape: Shape[AnyRank],
+        limits: NiftiIoLimits
+    )(using DType[A]): Either[NiftiError, NDArray[A, AnyRank]] =
+      val payloadBytes = shape.size.toLong * bytesPerValue.toLong
+      val workingBytes =
+        alignedWorkingBuffer(limits.workingBufferBytes, bytesPerValue)
+      val dimensions = header.logicalShape
+      val indices = new Array[Int](dimensions.length)
+      var result: Either[NiftiError, Unit] = Right(())
+      val data =
+        NDArray.build[A, AnyRank](shape) { builder =>
+          var fileValueOffset = 0
+          result = fileSystem.readChunks(
+            payloadPath,
+            NiftiOperation.ReadPayload,
+            header.voxelOffset.toLong,
+            payloadBytes,
+            workingBytes
+          ) { (bytes, length) =>
+            val buffer =
+              ByteBuffer
+                .wrap(bytes, 0, length)
+                .order(javaOrder(header.byteOrder))
+            var byteOffset = 0
+            while byteOffset < length do
+              decodeFirstAxisFastest(
+                fileValueOffset,
+                dimensions,
+                indices
+              )
+              val logicalOffset =
+                lastAxisFastestOffset(indices, dimensions)
+              write(builder, logicalOffset, buffer, byteOffset)
+              fileValueOffset += 1
+              byteOffset += bytesPerValue
+            Right(())
+          }
+        }
+      result.map(_ => data)
+
+  private object NativePayloadReader:
+    val uint8: NativePayloadReader[RavelUInt8] =
+      new NativePayloadReader[RavelUInt8]:
+        val bytesPerValue = 1
+
+        def write(
+            builder: ravel.ArrayBuilder[RavelUInt8],
+            logicalOffset: Int,
+            buffer: ByteBuffer,
+            byteOffset: Int
+        ): Unit =
+          builder.writeLinear(
+            logicalOffset,
+            RavelUInt8.unsafe(buffer.get(byteOffset) & 0xff)
+          )
+
+    val short: NativePayloadReader[Short] =
+      new NativePayloadReader[Short]:
+        val bytesPerValue = 2
+
+        def write(
+            builder: ravel.ArrayBuilder[Short],
+            logicalOffset: Int,
+            buffer: ByteBuffer,
+            byteOffset: Int
+        ): Unit =
+          builder.writeLinear(logicalOffset, buffer.getShort(byteOffset))
+
+    val int: NativePayloadReader[Int] =
+      new NativePayloadReader[Int]:
+        val bytesPerValue = 4
+
+        def write(
+            builder: ravel.ArrayBuilder[Int],
+            logicalOffset: Int,
+            buffer: ByteBuffer,
+            byteOffset: Int
+        ): Unit =
+          builder.writeLinear(logicalOffset, buffer.getInt(byteOffset))
+
+    val float: NativePayloadReader[Float] =
+      new NativePayloadReader[Float]:
+        val bytesPerValue = 4
+
+        def write(
+            builder: ravel.ArrayBuilder[Float],
+            logicalOffset: Int,
+            buffer: ByteBuffer,
+            byteOffset: Int
+        ): Unit =
+          builder.writeLinear(logicalOffset, buffer.getFloat(byteOffset))
+
+    val double: NativePayloadReader[Double] =
+      new NativePayloadReader[Double]:
+        val bytesPerValue = 8
+
+        def write(
+            builder: ravel.ArrayBuilder[Double],
+            logicalOffset: Int,
+            buffer: ByteBuffer,
+            byteOffset: Int
+        ): Unit =
+          builder.writeLinear(logicalOffset, buffer.getDouble(byteOffset))
 
   private def readIn[
       A,
@@ -866,7 +990,7 @@ private[nifti] final class NiftiApi[P](
       path: P,
       header: NiftiHeader,
       shape: Shape[AnyRank],
-      decode: (ByteBuffer, Int) => A,
+      reader: NativePayloadReader[A],
       limits: NiftiIoLimits
   )(using dtype: DType[A]): Either[NiftiError, NDArray[A, AnyRank]] =
     for
@@ -877,59 +1001,13 @@ private[nifti] final class NiftiApi[P](
         dtype,
         limits = limits
       )
-      data <- decodePayloadNative(
+      data <- reader.read(
         files.payloadPath,
         header,
         shape,
-        decode,
         limits
       )
     yield data
-
-  private def decodePayloadNative[A](
-      payloadPath: P,
-      header: NiftiHeader,
-      shape: Shape[AnyRank],
-      decode: (ByteBuffer, Int) => A,
-      limits: NiftiIoLimits
-  )(using DType[A]): Either[NiftiError, NDArray[A, AnyRank]] =
-    val bytesPerValue = header.datatype.bitsPerValue / 8
-    val payloadBytes = shape.size.toLong * bytesPerValue.toLong
-    val workingBytes =
-      alignedWorkingBuffer(limits.workingBufferBytes, bytesPerValue)
-    val dimensions = header.logicalShape
-    val indices = new Array[Int](dimensions.length)
-    var result: Either[NiftiError, Unit] = Right(())
-    val data =
-      NDArray.build[A, AnyRank](shape) { builder =>
-        var fileValueOffset = 0
-        result = fileSystem.readChunks(
-          payloadPath,
-          NiftiOperation.ReadPayload,
-          header.voxelOffset.toLong,
-          payloadBytes,
-          workingBytes
-        ) { (bytes, length) =>
-          val buffer =
-            ByteBuffer
-              .wrap(bytes, 0, length)
-              .order(javaOrder(header.byteOrder))
-          var byteOffset = 0
-          while byteOffset < length do
-            decodeFirstAxisFastest(
-              fileValueOffset,
-              dimensions,
-              indices
-            )
-            val logicalOffset =
-              lastAxisFastestOffset(indices, dimensions)
-            builder.writeLinear(logicalOffset, decode(buffer, byteOffset))
-            fileValueOffset += 1
-            byteOffset += bytesPerValue
-          Right(())
-        }
-      }
-    result.map(_ => data)
 
   private def decodePayloadAs[A](
       payloadPath: P,
