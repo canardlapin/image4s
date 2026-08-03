@@ -1,91 +1,153 @@
 # Getting started
 
-The smallest useful image4s workflow has four parts:
+This workflow builds a two-dimensional image sampled at three time points,
+selects the sample at 0.5 seconds, crops it, and applies a Gaussian blur. Using
+two spatial dimensions keeps the difference between spatial geometry and time
+visible in the types and shapes.
 
-1. describe a physical frame and grid;
-2. declare non-spatial sampling axes;
-3. construct a `Sampled` value with matching logical shape; and
-4. use checked views and value transformations.
-
-The helper below is only for documentation. It turns a failed `Either` into
-an exception so that mdoc stops the build at the source line that failed. In
-application code, keep the `Either` and handle or compose the error explicitly.
+The `checked` helper is only for executable documentation. Application code
+should keep each `Either` and handle or compose its error.
 
 ```scala mdoc:silent
 import image4s.*
+import image4s.filter.gaussianBlur
 import image4s.geometry.*
+import image4s.ops.SpatialSigma
 import ravel.DType.given
 import ravel.NDArray
 
 def checked[A](value: Either[?, A]): A =
   value match
     case Right(result) => result
-    case Left(error) =>
-      throw new IllegalArgumentException(error.toString)
+    case Left(error)   => throw new IllegalArgumentException(error.toString)
+```
 
+## 1. Declare a spatial grid
+
+The grid has six samples along its first spatial axis and five along its
+second. Its identity affine maps index `(x, y)` to the same coordinates in the
+named frame.
+
+```scala mdoc:silent
 val frame =
   checked(
-    Frame.named[D3](
-      "native",
+    Frame.named[D2](
+      "scanner-plane",
       unit = LengthUnit.Millimeter,
       convention = CoordinateConvention.RAS
     )
   )
+
 val grid =
-  checked(
-    Grid.in(frame)(Vector(6, 7, 5), Affine.identity[D3])
-  )
+  checked(Grid.in(frame)(Vector(6, 5), Affine.identity[D2]))
+```
+
+## 2. Declare time coordinates
+
+The time axis has coordinates 0.0, 0.5, and 1.0 seconds. It is not merely a
+trailing array dimension.
+
+```scala mdoc:silent
 val time =
   checked(
     Axis.regular(
       "time",
       AxisKind.Time,
-      extent = 4,
+      extent = 3,
       origin = 0.0,
-      step = 0.8,
+      step = 0.5,
       unit = AxisUnit.Seconds
     )
   )
+
 val axes = checked(NonSpatialAxes.from(Vector(time)))
+```
+
+## 3. Attach values
+
+The Ravel array shape is the spatial grid shape followed by the declared time
+extent: `6 × 5 × 3`.
+
+```scala mdoc:silent
 val values =
-  NDArray.tabulate[Double](6, 7, 5, 4) { (i, j, k, t) =>
-    1000.0 * i + 100.0 * j + 10.0 * k + t
+  NDArray.tabulate[Double](6, 5, 3) { (x, y, t) =>
+    x.toDouble + 10.0 * y + 100.0 * t
   }
+
 val image = checked(Image.continuous(grid, axes, values))
-val volume = checked(image.atTime(2))
+
+assert(image.logicalShape == Vector(6, 5, 3))
+```
+
+## 4. Select the sample at 0.5 seconds
+
+`atTime(1)` selects index 1 from the sole declared time axis. The
+coordinate-returning form proves what that index means.
+
+```scala mdoc:silent
+val (selectedCoordinate, selected) =
+  checked(image.selectNonSpatialWithCoordinate(axis = 0, index = 1))
+val atHalfSecond = checked(image.atTime(1))
+
+assert(selectedCoordinate == AxisCoordinate.Numeric(0.5, AxisUnit.Seconds))
+assert(selected.logicalShape == Vector(6, 5))
+assert(atHalfSecond(2, 3) == image(2, 3, 1))
+```
+
+## 5. Crop in space
+
+The crop is an exact storage view. Its grid changes shape and index origin so
+that index `(0, 0)` in the result still maps to the physical location sampled
+at index `(1, 1)` in the source.
+
+```scala mdoc:silent
 val crop =
   checked(
-    volume.crop(
-      origin = Vector(1, 2, 1),
-      shape = Vector(3, 4, 2)
+    atHalfSecond.crop(
+      origin = Vector(1, 1),
+      shape = Vector(4, 3)
     )
   )
-val centered = crop.mapValues(_ - 1000.0)
 
-assert(image.logicalShape == Vector(6, 7, 5, 4))
-assert(volume.logicalShape == Vector(6, 7, 5))
-assert(crop.logicalShape == Vector(3, 4, 2))
-assert(centered(0, 0, 0) == 212.0)
+assert(crop.logicalShape == Vector(4, 3))
+assert(crop(0, 0) == atHalfSecond(1, 1))
+assert(crop.grid.indexToFrame(Vector(0.0, 0.0)) ==
+  atHalfSecond.grid.indexToFrame(Vector(1.0, 1.0)))
 ```
 
-The values are stored with logical shape `6 × 7 × 5 × 4`: the first three
-axes belong to the spatial grid and the last axis is the declared time axis.
-Selecting time index `2` removes that non-spatial axis from the view. Cropping
-then changes the spatial grid as well as the logical shape, so the crop remains
-physically meaningful rather than becoming an anonymous array slice.
+## 6. Compute blurred values
+
+The default `Same` extent keeps the crop grid and shape. The output values are
+newly computed.
+
+```scala mdoc:silent
+val sigma = checked(SpatialSigma.samples[D2](0.8))
+val blurred = checked(crop.gaussianBlur(sigma))
+
+assert(blurred.logicalShape == crop.logicalShape)
+assert(blurred.grid.sameRuntimeOwnerAs(crop.grid))
+```
 
 ```scala mdoc
-(image.logicalShape, volume.logicalShape, crop.logicalShape, centered(0, 0, 0))
+(selectedCoordinate, crop.logicalShape, blurred.logicalShape)
 ```
 
-The constructor and view operations all return typed `Either` values. The
-production spelling is therefore the same workflow with explicit error
-handling, for example:
+## What changed?
+
+| Step | Values | Spatial grid | Time axis | Semantic role |
+| --- | --- | --- | --- | --- |
+| Construct | New array | Declared `6 × 5` grid | Three declared coordinates | Continuous |
+| `atTime(1)` | Exact view | Same live grid | Removed | Continuous |
+| `crop(...)` | Exact view | Affine-correct `4 × 3` crop grid | Absent | Continuous |
+| `gaussianBlur(...)` | Newly computed | Same as crop with `Same` extent | Absent | Continuous |
+
+All constructors and checked operations above return `Either`. A production
+workflow can compose the selection and crop without throwing:
 
 ```scala
-image.atTime(2).flatMap(_.crop(Vector(1, 2, 1), Vector(3, 4, 2)))
+image.atTime(1).flatMap(_.crop(Vector(1, 1), Vector(4, 3)))
 ```
 
-That expression is still checked: an unknown time axis, an out-of-range
-index, or an invalid crop is a value-level failure rather than an unchecked
-array exception.
+Next, read [The sampled-image model](understand/sampled-image-model.md) to name
+the parts that made these guarantees possible, or continue to
+[Select and transform exact views](work/exact-views.md).
