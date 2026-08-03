@@ -2,6 +2,8 @@ package image4s
 
 import scala.annotation.unused
 import ravel.IntegralDType
+import ravel.NDArray
+import ravel.Rank
 import ravel.UInt16
 import ravel.UInt8
 
@@ -55,38 +57,173 @@ object ValueSemantics:
 trait LinearInterpolable[A]:
   def toDouble(value: A): Double
 
+  private[image4s] def read2(
+      data: NDArray[A, Rank[2]],
+      i: Int,
+      j: Int
+  ): Double =
+    toDouble(data(i, j))
+
+  private[image4s] def read3(
+      data: NDArray[A, Rank[3]],
+      i: Int,
+      j: Int,
+      k: Int
+  ): Double =
+    toDouble(data(i, j, k))
+
 object LinearInterpolable:
   given LinearInterpolable[Double] with
     def toDouble(value: Double): Double =
       value
 
+    override private[image4s] def read2(
+        data: NDArray[Double, Rank[2]],
+        i: Int,
+        j: Int
+    ): Double =
+      data(i, j)
+
+    override private[image4s] def read3(
+        data: NDArray[Double, Rank[3]],
+        i: Int,
+        j: Int,
+        k: Int
+    ): Double =
+      data(i, j, k)
+
   given LinearInterpolable[Float] with
     def toDouble(value: Float): Double =
       value.toDouble
+
+    override private[image4s] def read2(
+        data: NDArray[Float, Rank[2]],
+        i: Int,
+        j: Int
+    ): Double =
+      data(i, j).toDouble
+
+    override private[image4s] def read3(
+        data: NDArray[Float, Rank[3]],
+        i: Int,
+        j: Int,
+        k: Int
+    ): Double =
+      data(i, j, k).toDouble
 
   given LinearInterpolable[Byte] with
     def toDouble(value: Byte): Double =
       value.toDouble
 
+    override private[image4s] def read2(
+        data: NDArray[Byte, Rank[2]],
+        i: Int,
+        j: Int
+    ): Double =
+      data(i, j).toDouble
+
+    override private[image4s] def read3(
+        data: NDArray[Byte, Rank[3]],
+        i: Int,
+        j: Int,
+        k: Int
+    ): Double =
+      data(i, j, k).toDouble
+
   given LinearInterpolable[UInt8] with
     def toDouble(value: UInt8): Double =
       value.toInt.toDouble
+
+    override private[image4s] def read2(
+        data: NDArray[UInt8, Rank[2]],
+        i: Int,
+        j: Int
+    ): Double =
+      data(i, j).toInt.toDouble
+
+    override private[image4s] def read3(
+        data: NDArray[UInt8, Rank[3]],
+        i: Int,
+        j: Int,
+        k: Int
+    ): Double =
+      data(i, j, k).toInt.toDouble
 
   given LinearInterpolable[Short] with
     def toDouble(value: Short): Double =
       value.toDouble
 
+    override private[image4s] def read2(
+        data: NDArray[Short, Rank[2]],
+        i: Int,
+        j: Int
+    ): Double =
+      data(i, j).toDouble
+
+    override private[image4s] def read3(
+        data: NDArray[Short, Rank[3]],
+        i: Int,
+        j: Int,
+        k: Int
+    ): Double =
+      data(i, j, k).toDouble
+
   given LinearInterpolable[UInt16] with
     def toDouble(value: UInt16): Double =
       value.toInt.toDouble
+
+    override private[image4s] def read2(
+        data: NDArray[UInt16, Rank[2]],
+        i: Int,
+        j: Int
+    ): Double =
+      data(i, j).toInt.toDouble
+
+    override private[image4s] def read3(
+        data: NDArray[UInt16, Rank[3]],
+        i: Int,
+        j: Int,
+        k: Int
+    ): Double =
+      data(i, j, k).toInt.toDouble
 
   given LinearInterpolable[Int] with
     def toDouble(value: Int): Double =
       value.toDouble
 
+    override private[image4s] def read2(
+        data: NDArray[Int, Rank[2]],
+        i: Int,
+        j: Int
+    ): Double =
+      data(i, j).toDouble
+
+    override private[image4s] def read3(
+        data: NDArray[Int, Rank[3]],
+        i: Int,
+        j: Int,
+        k: Int
+    ): Double =
+      data(i, j, k).toDouble
+
   given LinearInterpolable[Long] with
     def toDouble(value: Long): Double =
       value.toDouble
+
+    override private[image4s] def read2(
+        data: NDArray[Long, Rank[2]],
+        i: Int,
+        j: Int
+    ): Double =
+      data(i, j).toDouble
+
+    override private[image4s] def read3(
+        data: NDArray[Long, Rank[3]],
+        i: Int,
+        j: Int,
+        k: Int
+    ): Double =
+      data(i, j, k).toDouble
 
 /** Evidence that linear interpolation is legal for this semantic tag.
   *
