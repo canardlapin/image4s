@@ -317,6 +317,8 @@ final class NiftiProductionJvmSuite extends FunSuite:
   ): Unit =
     retained = niftiRight(written)
 
+  // JDK 17 exposes only Thread.getId; newer JDKs deprecate it in favor of threadId.
+  @scala.annotation.nowarn("cat=deprecation")
   private def allocatedBytes(
       body: => Unit
   ): Long =
@@ -327,7 +329,7 @@ final class NiftiProductionJvmSuite extends FunSuite:
           value
         case _ =>
           fail("this JVM does not expose per-thread allocation accounting")
-    val threadId = Thread.currentThread().threadId()
+    val threadId = Thread.currentThread().getId()
     val before = bean.getThreadAllocatedBytes(threadId)
     body
     val after = bean.getThreadAllocatedBytes(threadId)

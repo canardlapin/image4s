@@ -89,6 +89,8 @@ final class LatticeMapAllocationSuite extends FunSuite:
   ): Unit =
     sink = sink + value.data.size.toLong + value.grid.shape.sum.toLong
 
+  // JDK 17 exposes only Thread.getId; newer JDKs deprecate it in favor of threadId.
+  @scala.annotation.nowarn("cat=deprecation")
   private def allocatedBytes(
       body: => Unit
   ): Long =
@@ -99,7 +101,7 @@ final class LatticeMapAllocationSuite extends FunSuite:
           value
         case _ =>
           fail("this JVM does not expose per-thread allocation accounting")
-    val threadId = Thread.currentThread().threadId()
+    val threadId = Thread.currentThread().getId()
     val before = bean.getThreadAllocatedBytes(threadId)
     body
     bean.getThreadAllocatedBytes(threadId) - before

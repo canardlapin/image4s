@@ -91,6 +91,8 @@ final class ConversionPerformanceSuite extends FunSuite:
         f"millionSamplesPerSecond=${samplesPerSecond / 1.0e6}%.3f"
     )
 
+  // JDK 17 exposes only Thread.getId; newer JDKs deprecate it in favor of threadId.
+  @scala.annotation.nowarn("cat=deprecation")
   private def allocatedBytes(body: => Unit): Long =
     val bean =
       ManagementFactory.getThreadMXBean match
@@ -99,7 +101,7 @@ final class ConversionPerformanceSuite extends FunSuite:
           value
         case _ =>
           fail("thread allocation accounting is unavailable")
-    val thread = Thread.currentThread().threadId()
+    val thread = Thread.currentThread().getId()
     val before = bean.getThreadAllocatedBytes(thread)
     body
     bean.getThreadAllocatedBytes(thread) - before
