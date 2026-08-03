@@ -536,6 +536,8 @@ final class ImageRepresentationPerformanceSuite extends FunSuite:
       signature
     )
 
+  // JDK 17 exposes only Thread.getId; newer JDKs deprecate it in favor of threadId.
+  @scala.annotation.nowarn("cat=deprecation")
   private def measuredAllocation[A](value: => A): (A, Long) =
     val allocationBean =
       ManagementFactory.getThreadMXBean match
@@ -544,7 +546,7 @@ final class ImageRepresentationPerformanceSuite extends FunSuite:
           bean
         case _ =>
           fail("this JVM does not expose per-thread allocation accounting")
-    val threadId = Thread.currentThread().threadId()
+    val threadId = Thread.currentThread().getId()
     val before = allocationBean.getThreadAllocatedBytes(threadId)
     val result = value
     val allocated =

@@ -88,6 +88,8 @@ final class GridDomainAllocationSuite extends FunSuite:
   private def consume(value: AnyRef): Unit =
     sink = sink + System.identityHashCode(value).toLong
 
+  // JDK 17 exposes only Thread.getId; newer JDKs deprecate it in favor of threadId.
+  @scala.annotation.nowarn("cat=deprecation")
   private def allocatedBytes(body: => Unit): Long =
     val bean =
       ManagementFactory.getThreadMXBean match
@@ -96,7 +98,7 @@ final class GridDomainAllocationSuite extends FunSuite:
           value
         case _ =>
           fail("this JVM does not expose per-thread allocation accounting")
-    val threadId = Thread.currentThread().threadId()
+    val threadId = Thread.currentThread().getId()
     val before = bean.getThreadAllocatedBytes(threadId)
     body
     bean.getThreadAllocatedBytes(threadId) - before
