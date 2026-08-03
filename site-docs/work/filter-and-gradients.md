@@ -15,22 +15,23 @@ import image4s.ops.*
 import ravel.DType.given
 import ravel.NDArray
 
-def checked[A](value: Either[?, A]): A =
-  value match
-    case Right(result) => result
-    case Left(error)   => throw new IllegalArgumentException(error.toString)
-
-val frame = checked(Frame.named[D2]("filter-plane"))
-val grid = checked(Grid.in(frame)(Vector(9, 9), Affine.identity[D2]))
-val impulse =
-  checked(
-    Image.continuous(
+val setup =
+  for
+    frame <- Frame.named[D2]("filter-plane")
+    grid <- Grid.in(frame)(Vector(9, 9), Affine.identity[D2])
+    impulse <- Image.continuous(
       grid,
       NonSpatialAxes.empty,
       NDArray.tabulate[Double](9, 9) { (x, y) =>
         if x == 4 && y == 4 then 1.0 else 0.0
       }
     )
+  yield (grid, impulse)
+
+val (grid, impulse) =
+  setup.fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
   )
 ```
 
@@ -41,17 +42,22 @@ measures distance in the frame's length unit and is converted through the grid
 affine.
 
 ```scala mdoc:silent
-val oneSample = checked(SpatialSigma.samples[D2](1.0))
-val twoMillimetres =
-  checked(
-    SpatialSigma.frame[D2](
+val scaledBlurs =
+  for
+    oneSample <- SpatialSigma.samples[D2](1.0)
+    twoMillimetres <- SpatialSigma.frame[D2](
       2.0,
       unit = Some(LengthUnit.Millimeter)
     )
-  )
+    sampleBlur <- impulse.gaussianBlur(oneSample)
+    frameBlur <- impulse.gaussianBlur(twoMillimetres)
+  yield (oneSample, sampleBlur, frameBlur)
 
-val sampleBlur = checked(impulse.gaussianBlur(oneSample))
-val frameBlur = checked(impulse.gaussianBlur(twoMillimetres))
+val (oneSample, sampleBlur, frameBlur) =
+  scaledBlurs.fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
+  )
 
 assert(sampleBlur.logicalShape == impulse.logicalShape)
 assert(frameBlur.logicalShape == impulse.logicalShape)
@@ -65,26 +71,26 @@ approximating a non-separable kernel.
 ## Choose the output extent
 
 ```scala mdoc:silent
-val same =
-  checked(
-    impulse.gaussianBlur(
+val extents =
+  for
+    same <- impulse.gaussianBlur(
       oneSample,
       extent = FilterExtent.same(Border.reflect)
     )
-  )
-val valid =
-  checked(
-    impulse.gaussianBlur(
+    valid <- impulse.gaussianBlur(
       oneSample,
       extent = FilterExtent.valid
     )
-  )
-val full =
-  checked(
-    impulse.gaussianBlur(
+    full <- impulse.gaussianBlur(
       oneSample,
       extent = FilterExtent.full(Border.Constant(0.0))
     )
+  yield (same, valid, full)
+
+val (same, valid, full) =
+  extents.fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
   )
 
 assert(same.logicalShape == Vector(9, 9))
@@ -106,16 +112,21 @@ Gaussian results are generally fractional. An integer-backed continuous image
 therefore uses `gaussianBlurTo[Float]` or `gaussianBlurTo[Double]`.
 
 ```scala mdoc:silent
-val integerImage =
-  checked(
-    Image.continuous(
+val promotedResult =
+  for
+    integerImage <- Image.continuous(
       grid,
       NonSpatialAxes.empty,
       NDArray.tabulate[Int](9, 9)((x, y) => x + y)
     )
+    promoted <- integerImage.gaussianBlurTo[Double](oneSample)
+  yield (integerImage, promoted)
+
+val (integerImage, promoted) =
+  promotedResult.fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
   )
-val promoted =
-  checked(integerImage.gaussianBlurTo[Double](oneSample))
 
 assert(promoted.logicalShape == integerImage.logicalShape)
 ```
@@ -126,8 +137,17 @@ does not silently truncate computed values back to integers.
 ## State the gradient coordinate domain
 
 ```scala mdoc:silent
-val indexGradient = checked(sampleBlur.gradient(IndexCoordinates))
-val frameGradient = checked(sampleBlur.gradient(FrameCoordinates))
+val gradients =
+  for
+    indexGradient <- sampleBlur.gradient(IndexCoordinates)
+    frameGradient <- sampleBlur.gradient(FrameCoordinates)
+  yield (indexGradient, frameGradient)
+
+val (indexGradient, frameGradient) =
+  gradients.fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
+  )
 
 assert(indexGradient.components.size == 2)
 assert(frameGradient.components.size == 2)
@@ -146,15 +166,21 @@ promotion for integer-backed continuous images.
 ## Prepare repeated execution
 
 ```scala mdoc:silent
-val plan =
-  checked(
-    Gaussian.prepare(
+val plannedResult =
+  for
+    plan <- Gaussian.prepare(
       impulse,
       oneSample,
       policy = ExecutionPolicy(method = FilterMethod.Separable)
     )
+    planned <- plan.run(impulse)
+  yield (plan, planned)
+
+val (plan, planned) =
+  plannedResult.fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
   )
-val planned = checked(plan.run(impulse))
 
 assert(planned.logicalShape == impulse.logicalShape)
 assert(plan.report.method == SelectedMethod.Separable)

@@ -882,8 +882,10 @@ Sampled.create[
     val mixed =
       imageRight(Sampled.continuous(grid, mixedAxes, mixedData))
     val atTime = imageRight(mixed.selectTime(1))
-    val (selectedCoordinate, locatedAtTime) =
-      imageRight(mixed.selectNonSpatialWithCoordinate(0, 1))
+    val selectedCoordinate =
+      imageRight(mixed.nonSpatialAxes.coordinateAt(0, 1))
+    val locatedAtTime =
+      imageRight(mixed.selectNonSpatial(0, 1))
     val atTimeRanked = imageRight(atTime.requireDataRank[4])
     val rankedChannel =
       imageRight(atTimeRanked.selectChannel(1))

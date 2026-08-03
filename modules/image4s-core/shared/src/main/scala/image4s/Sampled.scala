@@ -96,28 +96,6 @@ final class Sampled[
       DropAxis[R]
     ]
   ] =
-    selectNonSpatialWithCoordinate(axis, index).map(_._2)
-
-  /** Fix one non-spatial coordinate and return both its declared coordinate and the zero-copy image
-    * view.
-    */
-  def selectNonSpatialWithCoordinate(
-      axis: Int,
-      index: Int
-  )(using
-      CanDropAxis[R]
-  ): Either[
-    ImageError,
-    (
-        AxisCoordinate,
-        Sampled[
-          ? <: SampleSpace[sampleSpace.F, sampleSpace.D],
-          A,
-          Sem,
-          DropAxis[R]
-        ]
-    )
-  ] =
     nonSpatialAxes(axis) match
       case None =>
         Left(
@@ -134,19 +112,16 @@ final class Sampled[
             selected.extent
           )
         )
-      case Some(selected) =>
+      case Some(_) =>
         val dataAxis = grid.spatialRank + axis
-        selected.coordinateAt(index).map { coordinate =>
-          (
-            coordinate,
-            new Sampled(
-              data.select(dataAxis, index),
-              SampleSpace.create(grid, nonSpatialAxes.without(axis)),
-              metadata,
-              valueSemantics
-            )
+        Right(
+          new Sampled(
+            data.select(dataAxis, index),
+            SampleSpace.create(grid, nonSpatialAxes.without(axis)),
+            metadata,
+            valueSemantics
           )
-        }
+        )
 
   /** Select the sole non-spatial axis of `kind`.
     *

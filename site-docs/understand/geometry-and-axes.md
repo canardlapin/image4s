@@ -24,34 +24,30 @@ This affine gives each sample a spacing of 2 millimetres and places index
 import image4s.*
 import image4s.geometry.*
 
-def checked[A](value: Either[?, A]): A =
-  value match
-    case Right(result) => result
-    case Left(error)   => throw new IllegalArgumentException(error.toString)
-
-val frame =
-  checked(
-    Frame.named[D2](
+val geometry =
+  for
+    frame <- Frame.named[D2](
       "scanner-plane",
       unit = LengthUnit.Millimeter,
       convention = CoordinateConvention.RAS
     )
-  )
-
-val affine =
-  checked(
-    Affine.fromRowMajor[D2](
+    affine <- Affine.fromRowMajor[D2](
       Vector(
         2.0, 0.0, 10.0,
         0.0, 2.0, 20.0,
         0.0, 0.0, 1.0
       )
     )
-  )
+    grid <- Grid.in(frame)(Vector(6, 5), affine)
+    index <- grid.index(2, 1)
+    point <- grid.pointAt(index)
+  yield (frame, grid, point)
 
-val grid = checked(Grid.in(frame)(Vector(6, 5), affine))
-val index = checked(grid.index(2, 1))
-val point = checked(grid.pointAt(index))
+val (frame, grid, point) =
+  geometry.fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
+  )
 
 assert(point.coordinates == Vector(14.0, 22.0))
 ```
@@ -69,9 +65,9 @@ affine and frame convention determine spatial direction.
 Use the constructor that matches the sampling information you actually have.
 
 ```scala mdoc:silent
-val time =
-  checked(
-    Axis.regular(
+val declaredAxes =
+  for
+    time <- Axis.regular(
       "time",
       AxisKind.Time,
       extent = 3,
@@ -79,25 +75,23 @@ val time =
       step = 0.5,
       unit = AxisUnit.Seconds
     )
-  )
-
-val echo =
-  checked(
-    Axis.explicit(
+    echo <- Axis.explicit(
       "echo",
       AxisKind.Echo,
       values = Vector(0.012, 0.028, 0.044),
       unit = AxisUnit.Seconds
     )
-  )
-
-val channel =
-  checked(
-    Axis.categorical(
+    channel <- Axis.categorical(
       "channel",
       AxisKind.Channel,
       labels = Vector("magnitude", "phase")
     )
+  yield (time, echo, channel)
+
+val (time, echo, channel) =
+  declaredAxes.fold(
+    error => throw new IllegalArgumentException(error.toString),
+    identity
   )
 
 assert(time.coordinateAt(1) ==
@@ -115,7 +109,13 @@ only position is known; it does not pretend to know a physical coordinate.
 ## Axis order is part of the sample space
 
 ```scala mdoc:silent
-val axes = checked(NonSpatialAxes.from(Vector(time, channel)))
+val axes =
+  NonSpatialAxes
+    .from(Vector(time, channel))
+    .fold(
+      error => throw new IllegalArgumentException(error.toString),
+      identity
+    )
 val space = SampleSpace.create(grid, axes)
 
 assert(space.logicalShape == Vector(6, 5, 3, 2))

@@ -245,8 +245,8 @@ legacy flat-order API alive inside image4s.
   same spatial `Grid`, removes that non-spatial axis, and should be a zero-copy
   Ravel view even when it is not contiguous. `selectNonSpatial`, `selectAxis`,
   `selectTime`, `selectChannel`, and `selectDirection` provide these checked
-  views. `selectNonSpatialWithCoordinate` additionally returns the declared
-  coordinate that was fixed.
+  views. Query `nonSpatialAxes.coordinateAt(axis, index)` when a receipt also
+  needs the declared coordinate that was fixed.
 - `LatticeMap[D]` represents exactly the target-to-source integer-affine maps
   that Ravel can execute as signed slicing plus axis permutation. Identity,
   crop, flip, permutation, stride, and general strided permutation are checked
