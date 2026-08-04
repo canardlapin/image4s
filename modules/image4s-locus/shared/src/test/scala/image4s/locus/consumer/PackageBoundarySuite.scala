@@ -77,7 +77,15 @@ final class PackageBoundarySuite extends FunSuite:
     val aggregationErrors = typeCheckErrors(
       "import image4s.locus.Aggregation"
     )
+    val partitionErrors = typeCheckErrors(
+      "import image4s.locus.PartialSurjection"
+    )
+    val neighborhoodErrors = typeCheckErrors(
+      "import image4s.locus.NeighborhoodSystem"
+    )
 
     assert(parcellationErrors.nonEmpty)
     assert(searchlightErrors.nonEmpty)
     assert(aggregationErrors.nonEmpty)
+    assert(partitionErrors.nonEmpty)
+    assert(neighborhoodErrors.nonEmpty)
