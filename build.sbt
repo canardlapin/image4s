@@ -46,7 +46,7 @@ lazy val galeBuild =
 lazy val galeCoreJVM = ProjectRef(galeBuild, "coreJVM")
 lazy val galeCoreJS = ProjectRef(galeBuild, "coreJS")
 
-lazy val locus4sRevision = "5186cf9dd691c5145286032080ef2d59fe3d179d"
+lazy val locus4sRevision = "1187276933605a32d50342624a4e6391a6bbfd5f"
 lazy val locus4sBuild =
   sys.props
     .get("image4s.locus4s.build")
@@ -206,7 +206,33 @@ lazy val docs =
       tlSitePublishTags := false
     )
 
-addCommandAlias("compileAll", ";root/compile")
+lazy val image4sCompileAll =
+  taskKey[Unit]("Compile every image4s JVM and Scala.js module")
+image4sCompileAll := {
+  (image4sGeometry.jvm / Compile / compile).value
+  (image4sGeometry.js / Compile / compile).value
+  (image4sCore.jvm / Compile / compile).value
+  (image4sCore.js / Compile / compile).value
+  (image4sNifti.jvm / Compile / compile).value
+  (image4sNifti.js / Compile / compile).value
+  (image4sReference.jvm / Compile / compile).value
+  (image4sReference.js / Compile / compile).value
+  (image4sLaws.jvm / Compile / compile).value
+  (image4sLaws.js / Compile / compile).value
+  (image4sLocus.jvm / Compile / compile).value
+  (image4sLocus.js / Compile / compile).value
+  (image4sIntaglio.jvm / Compile / compile).value
+  (image4sIntaglio.js / Compile / compile).value
+  (image4sOpsCore.jvm / Compile / compile).value
+  (image4sOpsCore.js / Compile / compile).value
+  (image4sFilter.jvm / Compile / compile).value
+  (image4sFilter.js / Compile / compile).value
+  (image4sMorphology.jvm / Compile / compile).value
+  (image4sMorphology.js / Compile / compile).value
+  (image4sOpsLaws.jvm / Compile / compile).value
+  (image4sOpsLaws.js / Compile / compile).value
+  ()
+}
 addCommandAlias(
   "imageOpsVisualQaJVM",
   "image4s-ops-lawsJVM / Test / runMain image4s.ops.laws.ImageOpsVisualQa"
