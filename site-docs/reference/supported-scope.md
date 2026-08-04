@@ -1,7 +1,7 @@
 # Supported scope and deliberate limits
 
 This page separates the public model from current implementations and explicit
-unsupported requests. image4s is `0.1.0-SNAPSHOT`; none of these statements is
+unsupported requests. image4s is pre-1.0 software on the `0.1.x` line; none of these statements is
 a source- or binary-compatibility promise for a released 1.x line.
 
 ## Core representation

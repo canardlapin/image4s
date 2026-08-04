@@ -6,12 +6,31 @@ import scalajscrossproject.ScalaJSCrossPlugin.autoImport.*
 
 ThisBuild / organization := "io.github.canardlapin"
 ThisBuild / scalaVersion := "3.7.4"
-ThisBuild / version := "0.1.0-SNAPSHOT"
 ThisBuild / versionScheme := Some("early-semver")
 ThisBuild / versionPolicyIntention := Compatibility.None
+ThisBuild / versionPolicyIgnoredInternalDependencyVersions := Some(
+  "^\\d+\\.\\d+\\.\\d+\\+\\d+".r
+)
 ThisBuild / homepage := Some(url("https://github.com/canardlapin/image4s"))
+ThisBuild / description :=
+  "Typed multidimensional images and image operations for Scala 3 on the JVM and Scala.js."
+ThisBuild / scmInfo := Some(
+  ScmInfo(
+    url("https://github.com/canardlapin/image4s"),
+    "scm:git:https://github.com/canardlapin/image4s.git",
+    Some("scm:git:git@github.com:canardlapin/image4s.git")
+  )
+)
 ThisBuild / licenses := List(
   "Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0")
+)
+ThisBuild / developers := List(
+  Developer(
+    id = "canardlapin",
+    name = "canardlapin",
+    email = "307091466+canardlapin@users.noreply.github.com",
+    url = url("https://github.com/canardlapin")
+  )
 )
 ThisBuild / scalacOptions ++= Seq(
   "-deprecation",
@@ -81,7 +100,11 @@ def imageProject(artifact: String): CrossProject =
   CrossProject(artifact, file(s"modules/$artifact"))(JSPlatform, JVMPlatform)
     .crossType(CrossType.Full)
     .settings(sharedSettings)
-    .settings(name := artifact)
+    .settings(
+      name := artifact,
+      description :=
+        "Typed multidimensional image functionality for Scala 3 on the JVM and Scala.js."
+    )
     .jsSettings(
       scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.CommonJSModule))
     )
@@ -154,6 +177,7 @@ lazy val image4sOpsLaws =
       image4sLaws,
       image4sIntaglio % "test->compile"
     )
+    .settings(publish / skip := true)
 
 lazy val root =
   project
@@ -233,6 +257,10 @@ image4sCompileAll := {
   (image4sOpsLaws.js / Compile / compile).value
   ()
 }
+addCommandAlias(
+  "makeReleasePoms",
+  ";image4s-geometryJVM/makePom;image4s-geometryJS/makePom;image4s-coreJVM/makePom;image4s-coreJS/makePom;image4s-niftiJVM/makePom;image4s-niftiJS/makePom;image4s-referenceJVM/makePom;image4s-referenceJS/makePom;image4s-lawsJVM/makePom;image4s-lawsJS/makePom;image4s-locusJVM/makePom;image4s-locusJS/makePom;image4s-intaglioJVM/makePom;image4s-intaglioJS/makePom;image4s-ops-coreJVM/makePom;image4s-ops-coreJS/makePom;image4s-filterJVM/makePom;image4s-filterJS/makePom;image4s-morphologyJVM/makePom;image4s-morphologyJS/makePom"
+)
 addCommandAlias(
   "imageOpsVisualQaJVM",
   "image4s-ops-lawsJVM / Test / runMain image4s.ops.laws.ImageOpsVisualQa"

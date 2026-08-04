@@ -8,7 +8,7 @@ axes, metadata, and value semantics. Use it for scientific or data-processing
 pipelines where a crop, slice, or view must preserve what the values mean.
 The core API is cross-compiled for the JVM and Scala.js.
 
-> **Status:** Early development on `0.1.0-SNAPSHOT`. APIs and module
+> **Status:** Pre-1.0 development on the `0.1.x` release line. APIs and module
 > boundaries may change; this is not a stable support commitment.
 
 ## Quick start
@@ -167,8 +167,8 @@ sbt -batch docs/tlSite
   — ownership, axes, geometry, identity, views, and failure behavior.
 - [Sample-space owner decision](docs/sample-space-owner-decision.md) — why
   runtime sample-space ownership is part of the public model.
-- [Versioning and compatibility policy](docs/versioning-policy.md) — early
-  semantic versioning and the current snapshot baseline.
+- [Versioning and compatibility policy](docs/versioning-policy.md) — the
+  `0.1.0` release baseline, compatibility contract, and consumer pinning rules.
 - [Image-operation visual QA](docs/visual-qa.md) — cross-platform operation
   conformance and visual checks.
 - [Python parity benchmark](docs/parity-benchmark.md) — operation mapping and

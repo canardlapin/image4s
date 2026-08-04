@@ -18,7 +18,7 @@ This combination changes what an image operation is allowed to assume:
 - Equal array shapes do not prove that two images sample the same locations.
   Pointwise work requires a shared sample space or an exact alignment proof.
 
-image4s is early-development Scala 3 software (`0.1.0-SNAPSHOT`). The public
+image4s is pre-1.0 Scala 3 software on the `0.1.x` release line. The public
 model and module boundaries are deliberate, but source and binary compatibility
 are not yet promised. The executable examples in this guide compile against
 the JVM modules during `docs/tlSite`.
