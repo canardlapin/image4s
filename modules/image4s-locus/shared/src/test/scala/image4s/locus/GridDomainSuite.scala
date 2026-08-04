@@ -20,10 +20,14 @@ import image4s.geometry.GridRecord
 import image4s.geometry.LatticeIndex
 import image4s.geometry.LengthUnit
 import image4s.locus.laws.GridDomainLaws
+import locus4s.CenteredNeighborhoodSystem
 import locus4s.DomainRecord
 import locus4s.DomainRegistry
+import locus4s.PartialSurjection
 import locus4s.Region
+import locus4s.Relation
 import locus4s.Selection
+import locus4s.data.Aggregation
 import locus4s.data.Field
 import munit.ScalaCheckSuite
 import org.scalacheck.Gen
@@ -433,6 +437,88 @@ final class GridDomainSuite extends ScalaCheckSuite:
     val pulled = view.injection.toTotalMap.pullback(mask)
     assertEquals(pulled.cardinality, 3)
     assertEquals(pulled.ordinalsInDomainOrder.toVector, Vector(0, 2, 4))
+
+  test("exact views feed locus4s partitions and compact neighborhoods"):
+    val grid = persistentGrid2("locus-algebra", Vector(4, 5))
+    val bridge = register(grid, "source voxels").value
+    val image =
+      imageRight(
+        Sampled.continuous(
+          grid,
+          NonSpatialAxes.empty,
+          NDArray.tabulate[Double](4, 5)((i, j) => 10.0 * i + j)
+        )
+      )
+    val field = right(bridge.spatialField(image))
+    val map =
+      imageRight(
+        LatticeMap.crop[D2](
+          sourceShape = Vector(4, 5),
+          origin = Vector(1, 1),
+          targetShape = Vector(2, 3)
+        )
+      )
+    val view = right(bridge.exactView(map))
+
+    val optionalTargets = Array.fill[Option[Int]](bridge.voxelCount)(None)
+    view.target.foreachIndex: center =>
+      optionalTargets(view.injection(center).ordinal) = Some(center.ordinal)
+    val partition =
+      right(
+        PartialSurjection.fromOptionalTargetOrdinals(
+          bridge.space,
+          view.target,
+          optionalTargets
+        )
+      )
+    val fibers = right(partition.fibers)
+
+    assertEquals(
+      partition.support.ordinalsInDomainOrder.toVector,
+      Vector(6, 7, 8, 11, 12, 13)
+    )
+    assertEquals(
+      view.target.indices
+        .map(fibers.row)
+        .map(_.ordinalsInDomainOrder.toVector)
+        .toVector,
+      Vector(Vector(6), Vector(7), Vector(8), Vector(11), Vector(12), Vector(13))
+    )
+    assertEquals(
+      Aggregation
+        .pushForward(partition, field)(0.0)(identity)(_ + _)
+        .toVector,
+      Vector(11.0, 12.0, 13.0, 21.0, 22.0, 23.0)
+    )
+
+    val membership =
+      right(
+        Relation.fromOrdinalRows(
+          view.target,
+          bridge.space,
+          view.target.indices.map: center =>
+            Vector(view.injection(center).ordinal)
+        )
+      )
+    val neighborhoods =
+      right(CenteredNeighborhoodSystem.from(view.injection, membership))
+
+    assert(neighborhoods.centers.sameRuntimeOwnerAs(view.target))
+    assert(neighborhoods.ambient.sameRuntimeOwnerAs(bridge.space))
+    assertEquals(
+      view.target.indices
+        .map(neighborhoods.neighborhood)
+        .map(_.indicesInDomainOrder.map(field.apply).toVector)
+        .toVector,
+      Vector(
+        Vector(11.0),
+        Vector(12.0),
+        Vector(13.0),
+        Vector(21.0),
+        Vector(22.0),
+        Vector(23.0)
+      )
+    )
 
   test("flip and permutation produce locus bijections"):
     val grid = persistentGrid2("bijection", Vector(3, 4))
