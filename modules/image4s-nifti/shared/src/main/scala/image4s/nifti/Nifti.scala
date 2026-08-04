@@ -124,7 +124,7 @@ private[nifti] final class NiftiApi[P](
         header,
         selection,
         options,
-        convertScaled(conversion, header)
+        convertedPayloadWriter(conversion, header)
       )
     yield DecodedNifti(SomeSampled.d3(decoded), header, selection)
 
@@ -168,7 +168,7 @@ private[nifti] final class NiftiApi[P](
         header,
         selection,
         options,
-        convertLabel(header)
+        labelPayloadWriter(header)
       )
     yield DecodedNifti(SomeSampled.d3(decoded), header, selection)
 
@@ -234,7 +234,7 @@ private[nifti] final class NiftiApi[P](
         header,
         selection,
         options,
-        convertScaled(conversion, header)
+        convertedPayloadWriter(conversion, header)
       )
     yield DecodedNifti(decoded, header, selection)
 
@@ -305,7 +305,7 @@ private[nifti] final class NiftiApi[P](
         header,
         selection,
         options,
-        convertLabel(header)
+        labelPayloadWriter(header)
       )
     yield DecodedNifti(decoded, header, selection)
 
@@ -573,7 +573,7 @@ private[nifti] final class NiftiApi[P](
       header: NiftiHeader,
       selection: NiftiAffineSelection,
       options: NiftiReadOptions,
-      convert: (Double, Array[Int]) => A
+      writer: ConvertedPayloadWriter[A]
   )(using
       DType[A],
       ValueSemantics[A, Sem]
@@ -593,7 +593,7 @@ private[nifti] final class NiftiApi[P](
         .left
         .map(error => NiftiError.InvalidArrayShape(error.toString))
       logicalData <-
-        readPayloadAs(path, header, shape, convert, options.ioLimits)
+        readPayloadAs(path, header, shape, writer, options.ioLimits)
       grid <- Grid
         .in(frame)(header.spatialShape, selection.affine)
         .left
@@ -817,84 +817,139 @@ private[nifti] final class NiftiApi[P](
         math.max(largest, math.abs(a - b))
       }
 
-  private def convertScaled[A](
+  /** Concrete converted-payload writers keep primitive values out of generic callback boundaries.
+    *
+    * JDK 17 does not reliably scalar-replace the boxed raw and converted values created by a
+    * `(Double, Array[Int]) => A` callback followed by a generic builder write. Keeping conversion
+    * inside a writer whose builder has a concrete element type preserves the same validation
+    * contract without making allocation behavior depend on escape analysis.
+    */
+  private trait ConvertedPayloadWriter[A]:
+    def write(
+        builder: ravel.ArrayBuilder[A],
+        logicalOffset: Int,
+        raw: Double,
+        logicalIndex: Array[Int]
+    ): Unit
+
+  private def convertedPayloadWriter[A](
       conversion: NiftiValueConversion[A],
       header: NiftiHeader
-  ): (Double, Array[Int]) => A =
+  ): ConvertedPayloadWriter[A] =
     conversion match
       case NiftiValueConversion.ScaledDouble =>
-        (raw, _) => scaledValue(raw, header)
+        new ConvertedPayloadWriter[Double]:
+          def write(
+              builder: ravel.ArrayBuilder[Double],
+              logicalOffset: Int,
+              raw: Double,
+              logicalIndex: Array[Int]
+          ): Unit =
+            builder.writeLinear(logicalOffset, scaledValue(raw, header))
       case NiftiValueConversion.ScaledFloat(precision) =>
-        (raw, logicalIndex) =>
-          val scaled = scaledValue(raw, header)
-          val narrowed = scaled.toFloat
-          if scaled.isFinite && !narrowed.isFinite then
-            throw ReadConversionFailure(
-              readValueError(
-                logicalIndex,
-                raw,
-                scaled,
-                header.datatype,
-                "Float",
-                NiftiReadValueProblem.FloatingOverflow
-              )
+        new ConvertedPayloadWriter[Float]:
+          def write(
+              builder: ravel.ArrayBuilder[Float],
+              logicalOffset: Int,
+              raw: Double,
+              logicalIndex: Array[Int]
+          ): Unit =
+            builder.writeLinear(
+              logicalOffset,
+              scaledFloatValue(raw, logicalIndex, header, precision)
             )
-          else if precision == NiftiFloatPrecision.RejectLossy &&
-            !sameFloatingValue(scaled, narrowed.toDouble)
-          then
-            throw ReadConversionFailure(
-              readValueError(
-                logicalIndex,
-                raw,
-                scaled,
-                header.datatype,
-                "Float",
-                NiftiReadValueProblem.PrecisionLoss
-              )
-            )
-          else narrowed
 
-  private def convertLabel(
+  private def labelPayloadWriter(
       header: NiftiHeader
-  ): (Double, Array[Int]) => Long =
-    (raw, logicalIndex) =>
-      val scaled = scaledValue(raw, header)
-      if !scaled.isFinite then
-        throw ReadConversionFailure(
-          readValueError(
-            logicalIndex,
-            raw,
-            scaled,
-            header.datatype,
-            "exact Long label",
-            NiftiReadValueProblem.NonFiniteLabel
-          )
+  ): ConvertedPayloadWriter[Long] =
+    new ConvertedPayloadWriter[Long]:
+      def write(
+          builder: ravel.ArrayBuilder[Long],
+          logicalOffset: Int,
+          raw: Double,
+          logicalIndex: Array[Int]
+      ): Unit =
+        builder.writeLinear(
+          logicalOffset,
+          labelValue(raw, logicalIndex, header)
         )
-      else if scaled != math.rint(scaled) then
-        throw ReadConversionFailure(
-          readValueError(
-            logicalIndex,
-            raw,
-            scaled,
-            header.datatype,
-            "exact Long label",
-            NiftiReadValueProblem.FractionalLabel
-          )
+
+  private def scaledFloatValue(
+      raw: Double,
+      logicalIndex: Array[Int],
+      header: NiftiHeader,
+      precision: NiftiFloatPrecision
+  ): Float =
+    val scaled = scaledValue(raw, header)
+    val narrowed = scaled.toFloat
+    if scaled.isFinite && !narrowed.isFinite then
+      throw ReadConversionFailure(
+        readValueError(
+          logicalIndex,
+          raw,
+          scaled,
+          header.datatype,
+          "Float",
+          NiftiReadValueProblem.FloatingOverflow
         )
-      else if scaled < Long.MinValue.toDouble ||
-        scaled >= LongUpperExclusive
-      then
-        throw ReadConversionFailure(
-          readValueError(
-            logicalIndex,
-            raw,
-            scaled,
-            header.datatype,
-            "exact Long label",
-            NiftiReadValueProblem.LabelOutsideLongRange
-          )
+      )
+    else if precision == NiftiFloatPrecision.RejectLossy &&
+      !sameFloatingValue(scaled, narrowed.toDouble)
+    then
+      throw ReadConversionFailure(
+        readValueError(
+          logicalIndex,
+          raw,
+          scaled,
+          header.datatype,
+          "Float",
+          NiftiReadValueProblem.PrecisionLoss
         )
-      else scaled.toLong
+      )
+    else narrowed
+
+  private def labelValue(
+      raw: Double,
+      logicalIndex: Array[Int],
+      header: NiftiHeader
+  ): Long =
+    val scaled = scaledValue(raw, header)
+    if !scaled.isFinite then
+      throw ReadConversionFailure(
+        readValueError(
+          logicalIndex,
+          raw,
+          scaled,
+          header.datatype,
+          "exact Long label",
+          NiftiReadValueProblem.NonFiniteLabel
+        )
+      )
+    else if scaled != math.rint(scaled) then
+      throw ReadConversionFailure(
+        readValueError(
+          logicalIndex,
+          raw,
+          scaled,
+          header.datatype,
+          "exact Long label",
+          NiftiReadValueProblem.FractionalLabel
+        )
+      )
+    else if scaled < Long.MinValue.toDouble ||
+      scaled >= LongUpperExclusive
+    then
+      throw ReadConversionFailure(
+        readValueError(
+          logicalIndex,
+          raw,
+          scaled,
+          header.datatype,
+          "exact Long label",
+          NiftiReadValueProblem.LabelOutsideLongRange
+        )
+      )
+    else scaled.toLong
 
   private def validateNativeLabelHeader(
       header: NiftiHeader
@@ -950,7 +1005,7 @@ private[nifti] final class NiftiApi[P](
       path: P,
       header: NiftiHeader,
       shape: Shape[AnyRank],
-      convert: (Double, Array[Int]) => A,
+      writer: ConvertedPayloadWriter[A],
       limits: NiftiIoLimits
   )(using dtype: DType[A]): Either[NiftiError, NDArray[A, AnyRank]] =
     for
@@ -965,7 +1020,7 @@ private[nifti] final class NiftiApi[P](
         files.payloadPath,
         header,
         shape,
-        convert,
+        writer,
         limits
       )
     yield data
@@ -997,7 +1052,7 @@ private[nifti] final class NiftiApi[P](
       payloadPath: P,
       header: NiftiHeader,
       shape: Shape[AnyRank],
-      convert: (Double, Array[Int]) => A,
+      writer: ConvertedPayloadWriter[A],
       limits: NiftiIoLimits
   )(using DType[A]): Either[NiftiError, NDArray[A, AnyRank]] =
     val bytesPerValue = header.datatype.bitsPerValue / 8
@@ -1034,9 +1089,11 @@ private[nifti] final class NiftiApi[P](
             val raw =
               readRawValue(buffer, byteOffset, header.datatype)
             try
-              builder.writeLinear(
+              writer.write(
+                builder,
                 logicalOffset,
-                convert(raw, indices)
+                raw,
+                indices
               )
               fileValueOffset += 1
               byteOffset += bytesPerValue
