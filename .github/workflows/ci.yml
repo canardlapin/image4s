@@ -40,7 +40,7 @@ jobs:
           sbt -batch
           -Dimage4s.revision=${{ github.sha }}
           -J-Xmx4G
-          compileAll
+          image4sCompileAll
           image4sTestAll
       - name: Preserve test and fuzz reproductions
         if: always()
