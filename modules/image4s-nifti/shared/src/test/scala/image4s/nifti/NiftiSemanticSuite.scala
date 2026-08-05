@@ -175,6 +175,58 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
         expectedScaled.map(_.toFloat)
       )
 
+  test("converted payloads preserve 4D order across chunk boundaries"):
+    val dimensions = Vector(3, 2, 1, 4)
+    val rawValues = Vector.tabulate(dimensions.product)(_.toDouble - 8.0)
+    val options =
+      NiftiReadOptions.default.copy(
+        ioLimits = NiftiIoLimits.default.copy(workingBufferBytes = 12)
+      )
+    val expectedRawOrder =
+      (for
+        x <- 0 until dimensions(0)
+        y <- 0 until dimensions(1)
+        z <- 0 until dimensions(2)
+        t <- 0 until dimensions(3)
+      yield rawValues(
+        x + dimensions(0) *
+          (y + dimensions(1) * (z + dimensions(2) * t))
+      )).toVector
+
+    NiftiByteOrder.values.foreach: order =>
+      val scalarPath = s"/converted-4d-$order.nii"
+      writeFixture(
+        scalarPath,
+        dimensions,
+        NiftiDatatype.Float32,
+        order = order,
+        slope = 2.0,
+        intercept = 0.5,
+        values = rawValues
+      )
+      val expectedScaled = expectedRawOrder.map(_ * 2.0 + 0.5)
+      val doubles = niftiRight(api.readScaledDouble(scalarPath, options))
+      val floats = niftiRight(api.readScaledFloat(scalarPath, options = options))
+
+      assertEquals(sampledValues(doubles.image), expectedScaled)
+      assertEquals(sampledValues(floats.image), expectedScaled.map(_.toFloat))
+
+      val labelsPath = s"/converted-labels-4d-$order.nii"
+      writeFixture(
+        labelsPath,
+        dimensions,
+        NiftiDatatype.Int16,
+        order = order,
+        slope = 2.0,
+        intercept = 1.0,
+        values = rawValues
+      )
+      val labels = niftiRight(api.readLabels(labelsPath, options))
+      assertEquals(
+        sampledValues(labels.image),
+        expectedRawOrder.map(value => (value * 2.0 + 1.0).toLong)
+      )
+
   test("scalar stored and scalar double surfaces retain explicit interpretation"):
     val path = "/scalar-stored-uint8.nii"
     writeFixture(

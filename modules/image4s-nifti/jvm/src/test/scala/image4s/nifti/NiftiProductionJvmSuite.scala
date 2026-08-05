@@ -79,24 +79,28 @@ final class NiftiProductionJvmSuite extends FunSuite:
           "float32-3d",
           volume.data.size,
           4,
+          16,
           () => retainFloat(Nifti.readScaledFloat(volumePath))
         ),
         ReadCase(
           "float32-4d",
           fmri.data.size,
           4,
+          16,
           () => retainFloat(Nifti.readScaledFloat(fmriPath))
         ),
         ReadCase(
           "int16-labels",
           labels.data.size,
           8,
+          40,
           () => retainLong(Nifti.readLabels(labelsPath))
         ),
         ReadCase(
           "float32-4d-gzip",
           fmri.data.size,
           4,
+          16,
           () => retainFloat(Nifti.readScaledFloat(gzipPath))
         )
       )
@@ -110,7 +114,7 @@ final class NiftiProductionJvmSuite extends FunSuite:
         readCase.samples.toLong * readCase.outputBytes.toLong
       val limit =
         finalBytes +
-          readCase.samples.toLong * 40L +
+          readCase.samples.toLong * readCase.overheadBytesPerValue.toLong +
           1024L * 1024L
       assert(
         median <= limit,
@@ -241,6 +245,7 @@ final class NiftiProductionJvmSuite extends FunSuite:
       name: String,
       samples: Int,
       outputBytes: Int,
+      overheadBytesPerValue: Int,
       run: () => Unit
   )
 
