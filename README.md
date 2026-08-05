@@ -18,7 +18,7 @@ The current project is sbt-first and built from source. From a checkout:
 ```text
 git clone https://github.com/canardlapin/image4s.git
 cd image4s
-sbt -batch compileAll
+sbt -batch image4sCompileAll
 ```
 
 This constructs a 3D image with a declared time axis, selects one time point,
@@ -189,7 +189,7 @@ performance courts.
 Compile all projects:
 
 ```text
-sbt -batch compileAll
+sbt -batch image4sCompileAll
 ```
 
 Run the full JVM and Scala.js test suite:

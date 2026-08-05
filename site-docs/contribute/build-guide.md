@@ -50,7 +50,7 @@ git status --short
 Build-definition changes also require the repository's canonical gates:
 
 ```text
-sbt -batch compileAll
+sbt -batch image4sCompileAll
 sbt -batch image4sTestAll
 ```
 
