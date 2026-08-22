@@ -28,6 +28,22 @@ indexing retains Ravel's indexing behavior.
 Approximate congruence reports closeness only. It does not recover from an
 exact-alignment error and cannot be passed to pointwise operations.
 
+## Categorical locus assignments
+
+`LabelAssignmentError` keeps categorical-image conversion fail-closed. A
+conversion rejects a foreign target owner, duplicate or conflicting label
+codes, a persistent target whose fingerprint does not match the exact ordered
+codes, unknown values under `UnknownLabelPolicy.Reject`, and any target label
+without a source voxel. Background codes and unknown-value handling are always
+supplied through `LabelAssignmentPolicy`; zero is never assumed to mean
+background.
+
+Use `LabelAssignment.toPartialSurjection` when the target `FiniteDomain` and its
+ordered label `Field` already exist. Use `LabelAssignment.discover` when the
+bridge should restore a caller-named persistent target and return its
+existential `FiniteSpace`, rich label field, scoped `DomainRegistry`,
+authoritative locus4s `PartialSurjection`, and versioned reconstruction record.
+
 ## Filtering and morphology
 
 `OpError` reports invalid scales, incompatible kernels or extents, unsupported

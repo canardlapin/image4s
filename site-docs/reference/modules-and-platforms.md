@@ -13,7 +13,7 @@ or the operation catalogue.
 | `image4s-filter` | Correlation, convolution, Gaussian filtering, and gradients | Yes | Yes |
 | `image4s-morphology` | Thresholding and binary morphology | Yes | Yes |
 | `image4s-nifti` | Bounded NIfTI-1 parsing, decoding, and writing | `Path` facade | Node.js string-path facade |
-| `image4s-locus` | Checked conversion from grids to locus4s finite domains | Yes | Yes |
+| `image4s-locus` | Checked grid domains and policy-explicit categorical-label assignments into locus4s | Yes | Yes |
 | `image4s-intaglio` | Display-only lowering to Intaglio fields and rasters | Yes | Yes |
 
 `image4s-reference` provides independent nearest and linear sampling oracles.
