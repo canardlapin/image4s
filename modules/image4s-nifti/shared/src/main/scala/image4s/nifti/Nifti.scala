@@ -7,10 +7,13 @@ import image4s.Categorical
 import image4s.CategoricalImage
 import image4s.Continuous
 import image4s.ContinuousImage
+import image4s.EncodedSampled
+import image4s.ImageError
 import image4s.NonSpatialAxes
 import image4s.SampleSpace
 import image4s.Sampled
 import image4s.SomeSampled
+import image4s.ValueEncoding
 import image4s.ValueSemantics
 import ravel.AnyRank
 import ravel.DType
@@ -60,10 +63,10 @@ private[nifti] final class NiftiApi[P](
       decoded <- readRawInPrepared(path, frame, header, selection, options)
     yield DecodedNifti(decoded, header, selection)
 
-  /** Read native storage codes with their structural storage interpretation.
+  /** Read one native storage owner with an explicit scaled-`Double` interpretation.
     *
-    * No NIfTI slope/intercept scaling is applied. The header retained by [[DecodedNifti]] remains
-    * the receipt for that affine interpretation.
+    * This does not materialize decoded values. The returned [[image4s.EncodedSampled]] retains the
+    * native dtype while slope and intercept become structural encoding data.
     */
   def readScalarStored(
       path: P,
@@ -72,13 +75,18 @@ private[nifti] final class NiftiApi[P](
     NiftiError,
     DecodedNifti[NiftiScalarStored]
   ] =
-    readRaw(path, options).map { decoded =>
-      DecodedNifti(
-        NiftiScalarStored.fromRaw(decoded.image),
-        decoded.header,
-        decoded.affineSelection
+    for
+      header <- readHeader(path, options.ioLimits)
+      frame <- freshFrame(path, header, options)
+      selection <- selectAffine(header, options.affinePolicy)
+      encoded <- readScalarStoredInPrepared(
+        path,
+        frame,
+        header,
+        selection,
+        options
       )
-    }
+    yield DecodedNifti(encoded, header, selection)
 
   /** Read scaled scalar values at caller-selected floating precision. */
   def readScalarAs[A](
@@ -397,6 +405,146 @@ private[nifti] final class NiftiApi[P](
           options,
           NativePayloadReader.double
         ).map(image => NiftiRawImage.Float64(SomeSampled.d3(image)))
+
+  private def readScalarStoredInPrepared[
+      F <: Frame[D3]
+  ](
+      path: P,
+      frame: F,
+      header: NiftiHeader,
+      selection: NiftiAffineSelection,
+      options: NiftiReadOptions
+  ): Either[NiftiError, NiftiScalarStored] =
+    val (slope, intercept) = effectiveScaling(header)
+    header.datatype match
+      case NiftiDatatype.UInt8 =>
+        for
+          encoding <- ValueEncoding.PrimitiveToDoubleAffine
+            .uint8(slope, intercept)
+            .left
+            .map(error => NiftiError.Image(ImageError.ValueEncoding(error)))
+          image <- readEncodedIn[RavelUInt8, F](
+            path,
+            frame,
+            header,
+            selection,
+            options,
+            NativePayloadReader.uint8,
+            encoding
+          )
+        yield NiftiScalarStored.UInt8(image)
+      case NiftiDatatype.Int16 =>
+        for
+          encoding <- ValueEncoding.PrimitiveToDoubleAffine
+            .int16(slope, intercept)
+            .left
+            .map(error => NiftiError.Image(ImageError.ValueEncoding(error)))
+          image <- readEncodedIn[Short, F](
+            path,
+            frame,
+            header,
+            selection,
+            options,
+            NativePayloadReader.short,
+            encoding
+          )
+        yield NiftiScalarStored.Int16(image)
+      case NiftiDatatype.Int32 =>
+        for
+          encoding <- ValueEncoding.PrimitiveToDoubleAffine
+            .int32(slope, intercept)
+            .left
+            .map(error => NiftiError.Image(ImageError.ValueEncoding(error)))
+          image <- readEncodedIn[Int, F](
+            path,
+            frame,
+            header,
+            selection,
+            options,
+            NativePayloadReader.int,
+            encoding
+          )
+        yield NiftiScalarStored.Int32(image)
+      case NiftiDatatype.Float32 =>
+        for
+          encoding <- ValueEncoding.PrimitiveToDoubleAffine
+            .float32(slope, intercept)
+            .left
+            .map(error => NiftiError.Image(ImageError.ValueEncoding(error)))
+          image <- readEncodedIn[Float, F](
+            path,
+            frame,
+            header,
+            selection,
+            options,
+            NativePayloadReader.float,
+            encoding
+          )
+        yield NiftiScalarStored.Float32(image)
+      case NiftiDatatype.Float64 =>
+        for
+          encoding <- ValueEncoding.PrimitiveToDoubleAffine
+            .float64(slope, intercept)
+            .left
+            .map(error => NiftiError.Image(ImageError.ValueEncoding(error)))
+          image <- readEncodedIn[Double, F](
+            path,
+            frame,
+            header,
+            selection,
+            options,
+            NativePayloadReader.double,
+            encoding
+          )
+        yield NiftiScalarStored.Float64(image)
+
+  private def readEncodedIn[
+      A,
+      F <: Frame[D3]
+  ](
+      path: P,
+      frame: F,
+      header: NiftiHeader,
+      selection: NiftiAffineSelection,
+      options: NiftiReadOptions,
+      reader: NativePayloadReader[A],
+      encoding: ValueEncoding[A, Double]
+  )(using
+      DType[A],
+      ValueSemantics[A, NiftiRaw]
+  ): Either[
+    NiftiError,
+    EncodedSampled[
+      ? <: SampleSpace[frame.type, D3],
+      A,
+      Double,
+      Continuous,
+      AnyRank
+    ]
+  ] =
+    readNativeIn[A, NiftiRaw](
+      path,
+      frame,
+      header,
+      selection,
+      options,
+      reader
+    ).flatMap: raw =>
+      EncodedSampled
+        .create[A, Double, Continuous, AnyRank](
+          raw.sampleSpace,
+          raw.data,
+          encoding,
+          raw.metadata
+        )
+        .left
+        .map(NiftiError.Image.apply)
+
+  private def effectiveScaling(
+      header: NiftiHeader
+  ): (Double, Double) =
+    if header.slope == 0.0 then 1.0 -> 0.0
+    else header.slope -> header.intercept
 
   private def readNativeIn[
       A,

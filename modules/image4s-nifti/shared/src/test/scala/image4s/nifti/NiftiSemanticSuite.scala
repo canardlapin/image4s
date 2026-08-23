@@ -240,15 +240,20 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
 
     val stored = niftiRight(api.readScalarStored(path))
     stored.image match
-      case NiftiScalarStored.UInt8(codes, encoding) =>
+      case NiftiScalarStored.UInt8(encoded) =>
         assertEquals(
-          codes.value.data.elementsIterator.map(_.toInt).toList,
+          encoded.data.elementsIterator.map(_.toInt).toList,
           List(0, 17, 255)
         )
         assertEquals(
-          encoding.decode(UInt8.unsafe(255), Vector.empty).map(_.toInt),
-          Right(255)
+          encoded.valueAt(Vector(0, 0, 0)),
+          Right(1.0)
         )
+        assertEquals(
+          encoded.valueAt(Vector(2, 0, 0)),
+          Right(511.0)
+        )
+        assert(encoded.fingerprint.contains("primitive-to-double-affine:v1:uint8"))
       case other =>
         fail(s"expected UInt8 stored scalar, got $other")
 
@@ -263,6 +268,49 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
       )
     )
     assertEquals(sampledValues(float.image), Vector(1.0f, 35.0f, 511.0f))
+
+  test("every native scalar dtype retains one encoded owner and affine scale"):
+    val cases =
+      Vector(
+        (NiftiDatatype.UInt8, Vector(0.0, 17.0, 255.0)),
+        (NiftiDatatype.Int16, Vector(-7.0, 0.0, 12.0)),
+        (NiftiDatatype.Int32, Vector(-70000.0, 0.0, 120000.0)),
+        (NiftiDatatype.Float32, Vector(-1.25, 0.0, 2.5)),
+        (NiftiDatatype.Float64, Vector(-1.25, 0.0, 2.5))
+      )
+    val slope = 1.5
+    val intercept = -2.0
+
+    cases.zipWithIndex.foreach { case ((datatype, raw), index) =>
+      val path = s"/encoded-native-$index.nii"
+      writeFixture(
+        path,
+        dimensions = Vector(3, 1, 1),
+        datatype = datatype,
+        slope = slope,
+        intercept = intercept,
+        values = raw
+      )
+
+      val stored = niftiRight(api.readScalarStored(path)).image
+      assertEquals(stored.datatype, datatype)
+      val actual = stored match
+        case NiftiScalarStored.UInt8(image) =>
+          Vector.tabulate(3)(x => image.valueAt(Vector(x, 0, 0)).toOption.get)
+        case NiftiScalarStored.Int16(image) =>
+          Vector.tabulate(3)(x => image.valueAt(Vector(x, 0, 0)).toOption.get)
+        case NiftiScalarStored.Int32(image) =>
+          Vector.tabulate(3)(x => image.valueAt(Vector(x, 0, 0)).toOption.get)
+        case NiftiScalarStored.Float32(image) =>
+          Vector.tabulate(3)(x => image.valueAt(Vector(x, 0, 0)).toOption.get)
+        case NiftiScalarStored.Float64(image) =>
+          Vector.tabulate(3)(x => image.valueAt(Vector(x, 0, 0)).toOption.get)
+      val expected = raw.map(value => value * slope + intercept)
+      actual
+        .zip(expected)
+        .foreach: (observed, target) =>
+          assertEqualsDouble(observed, target, 1e-6)
+    }
 
   test("native labels retain integer codes and reject scaled or floating input"):
     val cases =

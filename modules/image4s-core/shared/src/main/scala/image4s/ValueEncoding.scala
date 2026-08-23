@@ -1,5 +1,7 @@
 package image4s
 
+import ravel.{UInt8 as RavelUInt8}
+
 /** Structural, serializable relationship between stored and domain values.
   *
   * Encodings carry data only: they never accept a user callback. Their fingerprints are stable
@@ -71,6 +73,127 @@ object ValueEncoding:
           )
         )
       else Right(new UniformAffine(slope, intercept))
+
+  /** A structural affine decode from one primitive storage dtype to the `Double` domain.
+    *
+    * The storage witness is part of the concrete encoding and its stable fingerprint. This lets
+    * encoded image formats retain their native Ravel dtype without hiding a widening copy or a
+    * runtime callback.
+    */
+  sealed trait PrimitiveToDoubleAffine[Stored] extends ValueEncoding[Stored, Double]:
+    def slope: Double
+    def intercept: Double
+
+    protected def storageId: String
+    protected def widen(stored: Stored): Double
+
+    final def fingerprint: String =
+      s"image4s:value-encoding:primitive-to-double-affine:v1:$storageId:" +
+        s"${doubleToken(slope)}:${doubleToken(intercept)}"
+
+    final def decode(
+        stored: Stored,
+        nonSpatialIndex: Vector[Int]
+    ): Either[EncodingError, Double] =
+      Right(widen(stored) * slope + intercept)
+
+    private[image4s] final def validateFor(
+        nonSpatialShape: Vector[Int]
+    ): Either[EncodingError, Unit] =
+      Right(())
+
+  object PrimitiveToDoubleAffine:
+    def uint8(
+        slope: Double,
+        intercept: Double
+    ): Either[EncodingError, PrimitiveToDoubleAffine[RavelUInt8]] =
+      validated(slope, intercept)(UInt8Affine.apply)
+
+    def int16(
+        slope: Double,
+        intercept: Double
+    ): Either[EncodingError, PrimitiveToDoubleAffine[Short]] =
+      validated(slope, intercept)(Int16Affine.apply)
+
+    def int32(
+        slope: Double,
+        intercept: Double
+    ): Either[EncodingError, PrimitiveToDoubleAffine[Int]] =
+      validated(slope, intercept)(Int32Affine.apply)
+
+    def float32(
+        slope: Double,
+        intercept: Double
+    ): Either[EncodingError, PrimitiveToDoubleAffine[Float]] =
+      validated(slope, intercept)(Float32Affine.apply)
+
+    def float64(
+        slope: Double,
+        intercept: Double
+    ): Either[EncodingError, PrimitiveToDoubleAffine[Double]] =
+      validated(slope, intercept)(Float64Affine.apply)
+
+    private def validated[A](
+        slope: Double,
+        intercept: Double
+    )(
+        make: (Double, Double) => PrimitiveToDoubleAffine[A]
+    ): Either[EncodingError, PrimitiveToDoubleAffine[A]] =
+      if !slope.isFinite || slope == 0.0 then
+        Left(
+          EncodingError.InvalidParameter(
+            "PrimitiveToDoubleAffine.slope",
+            slope.toString
+          )
+        )
+      else if !intercept.isFinite then
+        Left(
+          EncodingError.InvalidParameter(
+            "PrimitiveToDoubleAffine.intercept",
+            intercept.toString
+          )
+        )
+      else Right(make(slope, intercept))
+
+    private final case class UInt8Affine(
+        slope: Double,
+        intercept: Double
+    ) extends PrimitiveToDoubleAffine[RavelUInt8]:
+      protected val storageId: String = "uint8"
+      protected inline def widen(stored: RavelUInt8): Double =
+        stored.toInt.toDouble
+
+    private final case class Int16Affine(
+        slope: Double,
+        intercept: Double
+    ) extends PrimitiveToDoubleAffine[Short]:
+      protected val storageId: String = "int16"
+      protected inline def widen(stored: Short): Double =
+        stored.toDouble
+
+    private final case class Int32Affine(
+        slope: Double,
+        intercept: Double
+    ) extends PrimitiveToDoubleAffine[Int]:
+      protected val storageId: String = "int32"
+      protected inline def widen(stored: Int): Double =
+        stored.toDouble
+
+    private final case class Float32Affine(
+        slope: Double,
+        intercept: Double
+    ) extends PrimitiveToDoubleAffine[Float]:
+      protected val storageId: String = "float32"
+      protected inline def widen(stored: Float): Double =
+        stored.toDouble
+
+    private final case class Float64Affine(
+        slope: Double,
+        intercept: Double
+    ) extends PrimitiveToDoubleAffine[Double]:
+      protected val storageId: String = "float64"
+      protected inline def widen(stored: Double): Double =
+        stored
 
   /** Affine coefficients aligned to one declared non-spatial axis. */
   final case class PerAxisAffine private (

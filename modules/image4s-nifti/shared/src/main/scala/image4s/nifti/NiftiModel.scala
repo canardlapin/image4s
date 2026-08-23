@@ -1,6 +1,9 @@
 package image4s.nifti
 
+import image4s.Continuous
+import image4s.EncodedSampled
 import image4s.ImageError
+import image4s.SampleSpace
 import image4s.SomeSampled
 import image4s.ValueEncoding
 import image4s.ValueSemantics
@@ -9,6 +12,7 @@ import image4s.geometry.CoordinateConvention
 import image4s.geometry.D3
 import image4s.geometry.GeometryError
 import image4s.geometry.LengthUnit
+import ravel.AnyRank
 import ravel.{UInt8 as RavelUInt8}
 
 enum NiftiByteOrder derives CanEqual:
@@ -66,58 +70,66 @@ enum NiftiRawImage:
       case Float32(_) => NiftiDatatype.Float32
       case Float64(_) => NiftiDatatype.Float64
 
-/** Native NIfTI storage codes plus their structural interpretation.
+/** Native NIfTI storage plus its explicit scaled `Double` interpretation.
   *
-  * This is the dynamic boundary for header-selected storage dtypes. The following decode task can
-  * replace each case's `SomeSampled` payload with an existential `EncodedSampled` without changing
-  * the public datatype switch.
+  * Every case retains the native Ravel dtype in one [[EncodedSampled]]. Slope and intercept are
+  * structural encoding data, so callers may inspect or sample the scaled domain without first
+  * materializing a `Double` image.
   */
 enum NiftiScalarStored:
   case UInt8(
-      codes: SomeSampled[RavelUInt8, NiftiRaw],
-      encoding: ValueEncoding[RavelUInt8, RavelUInt8]
+      image: EncodedSampled[
+        ? <: SampleSpace[?, D3],
+        RavelUInt8,
+        Double,
+        Continuous,
+        ? <: AnyRank
+      ]
   )
   case Int16(
-      codes: SomeSampled[Short, NiftiRaw],
-      encoding: ValueEncoding[Short, Short]
+      image: EncodedSampled[
+        ? <: SampleSpace[?, D3],
+        Short,
+        Double,
+        Continuous,
+        ? <: AnyRank
+      ]
   )
   case Int32(
-      codes: SomeSampled[Int, NiftiRaw],
-      encoding: ValueEncoding[Int, Int]
+      image: EncodedSampled[
+        ? <: SampleSpace[?, D3],
+        Int,
+        Double,
+        Continuous,
+        ? <: AnyRank
+      ]
   )
   case Float32(
-      codes: SomeSampled[Float, NiftiRaw],
-      encoding: ValueEncoding[Float, Float]
+      image: EncodedSampled[
+        ? <: SampleSpace[?, D3],
+        Float,
+        Double,
+        Continuous,
+        ? <: AnyRank
+      ]
   )
   case Float64(
-      codes: SomeSampled[Double, NiftiRaw],
-      encoding: ValueEncoding[Double, Double]
+      image: EncodedSampled[
+        ? <: SampleSpace[?, D3],
+        Double,
+        Double,
+        Continuous,
+        ? <: AnyRank
+      ]
   )
 
   def datatype: NiftiDatatype =
     this match
-      case UInt8(_, _) => NiftiDatatype.UInt8
-      case Int16(_, _) => NiftiDatatype.Int16
-      case Int32(_, _) => NiftiDatatype.Int32
-      case Float32(_, _) => NiftiDatatype.Float32
-      case Float64(_, _) => NiftiDatatype.Float64
-
-object NiftiScalarStored:
-  def fromRaw(raw: NiftiRawImage): NiftiScalarStored =
-    raw match
-      case NiftiRawImage.UInt8(codes) =>
-        NiftiScalarStored.UInt8(
-          codes,
-          ValueEncoding.Identity[RavelUInt8]()
-        )
-      case NiftiRawImage.Int16(codes) =>
-        NiftiScalarStored.Int16(codes, ValueEncoding.Identity[Short]())
-      case NiftiRawImage.Int32(codes) =>
-        NiftiScalarStored.Int32(codes, ValueEncoding.Identity[Int]())
-      case NiftiRawImage.Float32(codes) =>
-        NiftiScalarStored.Float32(codes, ValueEncoding.Identity[Float]())
-      case NiftiRawImage.Float64(codes) =>
-        NiftiScalarStored.Float64(codes, ValueEncoding.Identity[Double]())
+      case UInt8(_) => NiftiDatatype.UInt8
+      case Int16(_) => NiftiDatatype.Int16
+      case Int32(_) => NiftiDatatype.Int32
+      case Float32(_) => NiftiDatatype.Float32
+      case Float64(_) => NiftiDatatype.Float64
 
 /** Native integer label codes plus their exact storage interpretation.
   *
