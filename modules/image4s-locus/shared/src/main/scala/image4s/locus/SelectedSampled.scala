@@ -10,6 +10,7 @@ import image4s.SampleSpace
 import image4s.Sampled
 import image4s.ValueSemantics
 import image4s.geometry.Dim
+import image4s.geometry.D3
 import image4s.geometry.Frame
 import locus4s.Index
 import locus4s.Selection
@@ -449,6 +450,60 @@ object SelectedSampled:
   ] =
     gather(domain, image, selection).flatMap(_.requireDataRank[1])
 
+  /** Allocation-disciplined D3 scalar gather.
+    *
+    * The D3/rank-3 contract permits primitive coordinate access without a
+    * dynamic index array. One canonical compact Ravel destination is retained;
+    * the exact selection remains the sole support and ordering owner.
+    */
+  def gatherVolume[
+      F <: Frame[D3],
+      S,
+      T,
+      I <: SampleSpace[?, D3],
+      A,
+      Sem
+  ](
+      domain: GridDomain[F, D3, S],
+      image: Sampled[I, A, Sem, Rank[3]],
+      selection: Selection[T]
+  ): Either[
+    SelectedSampledError,
+    SelectedSampled[F, D3, S, A, Sem, Rank[1]]
+  ] =
+    for
+      _ <- domain
+        .validateGrid(image.grid)
+        .left
+        .map(SelectedSampledError.Domain.apply)
+      nativeSelection <- exactSelectionOwner(domain, selection)
+      compact =
+        given DType[A] = image.dtype
+        val ny = domain.grid.shape(1)
+        val nz = domain.grid.shape(2)
+        val plane = ny * nz
+        NDArray.build[A, Rank[1]](Shape(nativeSelection.size)):
+          output =>
+            var position = 0
+            while position < nativeSelection.size do
+              val selectedPosition =
+                nativeSelection.positions.indexAtValidatedOrdinal(position)
+              val ordinal = nativeSelection(selectedPosition).ordinal
+              val x = ordinal / plane
+              val withinPlane = ordinal % plane
+              val y = withinPlane / nz
+              val z = withinPlane % nz
+              output.writeLinear(position, image.data(x, y, z))
+              position += 1
+      selected <- create(
+        domain,
+        nativeSelection,
+        image.nonSpatialAxes,
+        compact,
+        image.metadata
+      )(using image.valueSemantics)
+    yield selected
+
   def gatherSingleAxis[
       F <: Frame[D],
       D <: Dim,
@@ -480,6 +535,53 @@ object SelectedSampled:
     def field: Field[selected.selection.I, A] =
       Field.view(selected.selection.positions): position =>
         selected.data(position.ordinal)
+
+  extension [
+      F <: Frame[D3],
+      S,
+      A,
+      Sem
+  ](
+      selected: SelectedSampled[F, D3, S, A, Sem, Rank[1]]
+  )
+    /** Allocation-disciplined scalar scatter to one canonical D3 Ravel
+      * destination. The compact selection is reused and no dynamic-rank
+      * iterator or output-sized staging representation is created.
+      */
+    def scatterVolume(
+        fill: A
+    ): Either[
+      SelectedSampledError,
+      Sampled[? <: SampleSpace[F, D3], A, Sem, Rank[3]]
+    ] =
+      given DType[A] = selected.data.dtype
+      val spatialShape = selected.domain.grid.shape
+      val dense =
+        NDArray.build[A, Rank[3]](
+          Shape(spatialShape(0), spatialShape(1), spatialShape(2))
+        ): output =>
+          var ordinal = 0
+          while ordinal < selected.domain.space.size do
+            output.writeLinear(ordinal, fill)
+            ordinal += 1
+          var position = 0
+          while position < selected.selection.size do
+            val selectedPosition =
+              selected.selection.positions.indexAtValidatedOrdinal(position)
+            val sourceOrdinal =
+              selected.selection(selectedPosition).ordinal
+            output.writeLinear(sourceOrdinal, selected.data(position))
+            position += 1
+      given ValueSemantics[A, Sem] = selected.valueSemantics
+      Sampled
+        .create(
+          selected.domain.grid,
+          NonSpatialAxes.empty,
+          dense,
+          selected.metadata
+        )
+        .left
+        .map(SelectedSampledError.Image.apply)
 
   extension [
       F <: Frame[D],
@@ -517,18 +619,22 @@ object SelectedSampled:
       if nonSpatialShape.isEmpty then 1
       else nonSpatialShape.product
     NDArray.build[A, AnyRank](shape): output =>
+      // One reusable dynamic index is sufficient for the whole gather. Grid
+      // ordinals are canonical last-axis-fastest, so coordinates can be
+      // decoded directly without allocating a Vector and Array per position.
+      val indices = Array.ofDim[Int](spatialRank + nonSpatialShape.length)
       var position = 0
       while position < selection.size do
         val compactIndex =
           selection.positions.indexAtValidatedOrdinal(position)
         val sourceIndex = selection(compactIndex)
-        val spatial =
-          domain.coordinatesOfOrdinalUnchecked(sourceIndex.ordinal)
-        val indices = Array.ofDim[Int](spatialRank + nonSpatialShape.length)
-        var axis = 0
-        while axis < spatialRank do
-          indices(axis) = spatial(axis)
-          axis += 1
+        var remainingSpatial = sourceIndex.ordinal
+        var axis = spatialRank - 1
+        while axis >= 0 do
+          val extent = domain.grid.shape(axis)
+          indices(axis) = remainingSpatial % extent
+          remainingSpatial /= extent
+          axis -= 1
 
         var trailingOrdinal = 0
         while trailingOrdinal < trailingSize do

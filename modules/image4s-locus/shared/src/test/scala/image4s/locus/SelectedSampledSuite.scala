@@ -149,6 +149,48 @@ final class SelectedSampledSuite extends FunSuite:
       Vector(12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0)
     )
 
+  test("D3 volume gather is view-safe and scatter restores canonical positions"):
+    val grid = persistentGrid("selected-volume", Vector(2, 3, 5))
+    val domain = register(grid, "volume voxels")
+    val canonical =
+      NDArray.tabulate[Double](2, 3, 5): (x, y, z) =>
+        100.0 * x + 10.0 * y + z
+    val reversed = canonical.reverse(1)
+    val image =
+      imageRight(
+        Sampled.continuous(
+          grid,
+          NonSpatialAxes.empty,
+          reversed
+        )
+      )
+    val selection =
+      right(Selection.fromOrdinals(domain.space, Vector(29, 7, 0, 13)))
+
+    val generic = right(SelectedSampled.gatherSpatial(domain, image, selection))
+    val volume = right(SelectedSampled.gatherVolume(domain, image, selection))
+
+    assert(volume.data.isContiguous)
+    assertEquals(volume.data.iterator.toVector, generic.data.iterator.toVector)
+    assertEquals(
+      volume.data.iterator.toVector,
+      Vector(
+        reversed(1, 2, 4),
+        reversed(0, 1, 2),
+        reversed(0, 0, 0),
+        reversed(0, 2, 3)
+      )
+    )
+
+    val scattered = right(volume.scatterVolume(-1.0))
+    assert(scattered.data.isContiguous)
+    assertEquals(scattered.data.shape, Shape(2, 3, 5))
+    assertEquals(scattered.data(1, 2, 4), reversed(1, 2, 4))
+    assertEquals(scattered.data(0, 1, 2), reversed(0, 1, 2))
+    assertEquals(scattered.data(0, 0, 0), reversed(0, 0, 0))
+    assertEquals(scattered.data(0, 2, 3), reversed(0, 2, 3))
+    assertEquals(scattered.data(1, 0, 0), -1.0)
+
   test("construction and gather fail closed on shape and domain owner"):
     val grid = persistentGrid("selected-errors", Vector(2, 3, 2))
     val first = register(grid, "first owner")
