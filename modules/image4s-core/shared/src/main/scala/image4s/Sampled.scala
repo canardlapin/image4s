@@ -673,34 +673,8 @@ final class Sampled[
       spatialIndex: Vector[Int],
       nonSpatialIndex: Vector[Int]
   ): A =
-    (spatialIndex.length, nonSpatialIndex.length) match
-      case (2, 0) =>
-        data(spatialIndex(0), spatialIndex(1))
-      case (2, 1) =>
-        data(
-          spatialIndex(0),
-          spatialIndex(1),
-          nonSpatialIndex(0)
-        )
-      case (2, 2) =>
-        data(
-          spatialIndex(0),
-          spatialIndex(1),
-          nonSpatialIndex(0),
-          nonSpatialIndex(1)
-        )
-      case (3, 0) =>
-        data(spatialIndex(0), spatialIndex(1), spatialIndex(2))
-      case (3, 1) =>
-        data(
-          spatialIndex(0),
-          spatialIndex(1),
-          spatialIndex(2),
-          nonSpatialIndex(0)
-        )
-      case _ =>
-        val indices = spatialIndex ++ nonSpatialIndex
-        data.at(IArray.unsafeFromArray(indices.toArray))
+    val indices = spatialIndex ++ nonSpatialIndex
+    data.at(IArray.unsafeFromArray(indices.toArray))
 
   private def shapeOf[B, R2 <: AnyRank](
       array: NDArray[B, R2]

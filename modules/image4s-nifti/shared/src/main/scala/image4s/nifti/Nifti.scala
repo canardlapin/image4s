@@ -16,6 +16,7 @@ import ravel.AnyRank
 import ravel.DType
 import ravel.DType.given
 import ravel.NDArray
+import ravel.Rank
 import ravel.Shape
 import ravel.{UInt8 as RavelUInt8}
 import image4s.geometry.Affine
@@ -1867,9 +1868,20 @@ private[nifti] final class NiftiApi[P](
         ): Double =
           indices.length match
             case 3 =>
-              data(indices(0), indices(1), indices(2))
+              data
+                .asInstanceOf[NDArray[Double, Rank[3]]](
+                  indices(0),
+                  indices(1),
+                  indices(2)
+                )
             case 4 =>
-              data(indices(0), indices(1), indices(2), indices(3))
+              data
+                .asInstanceOf[NDArray[Double, Rank[4]]](
+                  indices(0),
+                  indices(1),
+                  indices(2),
+                  indices(3)
+                )
             case _ =>
               data.at(IArray.unsafeFromArray(indices))
 
@@ -1881,9 +1893,22 @@ private[nifti] final class NiftiApi[P](
         ): Double =
           indices.length match
             case 3 =>
-              data(indices(0), indices(1), indices(2)).toDouble
+              data
+                .asInstanceOf[NDArray[Long, Rank[3]]](
+                  indices(0),
+                  indices(1),
+                  indices(2)
+                )
+                .toDouble
             case 4 =>
-              data(indices(0), indices(1), indices(2), indices(3)).toDouble
+              data
+                .asInstanceOf[NDArray[Long, Rank[4]]](
+                  indices(0),
+                  indices(1),
+                  indices(2),
+                  indices(3)
+                )
+                .toDouble
             case _ =>
               data.at(IArray.unsafeFromArray(indices)).toDouble
 

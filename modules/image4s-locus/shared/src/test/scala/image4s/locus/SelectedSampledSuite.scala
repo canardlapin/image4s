@@ -101,10 +101,10 @@ final class SelectedSampledSuite extends FunSuite:
     )
     val scattered = right(selected.scatter(-1.0))
     assertEquals(scattered.data.shape, Shape(2, 3, 2, 3))
-    assertEquals(scattered.data(1, 0, 1, 2), 1012.0)
-    assertEquals(scattered.data(0, 0, 1, 2), 12.0)
-    assertEquals(scattered.data(1, 2, 0, 2), 1202.0)
-    assertEquals(scattered.data(0, 0, 0, 2), -1.0)
+    assertEquals(scattered.data.at(IArray(1, 0, 1, 2)), 1012.0)
+    assertEquals(scattered.data.at(IArray(0, 0, 1, 2)), 12.0)
+    assertEquals(scattered.data.at(IArray(1, 2, 0, 2)), 1202.0)
+    assertEquals(scattered.data.at(IArray(0, 0, 0, 2)), -1.0)
 
     val retainedSelection =
       right(Selection.fromOrdinals(domain.space, Vector(1, 10)))

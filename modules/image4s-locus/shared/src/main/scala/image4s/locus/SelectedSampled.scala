@@ -207,7 +207,7 @@ final class SelectedSampled[
       shape <- Shape
         .from(domain.grid.shape ++ nonSpatialAxes.shape)
         .left
-        .map(error => SelectedSampledError.InvalidStorageShape(error.getMessage))
+        .map(error => SelectedSampledError.InvalidStorageShape(error.reason))
       dense = scatterValues(shape, fill)
       sampled <-
         given ValueSemantics[A, Sem] = valueSemantics
@@ -420,7 +420,7 @@ object SelectedSampled:
       shape <- Shape
         .from(nativeSelection.size +: image.nonSpatialAxes.shape)
         .left
-        .map(error => SelectedSampledError.InvalidStorageShape(error.getMessage))
+        .map(error => SelectedSampledError.InvalidStorageShape(error.reason))
       compact = gatherValues(domain, image, nativeSelection, shape)
       selected <- create(
         domain,
@@ -452,9 +452,9 @@ object SelectedSampled:
 
   /** Allocation-disciplined D3 scalar gather.
     *
-    * The D3/rank-3 contract permits primitive coordinate access without a
-    * dynamic index array. One canonical compact Ravel destination is retained;
-    * the exact selection remains the sole support and ordering owner.
+    * The D3/rank-3 contract permits primitive coordinate access without a dynamic index array. One
+    * canonical compact Ravel destination is retained; the exact selection remains the sole support
+    * and ordering owner.
     */
   def gatherVolume[
       F <: Frame[D3],
@@ -482,19 +482,18 @@ object SelectedSampled:
         val ny = domain.grid.shape(1)
         val nz = domain.grid.shape(2)
         val plane = ny * nz
-        NDArray.build[A, Rank[1]](Shape(nativeSelection.size)):
-          output =>
-            var position = 0
-            while position < nativeSelection.size do
-              val selectedPosition =
-                nativeSelection.positions.indexAtValidatedOrdinal(position)
-              val ordinal = nativeSelection(selectedPosition).ordinal
-              val x = ordinal / plane
-              val withinPlane = ordinal % plane
-              val y = withinPlane / nz
-              val z = withinPlane % nz
-              output.writeLinear(position, image.data(x, y, z))
-              position += 1
+        NDArray.build[A, Rank[1]](Shape(nativeSelection.size)): output =>
+          var position = 0
+          while position < nativeSelection.size do
+            val selectedPosition =
+              nativeSelection.positions.indexAtValidatedOrdinal(position)
+            val ordinal = nativeSelection(selectedPosition).ordinal
+            val x = ordinal / plane
+            val withinPlane = ordinal % plane
+            val y = withinPlane / nz
+            val z = withinPlane % nz
+            output.writeLinear(position, image.data(x, y, z))
+            position += 1
       selected <- create(
         domain,
         nativeSelection,
@@ -544,9 +543,9 @@ object SelectedSampled:
   ](
       selected: SelectedSampled[F, D3, S, A, Sem, Rank[1]]
   )
-    /** Allocation-disciplined scalar scatter to one canonical D3 Ravel
-      * destination. The compact selection is reused and no dynamic-rank
-      * iterator or output-sized staging representation is created.
+    /** Allocation-disciplined scalar scatter to one canonical D3 Ravel destination. The compact
+      * selection is reused and no dynamic-rank iterator or output-sized staging representation is
+      * created.
       */
     def scatterVolume(
         fill: A

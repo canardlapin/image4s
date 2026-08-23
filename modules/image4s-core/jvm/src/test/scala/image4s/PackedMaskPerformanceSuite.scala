@@ -10,7 +10,6 @@ import image4s.geometry.GeometryError
 import munit.FunSuite
 import ravel.DType.given
 import ravel.NDArray
-import ravel.packed.PackedArray
 import ravel.packed.PackedBits
 
 final class PackedMaskPerformanceSuite extends FunSuite:
@@ -49,7 +48,9 @@ final class PackedMaskPerformanceSuite extends FunSuite:
 
     Vector.fill(5)(run())
     val allocated = Vector.fill(7)(allocatedBytes(run())).sorted.apply(3)
-    val wordBytes = PackedArray.wordCount(samples, PackedBits.B1).toLong * 4L
+    val wordBytes =
+      ((samples + PackedBits.B1.codesPerWord - 1) /
+        PackedBits.B1.codesPerWord).toLong * 4L
     val booleanBytes = samples.toLong
 
     assert(

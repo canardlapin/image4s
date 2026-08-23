@@ -116,10 +116,10 @@ object PackedEncoding:
 final class PackedSampled[S <: SampleSpace[?, ?], A] private (
     val sampleSpace: S,
     val encoding: PackedEncoding[A],
-    val codes: PackedArray
+    val codes: PackedArray[AnyRank]
 ):
   def logicalShape: Vector[Int] =
-    codes.shape
+    Vector.tabulate(codes.shape.rank)(codes.shape.apply)
 
   def size: Int =
     codes.size
@@ -155,7 +155,7 @@ object PackedSampled:
   ): Either[PackedImageError, PackedSampled[S, A]] =
     PackedArray
       .fromCodes(
-        image.logicalShape,
+        image.data.shape,
         encoding.bits,
         image.data.elementsIterator.map(encoding.encode)
       )
@@ -175,7 +175,7 @@ object PackedSampled:
   private[image4s] def fromCodes[S <: SampleSpace[?, ?], A](
       sampleSpace: S,
       encoding: PackedEncoding[A],
-      codes: PackedArray
+      codes: PackedArray[AnyRank]
   ): PackedSampled[S, A] =
     new PackedSampled(sampleSpace, encoding, codes)
 
@@ -222,7 +222,10 @@ private def combineMasks[S <: SampleSpace[?, ?]](
     left: PackedSampled[S, Boolean],
     right: PackedSampled[?, Boolean]
 )(
-    op: (PackedArray, PackedArray) => Either[PackedError, PackedArray]
+    op: (
+        PackedArray[AnyRank],
+        PackedArray[AnyRank]
+    ) => Either[PackedError, PackedArray[AnyRank]]
 ): Either[PackedImageError, PackedSampled[S, Boolean]] =
   if left.logicalShape != right.logicalShape ||
     !left.sampleSpace.grid.sameRuntimeOwnerAs(right.sampleSpace.grid)

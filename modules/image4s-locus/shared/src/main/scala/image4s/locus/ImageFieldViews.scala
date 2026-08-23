@@ -8,6 +8,7 @@ import locus4s.Index
 import locus4s.data.Field
 import ravel.AnyRank
 import ravel.NDArray
+import ravel.Rank
 
 /** Zero-copy field view of one spatial-only image.
   *
@@ -33,16 +34,21 @@ final class SpatialFieldView[
     val ordinal = index.ordinal
     bridge.grid.shape match
       case Vector(_, second) =>
-        image.data(ordinal / second, ordinal % second)
+        image.data
+          .asInstanceOf[NDArray[A, Rank[2]]](
+            ordinal / second,
+            ordinal % second
+          )
       case Vector(_, second, third) =>
         val plane = second * third
         val firstIndex = ordinal / plane
         val withinPlane = ordinal % plane
-        image.data(
-          firstIndex,
-          withinPlane / third,
-          withinPlane % third
-        )
+        image.data
+          .asInstanceOf[NDArray[A, Rank[3]]](
+            firstIndex,
+            withinPlane / third,
+            withinPlane % third
+          )
       case _ =>
         // Geometry admits only D2 and D3. Keep this branch total if a future
         // dimension is added before this adapter is revised.

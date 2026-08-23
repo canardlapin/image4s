@@ -128,7 +128,10 @@ final class PackedSampledSuite extends FunSuite:
     val image = labelImage(Vector(4, 6), labels)
     val packed =
       packedRight(PackedSampled.pack(image, PackedEncoding.Labels(PackedBits.B4)))
-    val narrowed = packed.codes.narrow(0, 1, 2).flatMap(_.narrow(1, 2, 3))
+    val narrowed =
+      packed.codes
+        .narrowChecked(0, 1, 2)
+        .flatMap(_.narrowChecked(1, 2, 3))
 
     narrowed match
       case Right(view) =>
