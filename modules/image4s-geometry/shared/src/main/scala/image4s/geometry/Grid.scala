@@ -270,14 +270,26 @@ object Grid:
   ): Either[GeometryError, GridCongruence[D, LF, RF]] =
     for
       _ <- Frame.align(left.frame, right.frame)
-      _ <-
-        Either.cond(
-          left.shape == right.shape &&
-            left.indexToFrame.rowMajor == right.indexToFrame.rowMajor,
-          (),
-          GeometryError.GridsNotCongruent(0.0)
-        )
+      _ <- exactGeometryMatch(left, right)
     yield new GridCongruence(left, right, 0.0, true)
+
+  /** Certify exact equality of grid shape and index-to-frame geometry.
+    *
+    * Unlike [[exactCongruence]], this relation deliberately makes no frame-identity
+    * claim. It is intended for trust boundaries that decode an independent grid,
+    * validate its serialized geometry, and then bind its values to an authoritative
+    * live grid.
+    */
+  def exactGeometryMatch[D <: Dim, LF <: Frame[D], RF <: Frame[D]](
+      left: Grid[LF, D],
+      right: Grid[RF, D]
+  ): Either[GeometryError, GridGeometryMatch[D, LF, RF]] =
+    Either.cond(
+      left.shape == right.shape &&
+        left.indexToFrame.rowMajor == right.indexToFrame.rowMajor,
+      new GridGeometryMatch(left, right, 0.0, true),
+      GeometryError.GridsNotCongruent(0.0)
+    )
 
   def approximateCongruence[
       D <: Dim,
@@ -288,29 +300,49 @@ object Grid:
       right: Grid[RF, D],
       tolerance: Double
   ): Either[GeometryError, GridCongruence[D, LF, RF]] =
+    for
+      _ <- Frame.align(left.frame, right.frame)
+      geometry <- approximateGeometryMatch(left, right, tolerance)
+    yield new GridCongruence(
+      left,
+      right,
+      tolerance,
+      geometry.exact
+    )
+
+  /** Certify approximate equality of grid shape and index-to-frame geometry.
+    *
+    * This does not align, convert, or otherwise equate the grids' frame owners.
+    * Use [[approximateCongruence]] when coordinate interchangeability is required.
+    */
+  def approximateGeometryMatch[
+      D <: Dim,
+      LF <: Frame[D],
+      RF <: Frame[D]
+  ](
+      left: Grid[LF, D],
+      right: Grid[RF, D],
+      tolerance: Double
+  ): Either[GeometryError, GridGeometryMatch[D, LF, RF]] =
     if !tolerance.isFinite || tolerance < 0.0 then
       Left(GeometryError.InvalidCongruenceTolerance(tolerance))
     else
-      for
-        _ <- Frame.align(left.frame, right.frame)
-        sameShape = left.shape == right.shape
-        sameAffine =
-          left.indexToFrame.rowMajor
-            .zip(right.indexToFrame.rowMajor)
-            .forall { case (leftValue, rightValue) =>
-              math.abs(leftValue - rightValue) <= tolerance
-            }
-        _ <-
-          Either.cond(
-            sameShape && sameAffine,
-            (),
-            GeometryError.GridsNotCongruent(tolerance)
-          )
-      yield new GridCongruence(
-        left,
-        right,
-        tolerance,
-        left.indexToFrame.rowMajor == right.indexToFrame.rowMajor
+      val sameShape = left.shape == right.shape
+      val sameAffine =
+        left.indexToFrame.rowMajor
+          .zip(right.indexToFrame.rowMajor)
+          .forall { case (leftValue, rightValue) =>
+            math.abs(leftValue - rightValue) <= tolerance
+          }
+      Either.cond(
+        sameShape && sameAffine,
+        new GridGeometryMatch(
+          left,
+          right,
+          tolerance,
+          left.indexToFrame.rowMajor == right.indexToFrame.rowMajor
+        ),
+        GeometryError.GridsNotCongruent(tolerance)
       )
 
   private def create[D <: Dim, F <: Frame[D]](
@@ -467,6 +499,21 @@ object GridAlignment:
     else Left(left.mismatchWith(right))
 
 final class GridCongruence[
+    D <: Dim,
+    LF <: Frame[D],
+    RF <: Frame[D]
+] private[geometry] (
+    val left: Grid[LF, D],
+    val right: Grid[RF, D],
+    val tolerance: Double,
+    val exact: Boolean
+)
+
+/** Evidence that two grids have the same shape and index-to-frame geometry.
+  *
+  * This receipt carries no frame alignment and cannot convert frame-owned values.
+  */
+final class GridGeometryMatch[
     D <: Dim,
     LF <: Frame[D],
     RF <: Frame[D]

@@ -105,6 +105,8 @@ assert(channel.coordinateAt(0) ==
 Regular axes store an origin and step. Explicit axes retain each numeric
 coordinate. Categorical axes retain labels. An ordinal axis is available when
 only position is known; it does not pretend to know a physical coordinate.
+Selecting an ordinal axis retains the requested source ordinals, including
+sparse, reversed, and duplicate coordinates.
 
 ## Axis order is part of the sample space
 

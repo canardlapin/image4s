@@ -251,6 +251,389 @@ final class AxisSuite extends ScalaCheckSuite:
         )
       }
 
+  property("axis selection preserves every requested coordinate in order"):
+    val selectionCase =
+      for
+        extent <- Gen.choose(1, 32)
+        indices <- Gen.nonEmptyListOf(Gen.choose(0, extent - 1))
+      yield extent -> indices.take(64).toVector
+
+    forAll(selectionCase): (extent, indices) =>
+      val axes =
+        Vector(
+          imageRight(Axis.ordinal("ordinal", AxisKind.Batch, extent)),
+          imageRight(
+            Axis.regular(
+              "time",
+              AxisKind.Time,
+              extent,
+              -3.5,
+              0.8,
+              AxisUnit.Seconds
+            )
+          ),
+          imageRight(
+            Axis.explicit(
+              "echo",
+              AxisKind.Echo,
+              Vector.tabulate(extent)(index => 7.0 + index.toDouble * index.toDouble),
+              AxisUnit.Milliseconds
+            )
+          ),
+          imageRight(
+            Axis.categorical(
+              "channel",
+              AxisKind.Channel,
+              Vector.tabulate(extent)(index => s"channel-$index")
+            )
+          )
+        )
+
+      axes.foreach { source =>
+        val selected = imageRight(source.select(indices))
+        assertEquals(selected.name, source.name)
+        assertEquals(selected.kind, source.kind)
+        assertEquals(selected.extent, indices.size)
+        indices.zipWithIndex.foreach { case (sourceIndex, targetIndex) =>
+          assertEquals(
+            selected.coordinateAt(targetIndex),
+            source.coordinateAt(sourceIndex)
+          )
+        }
+        assertEquals(
+          imageRight(Axis.fromRecord(selected.record)).record,
+          selected.record
+        )
+      }
+
+  test("axis selection retains reverse, sparse, and duplicate order for every model"):
+    val axes =
+      Vector(
+        imageRight(Axis.ordinal("ordinal", AxisKind.Batch, 6)),
+        imageRight(
+          Axis.regular(
+            "time",
+            AxisKind.Time,
+            6,
+            1.0,
+            0.5,
+            AxisUnit.Seconds
+          )
+        ),
+        imageRight(
+          Axis.explicit(
+            "echo",
+            AxisKind.Echo,
+            Vector(9.0, 11.0, 15.0, 21.0, 29.0, 39.0),
+            AxisUnit.Milliseconds
+          )
+        ),
+        imageRight(
+          Axis.categorical(
+            "trial",
+            AxisKind.Other,
+            Vector("a", "b", "c", "d", "e", "f")
+          )
+        )
+      )
+    val selections =
+      Vector(
+        Vector(5, 4, 3, 2, 1, 0),
+        Vector(0, 3, 5),
+        Vector(2, 2, 0, 5, 0)
+      )
+
+    axes.foreach { source =>
+      selections.foreach { indices =>
+        val selected = imageRight(source.select(indices))
+        assertEquals(
+          Vector.tabulate(selected.extent)(selected.coordinateAt),
+          indices.map(source.coordinateAt)
+        )
+      }
+    }
+    assertEquals(
+      imageRight(axes(1).select(selections(0))).record.coordinates,
+      AxisCoordinatesRecord.Regular(
+        6,
+        3.5,
+        -0.5,
+        AxisUnit.Seconds.id
+      )
+    )
+    assertEquals(
+      imageRight(axes(1).select(selections(1))).record.coordinates,
+      AxisCoordinatesRecord.Explicit(
+        Vector(1.0, 2.5, 3.5),
+        AxisUnit.Seconds.id
+      )
+    )
+
+  test("axis selection rejects empty and out-of-bounds requests with typed errors"):
+    val axis = imageRight(Axis.ordinal("time", AxisKind.Time, 3))
+
+    assertEquals(
+      axis.select(Vector.empty),
+      Left(ImageError.EmptyAxisSelection(axis.name))
+    )
+    assertEquals(
+      axis.select(Vector(0, 3)),
+      Left(ImageError.NonSpatialIndexOutOfBounds(axis.name, 3, 3))
+    )
+    assertEquals(
+      Axis.fromRecord(
+        AxisRecord(
+          "time",
+          "time",
+          AxisCoordinatesRecord.OrdinalValues(Vector(0, -1))
+        )
+      ),
+      Left(ImageError.InvalidOrdinalAxisCoordinate("time", 1, -1))
+    )
+
+  test("continuous regular concatenation preserves sampling metadata and coordinates"):
+    val left =
+      imageRight(
+        Axis.regular(
+          "time",
+          AxisKind.Time,
+          3,
+          0.0,
+          2.0,
+          AxisUnit.Seconds
+        )
+      )
+    val right =
+      imageRight(
+        Axis.regular(
+          "time",
+          AxisKind.Time,
+          2,
+          6.0,
+          2.0,
+          AxisUnit.Seconds
+        )
+      )
+    val result =
+      imageRight(
+        left.concatenate(right, AxisConcatenationPolicy.RequireContinuous)
+      )
+
+    assertEquals(result.name, left.name)
+    assertEquals(result.kind, AxisKind.Time)
+    assertEquals(
+      result.record.coordinates,
+      AxisCoordinatesRecord.Regular(
+        5,
+        0.0,
+        2.0,
+        AxisUnit.Seconds.id
+      )
+    )
+    assertEquals(
+      Vector.tabulate(result.extent)(result.coordinateAt),
+      Vector(0.0, 2.0, 4.0, 6.0, 8.0).map(value =>
+        Right(AxisCoordinate.Numeric(value, AxisUnit.Seconds))
+      )
+    )
+
+  test("axis concatenation reports exact name, kind, and unit mismatches"):
+    val left =
+      imageRight(
+        Axis.regular(
+          "time",
+          AxisKind.Time,
+          2,
+          0.0,
+          1.0,
+          AxisUnit.Seconds
+        )
+      )
+    val wrongName =
+      imageRight(
+        Axis.regular(
+          "acquisition",
+          AxisKind.Time,
+          2,
+          2.0,
+          1.0,
+          AxisUnit.Seconds
+        )
+      )
+    val wrongKind =
+      imageRight(
+        Axis.regular(
+          "time",
+          AxisKind.Echo,
+          2,
+          2.0,
+          1.0,
+          AxisUnit.Seconds
+        )
+      )
+    val wrongUnit =
+      imageRight(
+        Axis.regular(
+          "time",
+          AxisKind.Time,
+          2,
+          2.0,
+          1.0,
+          AxisUnit.Milliseconds
+        )
+      )
+
+    assertEquals(
+      Axis.concatenate(
+        left,
+        wrongName,
+        AxisConcatenationPolicy.RequireContinuous
+      ),
+      Left(
+        ImageError.AxisConcatenationNameMismatch(
+          left.name,
+          wrongName.name
+        )
+      )
+    )
+    assertEquals(
+      left.concatenate(wrongKind, AxisConcatenationPolicy.RequireContinuous),
+      Left(
+        ImageError.AxisConcatenationKindMismatch(
+          AxisKind.Time,
+          AxisKind.Echo
+        )
+      )
+    )
+    assertEquals(
+      left.concatenate(wrongUnit, AxisConcatenationPolicy.RequireContinuous),
+      Left(
+        ImageError.AxisConcatenationUnitMismatch(
+          left.name,
+          AxisUnit.Seconds,
+          AxisUnit.Milliseconds
+        )
+      )
+    )
+
+  test("continuous concatenation distinguishes gaps, overlaps, and step changes"):
+    val left =
+      imageRight(
+        Axis.regular(
+          "time",
+          AxisKind.Time,
+          3,
+          0.0,
+          2.0,
+          AxisUnit.Seconds
+        )
+      )
+    val gap =
+      imageRight(
+        Axis.regular(
+          "time",
+          AxisKind.Time,
+          2,
+          8.0,
+          2.0,
+          AxisUnit.Seconds
+        )
+      )
+    val overlap =
+      imageRight(
+        Axis.regular(
+          "time",
+          AxisKind.Time,
+          2,
+          4.0,
+          2.0,
+          AxisUnit.Seconds
+        )
+      )
+    val changedStep =
+      imageRight(
+        Axis.regular(
+          "time",
+          AxisKind.Time,
+          2,
+          6.0,
+          1.0,
+          AxisUnit.Seconds
+        )
+      )
+
+    assertEquals(
+      left.concatenate(gap, AxisConcatenationPolicy.RequireContinuous),
+      Left(
+        ImageError.AxisConcatenationDiscontinuity(
+          left.name,
+          AxisCoordinate.Numeric(6.0, AxisUnit.Seconds),
+          AxisCoordinate.Numeric(8.0, AxisUnit.Seconds)
+        )
+      )
+    )
+    assertEquals(
+      left.concatenate(overlap, AxisConcatenationPolicy.RequireContinuous),
+      Left(
+        ImageError.AxisConcatenationOverlap(
+          left.name,
+          AxisCoordinate.Numeric(4.0, AxisUnit.Seconds),
+          AxisCoordinate.Numeric(4.0, AxisUnit.Seconds)
+        )
+      )
+    )
+    assertEquals(
+      left.concatenate(changedStep, AxisConcatenationPolicy.RequireContinuous),
+      Left(
+        ImageError.AxisConcatenationStepMismatch(
+          left.name,
+          2.0,
+          1.0,
+          AxisUnit.Seconds
+        )
+      )
+    )
+
+  test("categorical axes require the declared-coordinate policy"):
+    val left =
+      imageRight(
+        Axis.categorical(
+          "trial",
+          AxisKind.Other,
+          Vector("left", "right")
+        )
+      )
+    val right =
+      imageRight(
+        Axis.categorical(
+          "trial",
+          AxisKind.Other,
+          Vector("catch", "probe")
+        )
+      )
+
+    assertEquals(
+      left.concatenate(right, AxisConcatenationPolicy.RequireContinuous),
+      Left(
+        ImageError.AxisConcatenationContinuityUnavailable(
+          left.name,
+          left.record.coordinates,
+          right.record.coordinates
+        )
+      )
+    )
+    assertEquals(
+      imageRight(
+        left.concatenate(
+          right,
+          AxisConcatenationPolicy.AppendDeclaredCoordinates
+        )
+      ).record.coordinates,
+      AxisCoordinatesRecord.Categorical(
+        Vector("left", "right", "catch", "probe")
+      )
+    )
+
   test("regular, explicit, categorical, and ordinal records round trip"):
     val customKind = imageRight(AxisKind.custom("study:trial"))
     val customUnit = imageRight(AxisUnit.custom("vendor:tick"))
@@ -692,6 +1075,8 @@ final class AxisSuite extends ScalaCheckSuite:
     record.coordinates match
       case AxisCoordinatesRecord.Ordinal(extent) =>
         s"$prefix|ordinal|$extent"
+      case AxisCoordinatesRecord.OrdinalValues(values) =>
+        s"$prefix|ordinal-values|${values.mkString(",")}"
       case AxisCoordinatesRecord.Regular(extent, origin, step, unit) =>
         s"$prefix|regular|$extent|${encodeDouble(origin)}|" +
           s"${encodeDouble(step)}|$unit"

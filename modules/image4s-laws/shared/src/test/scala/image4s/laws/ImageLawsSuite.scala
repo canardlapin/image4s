@@ -212,7 +212,9 @@ final class ImageLawsSuite extends ScalaCheckSuite:
             )
           )
         )
-      axes.foreach { axis =>
+      val selectedOrdinal =
+        imageRight(axes.head.select(Vector(extent - 1, 0, extent - 1)))
+      (axes :+ selectedOrdinal).foreach { axis =>
         assert(AxisLaws.coordinateCountMatchesExtent(axis))
         assert(AxisLaws.coordinateLookupMatchesRecord(axis))
         assert(AxisLaws.recordRoundTrip(axis))

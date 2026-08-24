@@ -61,6 +61,14 @@ object ImageError:
     val message: String =
       s"non-spatial axis $name coordinate $index must be finite, got $value"
 
+  final case class InvalidOrdinalAxisCoordinate(
+      name: String,
+      index: Int,
+      value: Int
+  ) extends ImageError:
+    val message: String =
+      s"non-spatial axis $name ordinal coordinate $index must be non-negative, got $value"
+
   final case class InvalidCategoricalAxisLabel(
       name: String,
       index: Int,
@@ -69,6 +77,79 @@ object ImageError:
     val message: String =
       s"non-spatial axis $name categorical label $index must be non-empty " +
         s"and contain no surrounding whitespace, got '$value'"
+
+  final case class EmptyAxisSelection(name: AxisName) extends ImageError:
+    val message: String =
+      s"selection of non-spatial axis ${name.value} must contain at least one index"
+
+  final case class AxisConcatenationNameMismatch(
+      left: AxisName,
+      right: AxisName
+  ) extends ImageError:
+    val message: String =
+      s"cannot concatenate non-spatial axes named ${left.value} and ${right.value}"
+
+  final case class AxisConcatenationKindMismatch(
+      left: AxisKind,
+      right: AxisKind
+  ) extends ImageError:
+    val message: String =
+      s"cannot concatenate non-spatial axes of kinds $left and $right"
+
+  final case class AxisConcatenationUnitMismatch(
+      name: AxisName,
+      left: AxisUnit,
+      right: AxisUnit
+  ) extends ImageError:
+    val message: String =
+      s"cannot concatenate non-spatial axis ${name.value} with units " +
+        s"${left.id} and ${right.id}"
+
+  final case class AxisConcatenationCoordinateMismatch(
+      name: AxisName,
+      left: AxisCoordinatesRecord,
+      right: AxisCoordinatesRecord
+  ) extends ImageError:
+    val message: String =
+      s"cannot concatenate incompatible coordinate representations for " +
+        s"non-spatial axis ${name.value}: left=$left, right=$right"
+
+  final case class AxisConcatenationStepMismatch(
+      name: AxisName,
+      left: Double,
+      right: Double,
+      unit: AxisUnit
+  ) extends ImageError:
+    val message: String =
+      s"continuous concatenation of non-spatial axis ${name.value} requires " +
+        s"one step, got ${left}${unit.id} and ${right}${unit.id}"
+
+  final case class AxisConcatenationOverlap(
+      name: AxisName,
+      leftLast: AxisCoordinate,
+      rightFirst: AxisCoordinate
+  ) extends ImageError:
+    val message: String =
+      s"continuous concatenation of non-spatial axis ${name.value} overlaps " +
+        s"at boundary $leftLast then $rightFirst"
+
+  final case class AxisConcatenationDiscontinuity(
+      name: AxisName,
+      expected: AxisCoordinate,
+      actual: AxisCoordinate
+  ) extends ImageError:
+    val message: String =
+      s"continuous concatenation of non-spatial axis ${name.value} expected " +
+        s"boundary coordinate $expected, got $actual"
+
+  final case class AxisConcatenationContinuityUnavailable(
+      name: AxisName,
+      left: AxisCoordinatesRecord,
+      right: AxisCoordinatesRecord
+  ) extends ImageError:
+    val message: String =
+      s"continuous concatenation is unavailable for non-spatial axis " +
+        s"${name.value} coordinate representations: left=$left, right=$right"
 
   final case class DuplicateAxisName(name: String) extends ImageError:
     val message: String =

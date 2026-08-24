@@ -495,6 +495,21 @@ Grid.in[D2](patient)(Vector(64, 64), Affine.identity[D2])
 
     assertEquals(transformed, Vector(8.0, 12.0))
 
+  test("affine equality and hashing are geometric values, not construction identity"):
+    val values = Vector(
+      1.0, 0.0, 0.0, 3.0,
+      0.0, 2.0, 0.0, -4.0,
+      0.0, 0.0, 3.0, 5.0,
+      0.0, 0.0, 0.0, 1.0
+    )
+    val first = right(Affine.fromRowMajor[D3](values))
+    val second = right(Affine.fromRowMajor[D3](values))
+    val different = right(Affine.fromRowMajor[D3](values.updated(3, 4.0)))
+
+    assertEquals(first, second)
+    assertEquals(first.hashCode, second.hashCode)
+    assertNotEquals(first, different)
+
   test("affines reject invalid homogeneous rows and copy borrowed data"):
     val invalid = Affine.fromRowMajor[D2](
       Vector(
@@ -859,6 +874,49 @@ Grid.in[D2](patient)(Vector(64, 64), Affine.identity[D2])
       Grid
         .approximateCongruence(first, approximate, Double.NaN)
         .isLeft
+    )
+
+  test("geometry matching certifies decoded grids without aligning frame owners"):
+    val decodedFrame = right(Frame.named[D2]("decoded"))
+    val authoritativeFrame = right(Frame.named[D2]("authoritative"))
+    val identity = Affine.identity[D2]
+    val nearAffine =
+      right(
+        Affine.fromRowMajor[D2](
+          Vector(
+            1.0, 0.0, 1e-9, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0
+          )
+        )
+      )
+    val decoded = right(Grid.in[D2](decodedFrame)(Vector(8, 9), identity))
+    val authoritative =
+      right(Grid.in[D2](authoritativeFrame)(Vector(8, 9), nearAffine))
+    val wrongShape =
+      right(Grid.in[D2](authoritativeFrame)(Vector(8, 10), identity))
+
+    val matched =
+      right(
+        Grid.approximateGeometryMatch(
+          decoded,
+          authoritative,
+          tolerance = 1e-8
+        )
+      )
+
+    assert(!matched.exact)
+    assertEquals(matched.left, decoded)
+    assertEquals(matched.right, authoritative)
+    assertEquals(
+      Grid.approximateCongruence(decoded, authoritative, 1e-8),
+      Left(GeometryError.EphemeralFrameMismatch)
+    )
+    assertEquals(
+      Grid.approximateGeometryMatch(decoded, wrongShape, 1e-8),
+      Left(GeometryError.GridsNotCongruent(1e-8))
+    )
+    assertEquals(
+      Grid.approximateGeometryMatch(decoded, authoritative, -1.0),
+      Left(GeometryError.InvalidCongruenceTolerance(-1.0))
     )
 
   test("same grid key across registries aligns distinct live owners"):

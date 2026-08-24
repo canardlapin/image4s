@@ -15,6 +15,14 @@ final class Affine[D <: Dim] private (
     private val maximumConditionNumber: Double,
     private val maximumInverseResidual: Double
 ):
+  override def equals(other: Any): Boolean =
+    other match
+      case that: Affine[?] => rowMajor == that.rowMajor
+      case _               => false
+
+  override def hashCode(): Int =
+    rowMajor.##
+
   def inverse: Affine[D] =
     new Affine(
       inverseMatrix,

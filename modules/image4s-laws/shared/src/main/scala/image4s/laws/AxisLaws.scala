@@ -22,6 +22,12 @@ object AxisLaws:
             axis.coordinateAt(index).contains(AxisCoordinate.Ordinal(index))
           )
           .forall(identity)
+      case AxisCoordinatesRecord.OrdinalValues(values) =>
+        values.zipWithIndex.forall { case (value, index) =>
+          axis
+            .coordinateAt(index)
+            .contains(AxisCoordinate.Ordinal(value))
+        }
       case AxisCoordinatesRecord.Regular(
             extent,
             origin,

@@ -87,11 +87,12 @@ authority for physical orientation, permutation, reflection, spacing, and
 origin.
 
 Non-spatial axes retain their declared order and coordinate sampling. Each axis
-is ordinal, regular numeric, explicit numeric, or categorical. Numeric
-coordinates retain their unit identifier. Time, channel, echo, coil,
-direction, and batch axes never participate in spatial maps. Domain metadata
-such as BIDS entities, slice-timing policy, phase encoding, and gradient tables
-does not become part of the core axis record.
+is ordinal, selected ordinal, regular numeric, explicit numeric, or categorical.
+Selected ordinal records retain source ordinals after sparse, reversed, or
+duplicate selection. Numeric coordinates retain their unit identifier. Time,
+channel, echo, coil, direction, and batch axes never participate in spatial
+maps. Domain metadata such as BIDS entities, slice-timing policy, phase
+encoding, and gradient tables does not become part of the core axis record.
 
 ## Geometry identity
 
