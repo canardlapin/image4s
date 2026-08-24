@@ -40,7 +40,7 @@ lazy val galeBuild =
 lazy val galeCoreJVM = ProjectRef(galeBuild, "coreJVM")
 lazy val galeCoreJS  = ProjectRef(galeBuild, "coreJS")
 
-lazy val locus4sRevision = "4fedc7febf2728f51f6bb008ac7fe41060edc18e"
+lazy val locus4sRevision = "eec9a4b9527f7f6a62256dcf45a47e14bd2c7fb5"
 lazy val locus4sBuild =
   sys.props
     .get("image4s.locus4s.build")

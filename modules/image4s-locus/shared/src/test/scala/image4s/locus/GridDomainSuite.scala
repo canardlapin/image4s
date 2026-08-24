@@ -17,7 +17,7 @@ final class GridDomainSuite extends munit.FunSuite:
     val frame = right(Frame.named[D3]("asymmetric"))
     val grid =
       right(Grid.in[D3](frame)(Vector(2, 3, 4), Affine.identity[D3]))
-    val registry = sequentialRegistry("asymmetric-domain")
+    val registry = DomainRegistry.empty
     val resolved = right(GridDomain.fresh(grid, "voxels", registry))
     val bridge = resolved.value
 
@@ -52,7 +52,7 @@ final class GridDomainSuite extends munit.FunSuite:
         GridDomain.fresh(
           grid,
           "bounds",
-          sequentialRegistry("bounds-domain")
+          DomainRegistry.empty
         )
       )
     val bridge = resolved.value
@@ -120,7 +120,7 @@ final class GridDomainSuite extends munit.FunSuite:
         GridDomain.fresh(
           grid,
           "restored-domain",
-          sequentialRegistry("restore-domain")
+          DomainRegistry.empty
         )
       )
     val record = fresh.value.record
@@ -142,6 +142,34 @@ final class GridDomainSuite extends munit.FunSuite:
         )
     )
 
+  test("fresh domains converge by grid structure and reject id collisions"):
+    val frame = right(Frame.named[D2]("domain-identity"))
+    val grid =
+      right(Grid.in[D2](frame)(Vector(2, 3), Affine.identity[D2]))
+    val first =
+      right(GridDomain.fresh(grid, "first label", DomainRegistry.empty))
+    val second =
+      right(GridDomain.fresh(grid, "renamed label", DomainRegistry.empty))
+
+    assertEquals(first.value.space.key, second.value.space.key)
+    assert(!first.value.space.sameRuntimeOwnerAs(second.value.space))
+
+    val conflictingGrid =
+      right(
+        Grid.restore(
+          grid.record.copy(shape = Vector(3, 2)),
+          frame,
+          GridRegistry.empty
+        )
+      )
+    assert(
+      GridDomain
+        .fresh(conflictingGrid, "conflicting", first.registry)
+        .left
+        .toOption
+        .exists(_.isInstanceOf[GridDomainError.DomainRestoreFailure])
+    )
+
   test("equal grid records with distinct live owners remain distinct"):
     val frame = right(Frame.named[D2]("grid-owners"))
     val source =
@@ -155,7 +183,7 @@ final class GridDomainSuite extends munit.FunSuite:
         GridDomain.fresh(
           first,
           "first-grid-owner",
-          sequentialRegistry("grid-owner-domain")
+          DomainRegistry.empty
         )
       )
 
@@ -193,7 +221,7 @@ final class GridDomainSuite extends munit.FunSuite:
         GridDomain.fresh(
           grid,
           "record",
-          sequentialRegistry("record-domain")
+          DomainRegistry.empty
         )
       )
     val record = fresh.value.record
@@ -225,9 +253,6 @@ final class GridDomainSuite extends munit.FunSuite:
       third: Int
   ): Index[D3] =
     right(Index.of[D3](first, second, third))
-
-  private def sequentialRegistry(prefix: String): DomainRegistry =
-    right(DomainRegistry.withSequentialIds(prefix))
 
   private def right[E, A](value: Either[E, A]): A =
     value match

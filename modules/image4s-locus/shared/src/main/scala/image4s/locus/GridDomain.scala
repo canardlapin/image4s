@@ -1,13 +1,13 @@
 package image4s.locus
 
-import locus4s.DomainFreshError
+import locus4s.DomainError
 import locus4s.DomainRecord
 import locus4s.DomainRegistry
 import locus4s.DomainResolution
 import locus4s.DomainRestoreError
 import locus4s.FiniteSpace
-import locus4s.Point as DomainPoint
-import locus4s.PointError
+import locus4s.Index as DomainIndex
+import locus4s.IndexError
 import locus4s.SpaceMismatch
 import image4s.geometry.Dim
 import image4s.geometry.Dimension
@@ -66,7 +66,7 @@ object GridDomainError:
       extends GridDomainError:
     val message: String = error.message
 
-  final case class DomainFreshFailure(error: DomainFreshError)
+  final case class DomainFreshFailure(error: DomainError)
       extends GridDomainError:
     val message: String = error.message
 
@@ -74,7 +74,7 @@ object GridDomainError:
       extends GridDomainError:
     val message: String = error.message
 
-  final case class DomainPointFailure(error: PointError)
+  final case class DomainPointFailure(error: IndexError)
       extends GridDomainError:
     val message: String = error.message
 
@@ -166,29 +166,19 @@ final class GridDomain[
         .left
         .map(GridDomainError.GeometryFailure.apply)
 
-  /** Resolve a grid index directly to its live finite-domain point. */
-  def pointAt(index: Index[D]): Either[GridDomainError, DomainPoint[S]] =
+  /** Resolve a grid index directly to its live finite-domain index. */
+  def pointAt(index: Index[D]): Either[GridDomainError, DomainIndex[S]] =
     ordinalOf(index).flatMap: ordinal =>
       space
-        .point(ordinal)
+        .index(ordinal)
         .left
         .map(GridDomainError.DomainPointFailure.apply)
 
-  /** Recover the spatial index of a point owned by this exact live domain. */
+  /** Recover the spatial index of an index owned by this exact live domain. */
   def indexOf(
-      point: DomainPoint[S]
+      index: DomainIndex[S]
   )(using Dimension[D]): Either[GridDomainError, Index[D]] =
-    if space.contains(point) then indexOfOrdinal(point.value)
-    else
-      Left(
-        GridDomainError.DomainRuntimeOwnerMismatch(
-          SpaceMismatch(
-            space.record,
-            point.domain,
-            space.record == point.domain
-          )
-        )
-      )
+    indexOfOrdinal(index.ordinal)
 
   /** Require the exact live grid owner, not merely equal serialized metadata. */
   def validateGrid[G <: Frame[D]](
@@ -210,11 +200,7 @@ final class GridDomain[
     else
       Left(
         GridDomainError.DomainRuntimeOwnerMismatch(
-          SpaceMismatch(
-            space.record,
-            candidate.record,
-            space.record == candidate.record
-          )
+          SpaceMismatch.between(space, candidate)
         )
       )
 
@@ -254,11 +240,15 @@ object GridDomain:
       registry: DomainRegistry
   ): Either[GridDomainError, GridDomainResolution[F, D]] =
     voxelCount(grid.shape).flatMap: count =>
-      registry
-        .fresh(domainName, count)
+      domainRecord(grid.record, domainName, count)
         .left
         .map(GridDomainError.DomainFreshFailure.apply)
-        .flatMap(resolutionFrom(grid, _))
+        .flatMap: record =>
+          registry
+            .register(record)
+            .left
+            .map(GridDomainError.DomainRestoreFailure.apply)
+            .flatMap(resolutionFrom(grid, _))
 
   def restore[
       F <: Frame[D],
@@ -320,3 +310,40 @@ object GridDomain:
     if overflow then
       Left(GridDomainError.VoxelCountOverflow(shape, Int.MaxValue))
     else Right(total.toInt)
+
+  private def domainRecord(
+      grid: GridRecord,
+      domainName: String,
+      count: Int
+  ): Either[DomainError, DomainRecord] =
+    DomainRecord.parse(
+      s"image4s:grid-domain:row-major-last-axis-fastest/v1:${grid.id.value}",
+      domainName,
+      count,
+      Some(canonicalFingerprint(grid))
+    )
+
+  private def canonicalFingerprint(grid: GridRecord): String =
+    Vector(
+      component("schema", "image4s-grid-domain-key/v1"),
+      component("layout", "row-major-last-axis-fastest/v1"),
+      component("grid-id", grid.id.value),
+      component("frame-id", grid.frameId.value),
+      component("rank", grid.spatialRank.toString),
+      component("shape", grid.shape.mkString(",")),
+      component(
+        "affine-bits",
+        grid.indexToFrameRowMajor.map(encodeDouble).mkString(",")
+      ),
+      component("affine-tolerance-bits", encodeDouble(grid.affineTolerance))
+    ).mkString("|")
+
+  private def component(name: String, value: String): String =
+    s"$name:${value.length}:$value"
+
+  private def encodeDouble(value: Double): String =
+    val unpadded =
+      java.lang.Long.toHexString(
+        java.lang.Double.doubleToRawLongBits(value)
+      )
+    "0" * (16 - unpadded.length) + unpadded
