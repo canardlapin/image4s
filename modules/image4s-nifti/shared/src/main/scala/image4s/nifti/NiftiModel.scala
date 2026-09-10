@@ -239,6 +239,17 @@ object NiftiWriteOptionsError:
     val message: String =
       s"NIfTI write pixel dimension ${axis + 4} must remain finite and positive in its Float32 header field, got $value"
 
+/** Explicit NIfTI sform reference; never inferred from an affine or frame name. Unknown disables
+  * the sform, as required by the NIfTI standard.
+  */
+enum NiftiCoordinateSystem(val code: Int) derives CanEqual:
+  case Unknown extends NiftiCoordinateSystem(0)
+  case ScannerAnatomical extends NiftiCoordinateSystem(1)
+  case AlignedAnatomical extends NiftiCoordinateSystem(2)
+  case Talairach extends NiftiCoordinateSystem(3)
+  case Mni152 extends NiftiCoordinateSystem(4)
+  case TemplateOther extends NiftiCoordinateSystem(5)
+
 final class NiftiWriteOptions private (
     val datatype: NiftiDatatype,
     val slope: Double,
@@ -246,7 +257,8 @@ final class NiftiWriteOptions private (
     val integerConversion: NiftiIntegerConversion,
     val nonSpatialPixelDimensions: Vector[Double],
     val temporalUnit: NiftiTemporalUnit,
-    val ioLimits: NiftiIoLimits
+    val ioLimits: NiftiIoLimits,
+    val coordinateSystem: NiftiCoordinateSystem
 ) derives CanEqual:
   override def equals(other: Any): Boolean =
     other match
@@ -257,7 +269,8 @@ final class NiftiWriteOptions private (
         integerConversion == that.integerConversion &&
         nonSpatialPixelDimensions == that.nonSpatialPixelDimensions &&
         temporalUnit == that.temporalUnit &&
-        ioLimits == that.ioLimits
+        ioLimits == that.ioLimits &&
+        coordinateSystem == that.coordinateSystem
       case _ =>
         false
 
@@ -269,11 +282,12 @@ final class NiftiWriteOptions private (
       integerConversion,
       nonSpatialPixelDimensions,
       temporalUnit,
-      ioLimits
+      ioLimits,
+      coordinateSystem
     ).hashCode
 
   override def toString: String =
-    s"NiftiWriteOptions($datatype,$slope,$intercept,$integerConversion,$nonSpatialPixelDimensions,$temporalUnit,$ioLimits)"
+    s"NiftiWriteOptions($datatype,$slope,$intercept,$integerConversion,$nonSpatialPixelDimensions,$temporalUnit,$ioLimits,$coordinateSystem)"
 
   def withNonSpatialSampling(
       pixelDimensions: Vector[Double],
@@ -289,7 +303,8 @@ final class NiftiWriteOptions private (
           integerConversion,
           stored,
           unit,
-          ioLimits
+          ioLimits,
+          coordinateSystem
         )
       }
 
@@ -301,7 +316,20 @@ final class NiftiWriteOptions private (
       integerConversion,
       nonSpatialPixelDimensions,
       temporalUnit,
-      limits
+      limits,
+      coordinateSystem
+    )
+
+  def withCoordinateSystem(system: NiftiCoordinateSystem): NiftiWriteOptions =
+    new NiftiWriteOptions(
+      datatype,
+      slope,
+      intercept,
+      integerConversion,
+      nonSpatialPixelDimensions,
+      temporalUnit,
+      ioLimits,
+      system
     )
 
 object NiftiWriteOptions:
@@ -316,7 +344,8 @@ object NiftiWriteOptions:
       integerConversion = NiftiIntegerConversion.RejectLossy,
       nonSpatialPixelDimensions = Vector.empty,
       temporalUnit = NiftiTemporalUnit.Unknown,
-      ioLimits = NiftiIoLimits.default
+      ioLimits = NiftiIoLimits.default,
+      coordinateSystem = NiftiCoordinateSystem.ScannerAnatomical
     )
 
   def create(
@@ -326,7 +355,8 @@ object NiftiWriteOptions:
       integerConversion: NiftiIntegerConversion = NiftiIntegerConversion.RejectLossy,
       nonSpatialPixelDimensions: Vector[Double] = Vector.empty,
       temporalUnit: NiftiTemporalUnit = NiftiTemporalUnit.Unknown,
-      ioLimits: NiftiIoLimits = NiftiIoLimits.default
+      ioLimits: NiftiIoLimits = NiftiIoLimits.default,
+      coordinateSystem: NiftiCoordinateSystem = NiftiCoordinateSystem.ScannerAnatomical
   ): Either[NiftiWriteOptionsError, NiftiWriteOptions] =
     val storedSlope = slope.toFloat
     val storedIntercept = intercept.toFloat
@@ -344,7 +374,8 @@ object NiftiWriteOptions:
           integerConversion,
           stored,
           temporalUnit,
-          ioLimits
+          ioLimits,
+          coordinateSystem
         )
       }
 
@@ -552,6 +583,25 @@ sealed trait NiftiError derives CanEqual:
   def message: String
 
 object NiftiError:
+  final case class UnsupportedIncrementalOutput(path: String) extends NiftiError:
+    val message: String =
+      s"incremental output requires a seekable, uncompressed single .nii file: $path"
+
+  final case class OutputAlreadyExists(path: String) extends NiftiError:
+    val message: String = s"refusing to replace existing incremental output: $path"
+
+  case object OutputClosed extends NiftiError:
+    val message: String = "incremental NIfTI writer is closed"
+
+  final case class InvalidOutputBlock(detail: String) extends NiftiError:
+    val message: String = s"invalid incremental NIfTI block: $detail"
+
+  final case class WriteSizeOverflow(dimensions: Vector[Int]) extends NiftiError:
+    val message: String = s"NIfTI payload byte size overflows Long for $dimensions"
+
+  final case class OutputCloseFailure(primary: NiftiError, closing: NiftiError) extends NiftiError:
+    val message: String = s"${primary.message}; closing output also failed: ${closing.message}"
+
   final case class IoFailure(
       path: String,
       operation: NiftiOperation,

@@ -113,6 +113,51 @@ private object NodeNiftiFileSystem extends NiftiFileSystem[String]:
         finally NodeFs.closeSync(descriptor)
       }
 
+  override def createSeekable(
+      path: String,
+      prefix: Array[Byte],
+      payloadBytes: Long
+  ): Either[NiftiError, NiftiSeekableOutput] =
+    if prefix.length.toLong + payloadBytes > 9007199254740991L then
+      Left(NiftiError.UnsupportedIncrementalOutput(path))
+    else
+      protect(path, NiftiOperation.Write) {
+        NodeFs.mkdirSync(NodePath.dirname(path), js.Dynamic.literal(recursive = true))
+        val opened =
+          try Right(NodeFs.openSync(path, "wx"))
+          catch
+            case error: js.JavaScriptException
+                if error.exception
+                  .asInstanceOf[js.Dynamic]
+                  .code
+                  .asInstanceOf[js.UndefOr[String]]
+                  .contains("EEXIST") =>
+              Left(NiftiError.OutputAlreadyExists(path))
+        opened.flatMap { descriptor =>
+          val handle = new NiftiSeekableOutput:
+            def writeAt(offset: Long, bytes: Array[Byte], length: Int): Either[NiftiError, Unit] =
+              protect(path, NiftiOperation.Write) {
+                writePhysical(descriptor, toUint8Array(bytes, length), offset.toDouble)
+                Right(())
+              }
+            def close(): Either[NiftiError, Unit] =
+              protect(path, NiftiOperation.Write) {
+                NodeFs.closeSync(descriptor)
+                Right(())
+              }
+          val initialized = for
+            _ <- handle.writeAt(prefix.length.toLong + payloadBytes - 1L, Array(0.toByte), 1)
+            _ <- handle.writeAt(0L, prefix, prefix.length)
+          yield handle
+          initialized match
+            case Left(error) =>
+              handle.close() match
+                case Left(closing) => Left(NiftiError.OutputCloseFailure(error, closing))
+                case Right(_) => Left(error)
+            case Right(value) => Right(value)
+        }
+      }
+
   def writeBytes(
       path: String,
       bytes: Array[Byte]

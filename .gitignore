@@ -13,3 +13,4 @@ metals.sbt
 *.log
 benchmarks/motion/results/
 .DS_Store
+__pycache__/

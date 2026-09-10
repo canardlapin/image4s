@@ -77,6 +77,14 @@ private[nifti] trait NiftiFileSystem[P]:
         failure.toLeft(())
     }
 
+  /** Exclusive creation of a zero-filled seekable staging file. No resident fallback. */
+  def createSeekable(
+      path: P,
+      @scala.annotation.unused prefix: Array[Byte],
+      @scala.annotation.unused payloadBytes: Long
+  ): Either[NiftiError, NiftiSeekableOutput] =
+    Left(NiftiError.UnsupportedIncrementalOutput(show(path)))
+
   def writeBytes(
       path: P,
       bytes: Array[Byte]
@@ -128,3 +136,8 @@ private[nifti] final case class NiftiBoundedRead(
 private object NiftiFileSystem:
   def clampToInt(value: Long): Int =
     math.max(0L, math.min(value, Int.MaxValue.toLong)).toInt
+
+/** Physical offsets and lengths have already been checked by the shared writer. */
+private[nifti] trait NiftiSeekableOutput:
+  def writeAt(offset: Long, bytes: Array[Byte], length: Int): Either[NiftiError, Unit]
+  def close(): Either[NiftiError, Unit]

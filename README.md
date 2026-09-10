@@ -87,7 +87,8 @@ sbt -batch "image4s-coreJVM / Test / testOnly image4s.ApproachableApiSuite" "ima
 - Apply convolution, correlation, Gaussian filtering, thresholding, and
   binary or grayscale morphology.
 - Read and write the supported scalar NIfTI-1 subset with explicit scaling,
-  label, affine, and I/O policies.
+  label, affine, and I/O policies. [Incremental output](docs/nifti-incremental-output.md)
+  accepts spatial blocks without retaining a complete image.
 - Run the core image model on the JVM and Scala.js; the Scala.js NIfTI file
   adapter targets Node.js rather than browser filesystem APIs.
 
@@ -120,7 +121,7 @@ Start with `image4s-core`; add only the modules needed by the workflow:
 | `image4s-morphology` | binary and grayscale morphology |
 | `image4s-nifti` | NIfTI-1 parsing and encoding, with JVM and Node.js adapters |
 | `image4s-reference` | independent nearest and linear sampling oracles |
-| `image4s-locus` | checked conversion from an image grid to a locus4s finite domain |
+| `image4s-locus` | checked grid domains plus policy-explicit categorical-label assignments into locus4s |
 | `image4s-intaglio` | display-only lowering of D2 continuous images into Intaglio fields and rasters |
 
 `image4s-ops-core`, `image4s-laws`, and `image4s-ops-laws` provide shared
