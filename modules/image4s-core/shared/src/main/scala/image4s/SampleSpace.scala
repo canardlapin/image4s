@@ -1,5 +1,7 @@
 package image4s
 
+import image4s.geometry.D2
+import image4s.geometry.D3
 import image4s.geometry.Dim
 import image4s.geometry.Dimension
 import image4s.geometry.Frame
@@ -36,6 +38,28 @@ sealed trait SomeSampleSpace:
 
   final def logicalShape: Vector[Int] =
     grid.shape ++ nonSpatialAxes.shape
+
+  /** Recover a statically D2 sampling space at an existential boundary.
+    *
+    * The original sample space and runtime frame owner are retained; the frame type remains
+    * existential rather than asserting a common owner.
+    */
+  final def requireD2: Either[
+    ImageError,
+    SampleSpace[? <: Frame[D2], D2]
+  ] =
+    SampleSpace.requireD2(this)
+
+  /** Recover a statically D3 sampling space at an existential boundary.
+    *
+    * The original sample space and runtime frame owner are retained; the frame type remains
+    * existential rather than asserting a common owner.
+    */
+  final def requireD3: Either[
+    ImageError,
+    SampleSpace[? <: Frame[D3], D3]
+  ] =
+    SampleSpace.requireD3(this)
 
 final class SampleSpace[
     F0 <: Frame[D0],
@@ -180,3 +204,21 @@ object SampleSpace:
       axes: NonSpatialAxes
   ): Vector[AxisRecord] =
     axes.records
+
+  private[image4s] def requireD2(
+      space: SomeSampleSpace
+  ): Either[ImageError, SampleSpace[? <: Frame[D2], D2]] =
+    if space.spatialRank == 2 then
+      // SampleSpace is immutable. The checked dimension and existential frame
+      // refinement preserve the same live Grid and Frame owners without a copy.
+      Right(space.typed.asInstanceOf[SampleSpace[? <: Frame[D2], D2]])
+    else Left(ImageError.SpatialDimensionMismatch(2, space.spatialRank))
+
+  private[image4s] def requireD3(
+      space: SomeSampleSpace
+  ): Either[ImageError, SampleSpace[? <: Frame[D3], D3]] =
+    if space.spatialRank == 3 then
+      // SampleSpace is immutable. The checked dimension and existential frame
+      // refinement preserve the same live Grid and Frame owners without a copy.
+      Right(space.typed.asInstanceOf[SampleSpace[? <: Frame[D3], D3]])
+    else Left(ImageError.SpatialDimensionMismatch(3, space.spatialRank))
