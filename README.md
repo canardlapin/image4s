@@ -87,7 +87,8 @@ sbt -batch "image4s-coreJVM / Test / testOnly image4s.ApproachableApiSuite" "ima
 - Apply convolution, correlation, Gaussian filtering, thresholding, and
   binary or grayscale morphology.
 - Read and write the supported scalar NIfTI-1 subset with explicit scaling,
-  label, affine, and I/O policies.
+  label, affine, and I/O policies. [Incremental output](docs/nifti-incremental-output.md)
+  accepts spatial blocks without retaining a complete image.
 - Run the core image model on the JVM and Scala.js; the Scala.js NIfTI file
   adapter targets Node.js rather than browser filesystem APIs.
 

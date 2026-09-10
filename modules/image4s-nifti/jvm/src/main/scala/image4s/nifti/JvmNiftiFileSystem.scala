@@ -4,6 +4,9 @@ import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.InputStream
 import java.io.OutputStream
+import java.nio.ByteBuffer
+import java.nio.channels.FileChannel
+import java.nio.file.{FileAlreadyExistsException, StandardOpenOption}
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.zip.GZIPInputStream
@@ -122,6 +125,46 @@ private object JvmNiftiFileSystem extends NiftiFileSystem[Path]:
                 case Right(_) => consumed += requested.toLong
           failure.toLeft(())
       finally input.close()
+    }
+
+  override def createSeekable(
+      path: Path,
+      prefix: Array[Byte],
+      payloadBytes: Long
+  ): Either[NiftiError, NiftiSeekableOutput] =
+    protect(path, NiftiOperation.Write) {
+      Option(path.getParent).foreach(Files.createDirectories(_))
+      try
+        val channel =
+          FileChannel.open(path, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)
+        val handle = new NiftiSeekableOutput:
+          def writeAt(offset: Long, bytes: Array[Byte], length: Int): Either[NiftiError, Unit] =
+            protect(path, NiftiOperation.Write) {
+              val buffer = ByteBuffer.wrap(bytes, 0, length)
+              var position = offset
+              while buffer.hasRemaining do
+                val count = channel.write(buffer, position)
+                if count <= 0 then
+                  throw new java.io.IOException("FileChannel.write made no progress")
+                position += count.toLong
+              Right(())
+            }
+          def close(): Either[NiftiError, Unit] =
+            protect(path, NiftiOperation.Write) {
+              channel.close()
+              Right(())
+            }
+        val initialized = for
+          _ <- handle.writeAt(prefix.length.toLong + payloadBytes - 1L, Array(0.toByte), 1)
+          _ <- handle.writeAt(0L, prefix, prefix.length)
+        yield handle
+        initialized match
+          case Left(error) =>
+            handle.close() match
+              case Left(closing) => Left(NiftiError.OutputCloseFailure(error, closing))
+              case Right(_) => Left(error)
+          case Right(value) => Right(value)
+      catch case _: FileAlreadyExistsException => Left(NiftiError.OutputAlreadyExists(show(path)))
     }
 
   def writeBytes(

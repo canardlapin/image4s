@@ -321,6 +321,73 @@ private[nifti] final class NiftiApi[P](
   ): Either[NiftiError, NiftiFiles[P]] =
     writeValues(path, image, options, extensions, WriteValueSource.double)
 
+  /** Create a new staging .nii file with bounded memory, retaining the supplied grid and axes. The
+    * caller owns close and scientific completeness. Unwritten samples have stored code zero.
+    * Non-spatial header sampling follows options, just as for writeScalar; labels and richer axes
+    * belong in caller-supplied extensions or an accompanying manifest. See NiftiScalarWriter.
+    */
+  def openScalarWriter[F <: Frame[D3]](
+      path: P,
+      grid: Grid[F, D3],
+      axes: NonSpatialAxes = NonSpatialAxes.empty,
+      options: NiftiWriteOptions = NiftiWriteOptions.default,
+      extensions: Vector[NiftiExtension] = Vector.empty
+  ): Either[NiftiError, NiftiScalarWriter[F, P]] =
+    if !fileSystem.fileName(path).toLowerCase.endsWith(".nii") then
+      Left(NiftiError.UnsupportedIncrementalOutput(fileSystem.show(path)))
+    else if grid.frame.convention != CoordinateConvention.RAS then
+      Left(NiftiError.FrameConventionMismatch(grid.frame.convention))
+    else
+      for
+        prepared <- prepareWriteHeader(
+          grid.shape ++ axes.shape,
+          grid,
+          NiftiStorage.SingleFile,
+          options,
+          extensions
+        )
+        (header, payloadBytes) = prepared
+        output <- fileSystem.createSeekable(path, header, payloadBytes)
+      yield new NiftiScalarWriter(
+        path,
+        grid,
+        axes,
+        options,
+        header.length.toLong,
+        payloadBytes,
+        output,
+        new NiftiScalarEncoder:
+          def encode(buffer: ByteBuffer, offset: Int, index: Array[Int], value: Double): Unit =
+            writeEncodedValue(buffer, offset, index, value, options)
+      )
+
+  /** Scope the physical resource, including when the callback throws. Partial staging files are
+    * retained for caller cleanup; a successful close does not certify scientific completeness.
+    */
+  def withScalarWriter[F <: Frame[D3], A](
+      path: P,
+      grid: Grid[F, D3],
+      axes: NonSpatialAxes = NonSpatialAxes.empty,
+      options: NiftiWriteOptions = NiftiWriteOptions.default,
+      extensions: Vector[NiftiExtension] = Vector.empty
+  )(use: NiftiScalarWriter[F, P] => Either[NiftiError, A]): Either[NiftiError, A] =
+    openScalarWriter(path, grid, axes, options, extensions).flatMap { writer =>
+      val result =
+        try use(writer)
+        catch
+          case error: Throwable =>
+            writer.close() match
+              case Left(closing) => error.addSuppressed(new java.io.IOException(closing.message))
+              case Right(_) => ()
+            throw error
+      (result, writer.close()) match
+        case (Left(primary), Left(closing)) if primary != closing =>
+          Left(NiftiError.OutputCloseFailure(primary, closing))
+        case (Left(primary), _) => Left(primary)
+        case (_, Left(closing)) => Left(closing)
+        case (Right(value), Right(_)) => Right(value)
+    }
+
   def writeLabels[
       F <: Frame[D3],
       S <: SampleSpace[F, D3],
@@ -1551,131 +1618,146 @@ private[nifti] final class NiftiApi[P](
       source: WriteValueSource[A]
   ): Either[NiftiError, NiftiFiles[P]] =
     val dimensions = image.logicalShape
-    if dimensions.length < 3 || dimensions.length > 7 then
-      Left(NiftiError.UnsupportedWriteRank(dimensions.length))
-    else if options.nonSpatialPixelDimensions.size >
-        dimensions.length - 3
-    then
-      Left(
+    val limits = options.ioLimits
+    for
+      prepared <- prepareWriteHeader(dimensions, image.grid, files.storage, options, extensions)
+      (header, payloadBytes) = prepared
+      _ <- validateFileOrderedValues(
+        dimensions,
+        image,
+        options,
+        source
+      )
+      workingBytes = alignedWorkingBuffer(
+        limits.workingBufferBytes,
+        options.datatype.bitsPerValue / 8
+      )
+      written <-
+        files.storage match
+          case NiftiStorage.SingleFile =>
+            fileSystem
+              .writeChunks(
+                files.headerPath,
+                header,
+                payloadBytes,
+                workingBytes
+              ) { (payloadOffset, bytes, length) =>
+                writeFileOrderedChunk(
+                  bytes,
+                  length,
+                  payloadOffset,
+                  dimensions,
+                  image,
+                  options,
+                  source
+                )
+              }
+              .map(_ => NiftiFiles.SingleFile(files.headerPath))
+          case NiftiStorage.PairFile =>
+            for
+              _ <- fileSystem.writeChunks(
+                files.payloadPath,
+                Array.emptyByteArray,
+                payloadBytes,
+                workingBytes
+              ) { (payloadOffset, bytes, length) =>
+                writeFileOrderedChunk(
+                  bytes,
+                  length,
+                  payloadOffset,
+                  dimensions,
+                  image,
+                  options,
+                  source
+                )
+              }
+              _ <- fileSystem.writeBytes(files.headerPath, header)
+            yield NiftiFiles.PairFile(
+              files.headerPath,
+              files.payloadPath
+            )
+    yield written
+
+  private def prepareWriteHeader[F <: Frame[D3]](
+      dimensions: Vector[Int],
+      grid: Grid[F, D3],
+      storage: NiftiStorage,
+      options: NiftiWriteOptions,
+      extensions: Vector[NiftiExtension]
+  ): Either[NiftiError, (Array[Byte], Long)] =
+    val limits = options.ioLimits
+    val extensionBytes =
+      ExtensionFlagSize.toLong + extensions.foldLeft(0L)(_ + _.encodedSize.toLong)
+    val headerBytes = HeaderSize.toLong + extensionBytes
+    for
+      _ <- validateIoLimits(limits)
+      _ <- Either.cond(
+        dimensions.length >= 3 && dimensions.length <= 7,
+        (),
+        NiftiError.UnsupportedWriteRank(dimensions.length)
+      )
+      _ <- dimensions.zipWithIndex
+        .collectFirst {
+          case (size, axis) if size <= 0 || size > Short.MaxValue =>
+            NiftiError.InvalidHeader(
+              NiftiHeaderField.Dimension(axis + 1),
+              s"extent $size cannot fit a positive NIfTI-1 dimension"
+            )
+        }
+        .toLeft(())
+      _ <- Either.cond(
+        options.nonSpatialPixelDimensions.size <= dimensions.length - 3,
+        (),
         NiftiError.NonSpatialPixelDimensionCount(
           options.nonSpatialPixelDimensions.size,
           dimensions.length - 3
         )
       )
-    else
-      val extensionBytes =
-        ExtensionFlagSize.toLong +
-          extensions.foldLeft(0L)(_ + _.encodedSize.toLong)
-      val headerBytes = HeaderSize.toLong + extensionBytes
-      val payloadBytes =
-        image.data.size.toLong *
-          (options.datatype.bitsPerValue / 8).toLong
-      val limits = options.ioLimits
-      for
-        _ <- validateIoLimits(limits)
-        _ <-
-          if extensionBytes > limits.maximumExtensionBytes.toLong then
-            Left(
-              NiftiError.ExtensionResourceLimitExceeded(
-                extensionBytes,
-                limits.maximumExtensionBytes
-              )
-            )
-          else Right(())
-        _ <-
-          if payloadBytes > limits.maximumPayloadBytes then
-            Left(
-              NiftiError.PayloadResourceLimitExceeded(
-                NiftiOperation.Write,
-                payloadBytes,
-                limits.maximumPayloadBytes
-              )
-            )
-          else Right(())
-        _ <-
-          if headerBytes > Int.MaxValue.toLong then Left(NiftiError.OutputTooLarge(headerBytes))
-          else Right(())
-        header = new Array[Byte](headerBytes.toInt)
-        headerBuffer =
-          ByteBuffer
-            .wrap(header)
-            .order(ByteOrder.LITTLE_ENDIAN)
-        _ = writeHeader(
-          headerBuffer,
-          dimensions,
-          image,
-          files.storage,
-          if files.storage == NiftiStorage.SingleFile then headerBytes.toInt
-          else 0,
-          options
+      payloadBytes <- dimensions.foldLeft[Either[NiftiError, Long]](
+        Right((options.datatype.bitsPerValue / 8).toLong)
+      ) { (acc, size) =>
+        acc.flatMap { bytes =>
+          if bytes > (Long.MaxValue - headerBytes) / size.toLong then
+            Left(NiftiError.WriteSizeOverflow(dimensions))
+          else Right(bytes * size.toLong)
+        }
+      }
+      _ <- Either.cond(
+        extensionBytes <= limits.maximumExtensionBytes,
+        (),
+        NiftiError.ExtensionResourceLimitExceeded(extensionBytes, limits.maximumExtensionBytes)
+      )
+      _ <- Either.cond(
+        payloadBytes <= limits.maximumPayloadBytes,
+        (),
+        NiftiError.PayloadResourceLimitExceeded(
+          NiftiOperation.Write,
+          payloadBytes,
+          limits.maximumPayloadBytes
         )
-        _ = writeExtensions(headerBuffer, extensions)
-        _ <- validateFileOrderedValues(
-          dimensions,
-          image,
-          options,
-          source
-        )
-        workingBytes = alignedWorkingBuffer(
-          limits.workingBufferBytes,
-          options.datatype.bitsPerValue / 8
-        )
-        written <-
-          files.storage match
-            case NiftiStorage.SingleFile =>
-              fileSystem
-                .writeChunks(
-                  files.headerPath,
-                  header,
-                  payloadBytes,
-                  workingBytes
-                ) { (payloadOffset, bytes, length) =>
-                  writeFileOrderedChunk(
-                    bytes,
-                    length,
-                    payloadOffset,
-                    dimensions,
-                    image,
-                    options,
-                    source
-                  )
-                }
-                .map(_ => NiftiFiles.SingleFile(files.headerPath))
-            case NiftiStorage.PairFile =>
-              for
-                _ <- fileSystem.writeChunks(
-                  files.payloadPath,
-                  Array.emptyByteArray,
-                  payloadBytes,
-                  workingBytes
-                ) { (payloadOffset, bytes, length) =>
-                  writeFileOrderedChunk(
-                    bytes,
-                    length,
-                    payloadOffset,
-                    dimensions,
-                    image,
-                    options,
-                    source
-                  )
-                }
-                _ <- fileSystem.writeBytes(files.headerPath, header)
-              yield NiftiFiles.PairFile(
-                files.headerPath,
-                files.payloadPath
-              )
-      yield written
+      )
+      _ <- Either.cond(
+        headerBytes <= Int.MaxValue && headerBytes.toFloat.toLong == headerBytes,
+        (),
+        NiftiError.OutputTooLarge(headerBytes)
+      )
+      header = new Array[Byte](headerBytes.toInt)
+      buffer = ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN)
+      _ = writeHeader(
+        buffer,
+        dimensions,
+        grid,
+        storage,
+        if storage == NiftiStorage.SingleFile then header.length else 0,
+        options
+      )
+      _ = writeExtensions(buffer, extensions)
+    yield (header, payloadBytes)
 
-  private def writeHeader[
-      F <: Frame[D3],
-      S <: SampleSpace[F, D3],
-      A,
-      Sem,
-      R <: AnyRank
-  ](
+  private def writeHeader[F <: Frame[D3]](
       buffer: ByteBuffer,
       dimensions: Vector[Int],
-      image: Sampled[S, A, Sem, R],
+      grid: Grid[F, D3],
       storage: NiftiStorage,
       voxelOffset: Int,
       options: NiftiWriteOptions
@@ -1692,7 +1774,7 @@ private[nifti] final class NiftiApi[P](
     buffer.putShort(70, options.datatype.code.toShort)
     buffer.putShort(72, options.datatype.bitsPerValue.toShort)
     buffer.putFloat(76, 1.0f)
-    val affine = image.grid.indexToFrame.matrix
+    val affine = grid.indexToFrame.matrix
     axis = 0
     while axis < 3 do
       var squared = 0.0
@@ -1717,11 +1799,11 @@ private[nifti] final class NiftiApi[P](
     buffer.put(
       123,
       (
-        spatialUnitCode(image.frame.unit) |
+        spatialUnitCode(grid.frame.unit) |
           temporalUnitCode(options.temporalUnit)
       ).toByte
     )
-    buffer.putShort(254, 1.toShort)
+    buffer.putShort(254, options.coordinateSystem.code.toShort)
     var row = 0
     while row < 3 do
       var column = 0
@@ -1807,7 +1889,7 @@ private[nifti] final class NiftiApi[P](
         fileIndex += 1
         byteOffset += bytesPerValue
       catch
-        case conversion: WriteConversionFailure =>
+        case conversion: NiftiWriteConversionFailure =>
           failure = Some(conversion.error)
     failure.toLeft(())
 
@@ -1844,7 +1926,7 @@ private[nifti] final class NiftiApi[P](
         )
         fileIndex += 1
       catch
-        case conversion: WriteConversionFailure =>
+        case conversion: NiftiWriteConversionFailure =>
           failure = Some(conversion.error)
     failure.toLeft(())
 
@@ -1929,8 +2011,8 @@ private[nifti] final class NiftiApi[P](
         val _ = buffer.putInt(offset, integer.toInt)
       case NiftiDatatype.Float32 =>
         val narrowed = encoded.toFloat
-        if encoded.isFinite && !narrowed.isFinite then
-          throw WriteConversionFailure(
+        if value.isFinite && (!encoded.isFinite || !narrowed.isFinite) then
+          throw NiftiWriteConversionFailure(
             valueError(
               logicalIndex,
               value,
@@ -1943,7 +2025,7 @@ private[nifti] final class NiftiApi[P](
           val _ = buffer.putFloat(offset, narrowed)
       case NiftiDatatype.Float64 =>
         if value.isFinite && !encoded.isFinite then
-          throw WriteConversionFailure(
+          throw NiftiWriteConversionFailure(
             valueError(
               logicalIndex,
               value,
@@ -1964,7 +2046,7 @@ private[nifti] final class NiftiApi[P](
       maximum: Double
   ): Double =
     if !encoded.isFinite then
-      throw WriteConversionFailure(
+      throw NiftiWriteConversionFailure(
         valueError(
           logicalIndex,
           value,
@@ -1979,7 +2061,7 @@ private[nifti] final class NiftiApi[P](
           NiftiIntegerConversion.RejectLossy &&
           encoded != rounded
       then
-        throw WriteConversionFailure(
+        throw NiftiWriteConversionFailure(
           valueError(
             logicalIndex,
             value,
@@ -1989,7 +2071,7 @@ private[nifti] final class NiftiApi[P](
           )
         )
       else if rounded < minimum || rounded > maximum then
-        throw WriteConversionFailure(
+        throw NiftiWriteConversionFailure(
           valueError(
             logicalIndex,
             value,
@@ -2123,10 +2205,6 @@ private[nifti] final class NiftiApi[P](
   // Every throw site is caught inside this object and converted back to the
   // public NiftiError Either channel before control reaches a caller.
   private final case class ReadConversionFailure(
-      error: NiftiError
-  ) extends RuntimeException(error.message)
-
-  private final case class WriteConversionFailure(
       error: NiftiError
   ) extends RuntimeException(error.message)
 
