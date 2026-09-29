@@ -1491,6 +1491,8 @@ private[nifti] final class NiftiApi[P](
         unsignedShort(buffer, 70),
         unsignedShort(buffer, 72)
       )
+      declaredTemporalUnit = temporalUnit(bytes(123) & 0x38)
+      _ <- validateFourthAxisStep(buffer, dimensions.length, declaredTemporalUnit)
       pixelDimensions <- pixelDimensions(buffer, dimensions.length)
       temporalOrigin <- NiftiTemporalOrigin.fromStored(buffer.getFloat(136).toDouble)
       voxelOffset <- voxelOffset(buffer, actualStorage)
@@ -1512,7 +1514,7 @@ private[nifti] final class NiftiApi[P](
       fallbackAffine = fallback,
       byteOrder = order,
       spatialUnit = spatialUnit(bytes(123) & 0x07),
-      temporalUnit = temporalUnit(bytes(123) & 0x38),
+      temporalUnit = declaredTemporalUnit,
       temporalOrigin = temporalOrigin,
       storage = actualStorage,
       extensions = Vector.empty
@@ -1576,6 +1578,19 @@ private[nifti] final class NiftiApi[P](
             )
         }
         .toLeft(values)
+
+  private def validateFourthAxisStep(
+      buffer: ByteBuffer,
+      rank: Int,
+      unit: NiftiTemporalUnit
+  ): Either[NiftiError, Unit] =
+    if rank < 4 then Right(())
+    else
+      val value = buffer.getFloat(92).toDouble
+      Either.cond(value.isFinite && value >= 0.0 &&
+        (unit == NiftiTemporalUnit.Unknown || value > 0.0), (),
+        NiftiError.InvalidHeader(NiftiHeaderField.PixelDimension(4),
+          s"fourth-axis sampling requires a nonnegative finite step and a positive step when units are declared, got $value"))
 
   private def pixelDimensions(
       buffer: ByteBuffer,

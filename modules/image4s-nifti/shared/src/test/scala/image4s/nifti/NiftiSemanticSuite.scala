@@ -733,6 +733,17 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
     })
     assert(NiftiWriteOptions.default.withTemporalOrigin(Double.PositiveInfinity).isLeft)
     assert(NiftiWriteOptions.default.withTemporalOrigin(1e100).isLeft)
+    Vector(0.0, -2.0).foreach: step =>
+      val invalidStep = s"/invalid-step-$step.nii"
+      writeFixture(
+        invalidStep, Vector(1, 1, 1, 2), NiftiDatatype.Float32,
+        pixelDimensions = Vector(1.0, 1.0, 1.0, step),
+        temporalUnitCode = 8, values = Vector(1.0, 2.0)
+      )
+      assert(api.readScaledDouble(invalidStep).left.toOption.exists {
+        case NiftiError.InvalidHeader(NiftiHeaderField.PixelDimension(4), _) => true
+        case _ => false
+      })
 
   test("unknown temporal units retain origin and assumptions interpret it in the chosen unit"):
     val path = "/origin-unknown.nii"
@@ -749,6 +760,13 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
       NiftiReadOptions.default.copy(unknownTemporalUnit = NiftiUnknownTemporalUnitPolicy.AssumeMilliseconds)))
     assertEquals(imageRight(soleNonSpatialAxis(milliseconds.image).coordinateAt(1)),
       AxisCoordinate.Numeric(3.75, AxisUnit.Milliseconds))
+    val negativeUnknown = "/negative-unknown-step.nii"
+    writeFixture(
+      negativeUnknown, Vector(1, 1, 1, 2), NiftiDatatype.Float32,
+      pixelDimensions = Vector(1.0, 1.0, 1.0, -1.0),
+      values = Vector(1.0, 2.0)
+    )
+    assert(api.readScaledDouble(negativeUnknown).isLeft)
 
     val microsecondsPath = "/microseconds-origin.nii"
     writeFixture(
