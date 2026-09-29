@@ -734,6 +734,45 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
     assert(NiftiWriteOptions.default.withTemporalOrigin(Double.PositiveInfinity).isLeft)
     assert(NiftiWriteOptions.default.withTemporalOrigin(1e100).isLeft)
 
+  test("unknown temporal units retain origin and assumptions interpret it in the chosen unit"):
+    val path = "/origin-unknown.nii"
+    writeFixture(
+      path, Vector(1, 1, 1, 2), NiftiDatatype.Float32,
+      pixelDimensions = Vector(1.0, 1.0, 1.0, 2.5),
+      temporalOrigin = 1.25,
+      values = Vector(1.0, 2.0)
+    )
+    val ordinal = niftiRight(api.readScaledDouble(path))
+    assertEquals(ordinal.header.temporalOrigin.value, 1.25)
+    assertEquals(imageRight(soleNonSpatialAxis(ordinal.image).coordinateAt(1)), AxisCoordinate.Ordinal(1))
+    val milliseconds = niftiRight(api.readScaledDouble(path,
+      NiftiReadOptions.default.copy(unknownTemporalUnit = NiftiUnknownTemporalUnitPolicy.AssumeMilliseconds)))
+    assertEquals(imageRight(soleNonSpatialAxis(milliseconds.image).coordinateAt(1)),
+      AxisCoordinate.Numeric(3.75, AxisUnit.Milliseconds))
+
+    val microsecondsPath = "/microseconds-origin.nii"
+    writeFixture(
+      microsecondsPath, Vector(1, 1, 1, 2), NiftiDatatype.Float32,
+      pixelDimensions = Vector(1.0, 1.0, 1.0, 0.75),
+      temporalUnitCode = 24, temporalOrigin = 100.0,
+      values = Vector(1.0, 2.0)
+    )
+    val microseconds = niftiRight(api.readScaledDouble(microsecondsPath))
+    assertEquals(imageRight(soleNonSpatialAxis(microseconds.image).coordinateAt(1)),
+      AxisCoordinate.Numeric(100.75, AxisUnit.Microseconds))
+
+    val frequencyPath = "/frequency-origin.nii"
+    writeFixture(
+      frequencyPath, Vector(1, 1, 1, 2), NiftiDatatype.Float32,
+      pixelDimensions = Vector(1.0, 1.0, 1.0, 0.75),
+      temporalUnitCode = 32, temporalOrigin = 9.0,
+      values = Vector(1.0, 2.0)
+    )
+    val frequency = niftiRight(api.readScaledDouble(frequencyPath))
+    assertEquals(frequency.header.temporalOrigin.value, 9.0)
+    assertEquals(imageRight(soleNonSpatialAxis(frequency.image).coordinateAt(1)),
+      AxisCoordinate.Numeric(0.75, AxisUnit.Hertz))
+
   test("affine selection covers preference, agreement, diagnostics, fallback, and override"):
     val identity = Affine.identity[D3]
     val shifted =

@@ -405,6 +405,31 @@ final class NiftiSuite extends FunSuite:
       Left(NiftiError.NonSpatialPixelDimensionCount(2, 1))
     )
 
+  test("temporal origin and Float32 sampling survive single, gzip and pair encodings"):
+    val frame = rasFrame("time-encodings")
+    val grid = geometryRight(Grid.in(frame)(Vector(1, 1, 1), Affine.identity[D3]))
+    val time = imageRight(image4s.Axis.regular("time", image4s.AxisKind.Time, 2,
+      0.1, 0.8, AxisUnit.Milliseconds))
+    val axes = imageRight(NonSpatialAxes.from(Vector(time)))
+    val image = imageRight(Sampled.continuous(grid, axes,
+      NDArray.fromSeq(Shape(1, 1, 1, 2), Vector(1.0, 2.0))))
+    val options = writeOptionsRight(NiftiWriteOptions.default
+      .withNonSpatialSampling(Vector(0.8), NiftiTemporalUnit.Millisecond)
+      .flatMap(_.withTemporalOrigin(0.1)))
+    Vector("origin.nii", "origin.nii.gz", "origin.hdr", "origin.hdr.gz").foreach: name =>
+      val path = temporaryPath(name)
+      val files = niftiRight(Nifti.writeScalar(path, image, options))
+      val raw = ByteBuffer.wrap(readPhysicalBytes(files.paths.head)).order(ByteOrder.LITTLE_ENDIAN)
+      assertEquals(raw.getFloat(92), 0.8f)
+      assertEquals(raw.get(123).toInt & 56, 16)
+      assertEquals(raw.getFloat(136), 0.1f)
+      val decoded = niftiRight(Nifti.readScaledDouble(path))
+      assertEquals(decoded.header.temporalOrigin.value, 0.1f.toDouble)
+      val axis = decoded.image.fold(_ => fail("expected D3"),
+        d3 => d3.value.nonSpatialAxes(0).getOrElse(fail("missing time axis")))
+      assertEquals(imageRight(axis.coordinateAt(1)),
+        AxisCoordinate.Numeric(0.1f.toDouble + 0.8f.toDouble, AxisUnit.Milliseconds))
+
   test("label writes use the same Sampled owner and remain labels on read"):
     val path = temporaryPath("labels-roundtrip.nii")
     val frame = rasFrame("label-writer")

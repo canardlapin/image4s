@@ -293,7 +293,8 @@ final class NiftiIncrementalSuite extends FunSuite:
     )
     for system <- NiftiCoordinateSystem.values do
       val initial = NiftiWriteOptions.default.withCoordinateSystem(system)
-      val sampled = right(initial.withNonSpatialSampling(Vector(0.5), NiftiTemporalUnit.Second))
+      val sampled = right(initial.withNonSpatialSampling(Vector(0.5), NiftiTemporalUnit.Second)
+        .flatMap(_.withTemporalOrigin(2.25)))
       val limited = sampled.withIoLimits(NiftiIoLimits.default)
       val created = right(
         NiftiWriteOptions.create(
@@ -302,6 +303,7 @@ final class NiftiIncrementalSuite extends FunSuite:
           0,
           nonSpatialPixelDimensions = Vector(0.5),
           temporalUnit = NiftiTemporalUnit.Second,
+          temporalOrigin = right(NiftiTemporalOrigin.create(2.25)),
           coordinateSystem = system
         )
       )
@@ -313,6 +315,7 @@ final class NiftiIncrementalSuite extends FunSuite:
       assertEquals(bytes.getShort(254).toInt, system.code)
       assertEquals(bytes.getFloat(92), 0.5f)
       assertEquals(bytes.get(123).toInt, 10)
+      assertEquals(bytes.getFloat(136), 2.25f)
 
 private[nifti] final class IncrementalTestFileSystem extends NiftiFileSystem[String]:
   val content = mutable.Map.empty[String, Array[Byte]]
