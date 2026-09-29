@@ -24,6 +24,25 @@ enum NiftiSpatialUnit derives CanEqual:
 enum NiftiTemporalUnit derives CanEqual:
   case Unknown, Second, Millisecond, Microsecond, Hertz, Ppm, RadianPerSecond
 
+/** Coordinate of the first sample on the fourth axis, in the declared temporal unit.
+  * NIfTI-1 stores this value in the Float32 `toffset` field.
+  */
+opaque type NiftiTemporalOrigin = Double
+
+object NiftiTemporalOrigin:
+  val zero: NiftiTemporalOrigin = 0.0
+
+  def create(value: Double): Either[NiftiWriteOptionsError, NiftiTemporalOrigin] =
+    val stored = value.toFloat
+    if stored.isFinite then Right(stored.toDouble)
+    else Left(NiftiWriteOptionsError.InvalidTemporalOrigin(value))
+
+  private[nifti] def fromStored(value: Double): Either[NiftiError, NiftiTemporalOrigin] =
+    if value.isFinite then Right(value)
+    else Left(NiftiError.InvalidHeader(NiftiHeaderField.TemporalOrigin, s"expected a finite value, got $value"))
+
+  extension (origin: NiftiTemporalOrigin) inline def value: Double = origin
+
 enum NiftiStorage derives CanEqual:
   case SingleFile, PairFile
 
@@ -239,6 +258,10 @@ object NiftiWriteOptionsError:
     val message: String =
       s"NIfTI write pixel dimension ${axis + 4} must remain finite and positive in its Float32 header field, got $value"
 
+  final case class InvalidTemporalOrigin(value: Double) extends NiftiWriteOptionsError:
+    val message: String =
+      s"NIfTI temporal origin must remain finite in its Float32 toffset field, got $value"
+
 /** Explicit NIfTI sform reference; never inferred from an affine or frame name. Unknown disables
   * the sform, as required by the NIfTI standard.
   */
@@ -257,6 +280,7 @@ final class NiftiWriteOptions private (
     val integerConversion: NiftiIntegerConversion,
     val nonSpatialPixelDimensions: Vector[Double],
     val temporalUnit: NiftiTemporalUnit,
+    val temporalOrigin: NiftiTemporalOrigin,
     val ioLimits: NiftiIoLimits,
     val coordinateSystem: NiftiCoordinateSystem
 ) derives CanEqual:
@@ -269,6 +293,7 @@ final class NiftiWriteOptions private (
         integerConversion == that.integerConversion &&
         nonSpatialPixelDimensions == that.nonSpatialPixelDimensions &&
         temporalUnit == that.temporalUnit &&
+        temporalOrigin == that.temporalOrigin &&
         ioLimits == that.ioLimits &&
         coordinateSystem == that.coordinateSystem
       case _ =>
@@ -282,12 +307,13 @@ final class NiftiWriteOptions private (
       integerConversion,
       nonSpatialPixelDimensions,
       temporalUnit,
+      temporalOrigin,
       ioLimits,
       coordinateSystem
     ).hashCode
 
   override def toString: String =
-    s"NiftiWriteOptions($datatype,$slope,$intercept,$integerConversion,$nonSpatialPixelDimensions,$temporalUnit,$ioLimits,$coordinateSystem)"
+    s"NiftiWriteOptions($datatype,$slope,$intercept,$integerConversion,$nonSpatialPixelDimensions,$temporalUnit,${temporalOrigin.value},$ioLimits,$coordinateSystem)"
 
   def withNonSpatialSampling(
       pixelDimensions: Vector[Double],
@@ -303,6 +329,7 @@ final class NiftiWriteOptions private (
           integerConversion,
           stored,
           unit,
+          temporalOrigin,
           ioLimits,
           coordinateSystem
         )
@@ -316,6 +343,7 @@ final class NiftiWriteOptions private (
       integerConversion,
       nonSpatialPixelDimensions,
       temporalUnit,
+      temporalOrigin,
       limits,
       coordinateSystem
     )
@@ -328,9 +356,17 @@ final class NiftiWriteOptions private (
       integerConversion,
       nonSpatialPixelDimensions,
       temporalUnit,
+      temporalOrigin,
       ioLimits,
       system
     )
+
+  def withTemporalOrigin(value: Double): Either[NiftiWriteOptionsError, NiftiWriteOptions] =
+    NiftiTemporalOrigin.create(value).map: origin =>
+      new NiftiWriteOptions(
+        datatype, slope, intercept, integerConversion,
+        nonSpatialPixelDimensions, temporalUnit, origin, ioLimits, coordinateSystem
+      )
 
 object NiftiWriteOptions:
   val default: NiftiWriteOptions =
@@ -344,6 +380,7 @@ object NiftiWriteOptions:
       integerConversion = NiftiIntegerConversion.RejectLossy,
       nonSpatialPixelDimensions = Vector.empty,
       temporalUnit = NiftiTemporalUnit.Unknown,
+      temporalOrigin = NiftiTemporalOrigin.zero,
       ioLimits = NiftiIoLimits.default,
       coordinateSystem = NiftiCoordinateSystem.ScannerAnatomical
     )
@@ -355,6 +392,7 @@ object NiftiWriteOptions:
       integerConversion: NiftiIntegerConversion = NiftiIntegerConversion.RejectLossy,
       nonSpatialPixelDimensions: Vector[Double] = Vector.empty,
       temporalUnit: NiftiTemporalUnit = NiftiTemporalUnit.Unknown,
+      temporalOrigin: NiftiTemporalOrigin = NiftiTemporalOrigin.zero,
       ioLimits: NiftiIoLimits = NiftiIoLimits.default,
       coordinateSystem: NiftiCoordinateSystem = NiftiCoordinateSystem.ScannerAnatomical
   ): Either[NiftiWriteOptionsError, NiftiWriteOptions] =
@@ -374,6 +412,7 @@ object NiftiWriteOptions:
           integerConversion,
           stored,
           temporalUnit,
+          temporalOrigin,
           ioLimits,
           coordinateSystem
         )
@@ -492,6 +531,7 @@ final case class NiftiHeader(
     byteOrder: NiftiByteOrder,
     spatialUnit: NiftiSpatialUnit,
     temporalUnit: NiftiTemporalUnit,
+    temporalOrigin: NiftiTemporalOrigin,
     storage: NiftiStorage,
     extensions: Vector[NiftiExtension]
 ):
@@ -547,6 +587,7 @@ enum NiftiHeaderField derives CanEqual:
   case PixelDimension(axis: Int)
   case VoxelOffset
   case Scaling
+  case TemporalOrigin
   case ExtensionFlag
 
 enum NiftiValueProblem derives CanEqual:
@@ -583,6 +624,9 @@ sealed trait NiftiError derives CanEqual:
   def message: String
 
 object NiftiError:
+  final case class SamplingMismatch(detail: String) extends NiftiError:
+    val message: String = s"NIfTI fourth-axis sampling conflicts with the declared axis: $detail"
+
   final case class UnsupportedIncrementalOutput(path: String) extends NiftiError:
     val message: String =
       s"incremental output requires a seekable, uncompressed single .nii file: $path"

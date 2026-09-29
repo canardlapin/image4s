@@ -702,6 +702,38 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
       AxisCoordinate.Numeric(2.5, AxisUnit.Milliseconds)
     )
 
+  test("temporal origin is read from independent bytes and malformed declarations refuse"):
+    val path = "/time-origin.nii"
+    writeFixture(
+      path,
+      Vector(1, 1, 1, 3),
+      NiftiDatatype.Float32,
+      pixelDimensions = Vector(1.0, 1.0, 1.0, 0.75),
+      temporalUnitCode = 8,
+      temporalOrigin = -1.25,
+      values = Vector(1.0, 2.0, 3.0)
+    )
+    val decoded = niftiRight(api.readScaledDouble(path))
+    assertEquals(decoded.header.temporalOrigin.value, -1.25)
+    val axis = soleNonSpatialAxis(decoded.image)
+    assertEquals(imageRight(axis.coordinateAt(2)), AxisCoordinate.Numeric(0.25, AxisUnit.Seconds))
+
+    val malformed = "/time-origin-nan.nii"
+    writeFixture(
+      malformed,
+      Vector(1, 1, 1, 2),
+      NiftiDatatype.Float32,
+      temporalUnitCode = 8,
+      temporalOrigin = Double.NaN,
+      values = Vector(1.0, 2.0)
+    )
+    assert(api.readScaledDouble(malformed).left.toOption.exists {
+      case NiftiError.InvalidHeader(NiftiHeaderField.TemporalOrigin, _) => true
+      case _ => false
+    })
+    assert(NiftiWriteOptions.default.withTemporalOrigin(Double.PositiveInfinity).isLeft)
+    assert(NiftiWriteOptions.default.withTemporalOrigin(1e100).isLeft)
+
   test("affine selection covers preference, agreement, diagnostics, fallback, and override"):
     val identity = Affine.identity[D3]
     val shifted =
@@ -905,6 +937,7 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
       slope: Double = 1.0,
       intercept: Double = 0.0,
       temporalUnitCode: Int = 0,
+      temporalOrigin: Double = 0.0,
       qformOffset: Option[Vector[Double]] = None,
       sform: Option[Vector[Double]] = None,
       values: Vector[Double]
@@ -937,6 +970,7 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
     buffer.putFloat(112, slope.toFloat)
     buffer.putFloat(116, intercept.toFloat)
     buffer.put(123, (2 | temporalUnitCode).toByte)
+    buffer.putFloat(136, temporalOrigin.toFloat)
     qformOffset.foreach { offset =>
       buffer.putShort(252, 1.toShort)
       buffer.putFloat(268, offset(0).toFloat)

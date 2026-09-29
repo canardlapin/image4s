@@ -854,11 +854,11 @@ private[nifti] final class NiftiApi[P](
     val step = header.pixelDimensions.lift(3).getOrElse(1.0)
     header.temporalUnit match
       case NiftiTemporalUnit.Second =>
-        regularTimeAxis(extent, step, AxisUnit.Seconds)
+        regularTimeAxis(extent, header.temporalOrigin.value, step, AxisUnit.Seconds)
       case NiftiTemporalUnit.Millisecond =>
-        regularTimeAxis(extent, step, AxisUnit.Milliseconds)
+        regularTimeAxis(extent, header.temporalOrigin.value, step, AxisUnit.Milliseconds)
       case NiftiTemporalUnit.Microsecond =>
-        regularTimeAxis(extent, step, AxisUnit.Microseconds)
+        regularTimeAxis(extent, header.temporalOrigin.value, step, AxisUnit.Microseconds)
       case NiftiTemporalUnit.Hertz =>
         regularFrequencyAxis(extent, step, AxisUnit.Hertz)
       case NiftiTemporalUnit.Ppm =>
@@ -872,19 +872,20 @@ private[nifti] final class NiftiApi[P](
           case NiftiUnknownTemporalUnitPolicy.Reject =>
             Left(NiftiError.UnknownTemporalUnitForFourthDimension)
           case NiftiUnknownTemporalUnitPolicy.AssumeSeconds =>
-            regularTimeAxis(extent, step, AxisUnit.Seconds)
+            regularTimeAxis(extent, header.temporalOrigin.value, step, AxisUnit.Seconds)
           case NiftiUnknownTemporalUnitPolicy.AssumeMilliseconds =>
-            regularTimeAxis(extent, step, AxisUnit.Milliseconds)
+            regularTimeAxis(extent, header.temporalOrigin.value, step, AxisUnit.Milliseconds)
           case NiftiUnknownTemporalUnitPolicy.AssumeMicroseconds =>
-            regularTimeAxis(extent, step, AxisUnit.Microseconds)
+            regularTimeAxis(extent, header.temporalOrigin.value, step, AxisUnit.Microseconds)
 
   private def regularTimeAxis(
       extent: Int,
+      origin: Double,
       step: Double,
       unit: AxisUnit
   ): Either[NiftiError, Axis] =
     Axis
-      .regular("time", AxisKind.Time, extent, 0.0, step, unit)
+      .regular("time", AxisKind.Time, extent, origin, step, unit)
       .left
       .map(NiftiError.Image.apply)
 
@@ -1491,6 +1492,7 @@ private[nifti] final class NiftiApi[P](
         unsignedShort(buffer, 72)
       )
       pixelDimensions <- pixelDimensions(buffer, dimensions.length)
+      temporalOrigin <- NiftiTemporalOrigin.fromStored(buffer.getFloat(136).toDouble)
       voxelOffset <- voxelOffset(buffer, actualStorage)
       scaling <- scaling(buffer)
       qform <- qform(buffer, pixelDimensions)
@@ -1511,6 +1513,7 @@ private[nifti] final class NiftiApi[P](
       byteOrder = order,
       spatialUnit = spatialUnit(bytes(123) & 0x07),
       temporalUnit = temporalUnit(bytes(123) & 0x38),
+      temporalOrigin = temporalOrigin,
       storage = actualStorage,
       extensions = Vector.empty
     )
@@ -1945,6 +1948,7 @@ private[nifti] final class NiftiApi[P](
     buffer.putFloat(108, voxelOffset.toFloat)
     buffer.putFloat(112, options.slope.toFloat)
     buffer.putFloat(116, options.intercept.toFloat)
+    buffer.putFloat(136, options.temporalOrigin.value.toFloat)
     buffer.put(
       123,
       (

@@ -333,7 +333,7 @@ final class NiftiSuite extends FunSuite:
         NiftiWriteOptions.default.withNonSpatialSampling(
           Vector(1.75),
           NiftiTemporalUnit.Second
-        )
+        ).flatMap(_.withTemporalOrigin(-2.5))
       )
 
     niftiRight(Nifti.writeScalar(path, image, writeOptions))
@@ -342,6 +342,7 @@ final class NiftiSuite extends FunSuite:
     val rawBuffer = ByteBuffer.wrap(raw).order(ByteOrder.LITTLE_ENDIAN)
     assertEquals(rawBuffer.getFloat(92), 1.75f)
     assertEquals(rawBuffer.get(123), 10.toByte)
+    assertEquals(rawBuffer.getFloat(136), -2.5f)
     val expectedFileOrder =
       for
         t <- 0 until 2
@@ -365,6 +366,7 @@ final class NiftiSuite extends FunSuite:
     )
     assertEquals(decoded.header.pixelDimensions(3), 1.75)
     assertEquals(decoded.header.temporalUnit, NiftiTemporalUnit.Second)
+    assertEquals(decoded.header.temporalOrigin.value, -2.5)
     assertEquals(
       decoded.image.nonSpatialAxes(0).map(_.kind),
       Some(image4s.AxisKind.Time)
@@ -373,7 +375,7 @@ final class NiftiSuite extends FunSuite:
       decoded.image.nonSpatialAxes(0).map(_.coordinateAt(1)),
       Some(
         Right(
-          AxisCoordinate.Numeric(1.75, AxisUnit.Seconds)
+          AxisCoordinate.Numeric(-0.75, AxisUnit.Seconds)
         )
       )
     )
