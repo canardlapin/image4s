@@ -872,11 +872,23 @@ private[nifti] final class NiftiApi[P](
           case NiftiUnknownTemporalUnitPolicy.Reject =>
             Left(NiftiError.UnknownTemporalUnitForFourthDimension)
           case NiftiUnknownTemporalUnitPolicy.AssumeSeconds =>
-            regularTimeAxis(extent, header.temporalOrigin.value, step, AxisUnit.Seconds)
+            assumedTimeAxis(header, extent, AxisUnit.Seconds)
           case NiftiUnknownTemporalUnitPolicy.AssumeMilliseconds =>
-            regularTimeAxis(extent, header.temporalOrigin.value, step, AxisUnit.Milliseconds)
+            assumedTimeAxis(header, extent, AxisUnit.Milliseconds)
           case NiftiUnknownTemporalUnitPolicy.AssumeMicroseconds =>
-            regularTimeAxis(extent, header.temporalOrigin.value, step, AxisUnit.Microseconds)
+            assumedTimeAxis(header, extent, AxisUnit.Microseconds)
+
+  private def assumedTimeAxis(
+      header: NiftiHeader,
+      extent: Int,
+      unit: AxisUnit
+  ): Either[NiftiError, Axis] =
+    header.storedFourthAxisStep match
+      case Some(rawStep) if rawStep > 0.0 =>
+        regularTimeAxis(extent, header.temporalOrigin.value, rawStep, unit)
+      case _ =>
+        Left(NiftiError.InvalidHeader(NiftiHeaderField.PixelDimension(4),
+          "a physical-time assumption requires a positive stored fourth-axis step"))
 
   private def regularTimeAxis(
       extent: Int,
@@ -1503,6 +1515,8 @@ private[nifti] final class NiftiApi[P](
     yield NiftiHeader(
       dimensions = dimensions,
       pixelDimensions = pixelDimensions,
+      storedFourthAxisStep =
+        if dimensions.length >= 4 then Some(buffer.getFloat(92).toDouble) else None,
       datatype = datatype,
       voxelOffset = voxelOffset,
       slope = scaling._1,

@@ -791,6 +791,49 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
     assertEquals(imageRight(soleNonSpatialAxis(frequency.image).coordinateAt(1)),
       AxisCoordinate.Numeric(0.75, AxisUnit.Hertz))
 
+  test("unknown temporal unit cannot invent physical spacing from raw zero pixdim4"):
+    val path = "/unknown-zero-step.nii"
+    writeFixture(
+      path, Vector(1, 1, 1, 2), NiftiDatatype.Float32,
+      pixelDimensions = Vector(1.0, 1.0, 1.0, 0.0),
+      values = Vector(1.0, 2.0)
+    )
+    val ordinal = niftiRight(api.readScaledDouble(path))
+    assertEquals(ordinal.header.pixelDimensions(3), 1.0)
+    assertEquals(ordinal.header.storedFourthAxisStep, Some(0.0))
+    assertEquals(imageRight(soleNonSpatialAxis(ordinal.image).coordinateAt(1)),
+      AxisCoordinate.Ordinal(1))
+
+    Vector(
+      NiftiUnknownTemporalUnitPolicy.AssumeSeconds,
+      NiftiUnknownTemporalUnitPolicy.AssumeMilliseconds,
+      NiftiUnknownTemporalUnitPolicy.AssumeMicroseconds
+    ).foreach: policy =>
+      assert(api.readScaledDouble(path,
+        NiftiReadOptions.default.copy(unknownTemporalUnit = policy)).left.toOption.exists {
+        case NiftiError.InvalidHeader(NiftiHeaderField.PixelDimension(4), _) => true
+        case _ => false
+      })
+
+    val positive = "/unknown-positive-step.nii"
+    writeFixture(
+      positive, Vector(1, 1, 1, 2), NiftiDatatype.Float32,
+      pixelDimensions = Vector(1.0, 1.0, 1.0, 2.5),
+      temporalOrigin = 1.25,
+      values = Vector(1.0, 2.0)
+    )
+    Vector(
+      NiftiUnknownTemporalUnitPolicy.AssumeSeconds -> AxisUnit.Seconds,
+      NiftiUnknownTemporalUnitPolicy.AssumeMilliseconds -> AxisUnit.Milliseconds,
+      NiftiUnknownTemporalUnitPolicy.AssumeMicroseconds -> AxisUnit.Microseconds
+    ).foreach { case (policy, unit) =>
+      val decoded = niftiRight(api.readScaledDouble(positive,
+        NiftiReadOptions.default.copy(unknownTemporalUnit = policy)))
+      assertEquals(decoded.header.storedFourthAxisStep, Some(2.5))
+      assertEquals(imageRight(soleNonSpatialAxis(decoded.image).coordinateAt(1)),
+        AxisCoordinate.Numeric(3.75, unit))
+    }
+
   test("affine selection covers preference, agreement, diagnostics, fallback, and override"):
     val identity = Affine.identity[D3]
     val shifted =

@@ -519,6 +519,8 @@ object NiftiExtension:
 final case class NiftiHeader(
     dimensions: Vector[Int],
     pixelDimensions: Vector[Double],
+    /** Unnormalized fourth-axis pixdim; zero means no physical spacing was stored. */
+    storedFourthAxisStep: Option[Double],
     datatype: NiftiDatatype,
     voxelOffset: Int,
     slope: Double,
