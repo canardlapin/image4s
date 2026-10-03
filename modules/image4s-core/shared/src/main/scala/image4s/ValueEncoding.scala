@@ -115,6 +115,12 @@ object ValueEncoding:
     ): Either[EncodingError, PrimitiveToDoubleAffine[Short]] =
       validated(slope, intercept)(Int16Affine.apply)
 
+    def int8(
+        slope: Double,
+        intercept: Double
+    ): Either[EncodingError, PrimitiveToDoubleAffine[Byte]] =
+      validated(slope, intercept)(Int8Affine.apply)
+
     def int32(
         slope: Double,
         intercept: Double
@@ -169,6 +175,14 @@ object ValueEncoding:
     ) extends PrimitiveToDoubleAffine[Short]:
       protected val storageId: String = "int16"
       protected inline def widen(stored: Short): Double =
+        stored.toDouble
+
+    private final case class Int8Affine(
+        slope: Double,
+        intercept: Double
+    ) extends PrimitiveToDoubleAffine[Byte]:
+      protected val storageId: String = "int8"
+      protected inline def widen(stored: Byte): Double =
         stored.toDouble
 
     private final case class Int32Affine(

@@ -37,6 +37,7 @@ final class NodeNiftiSuite extends FunSuite:
   test("Node round trips every datatype across all storage encodings"):
     val cases =
       Vector(
+        NiftiDatatype.Int8 -> Vector(-128.0, -1.0, 127.0),
         NiftiDatatype.UInt8 -> Vector(0.0, 17.0, 255.0),
         NiftiDatatype.Int16 -> Vector(-32768.0, 0.0, 32767.0),
         NiftiDatatype.Int32 -> Vector(-100000.0, 0.0, 100000.0),
@@ -251,6 +252,8 @@ final class NodeNiftiSuite extends FunSuite:
     raw match
       case NiftiRawImage.UInt8(image) =>
         sampledValues(image).map(_.toInt.toDouble)
+      case NiftiRawImage.Int8(image) =>
+        sampledValues(image).map(_.toDouble)
       case NiftiRawImage.Int16(image) =>
         sampledValues(image).map(_.toDouble)
       case NiftiRawImage.Int32(image) =>

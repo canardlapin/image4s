@@ -31,6 +31,7 @@ enum NiftiDatatype(
     val code: Int,
     val bitsPerValue: Int
 ) derives CanEqual:
+  case Int8 extends NiftiDatatype(256, 8)
   case UInt8 extends NiftiDatatype(2, 8)
   case Int16 extends NiftiDatatype(4, 16)
   case Int32 extends NiftiDatatype(8, 32)
@@ -56,6 +57,7 @@ object NiftiRaw:
 
 /** Exact raw image cases for the supported NIfTI-1 datatype subset. */
 enum NiftiRawImage:
+  case Int8(image: SomeSampled[Byte, NiftiRaw])
   case UInt8(image: SomeSampled[RavelUInt8, NiftiRaw])
   case Int16(image: SomeSampled[Short, NiftiRaw])
   case Int32(image: SomeSampled[Int, NiftiRaw])
@@ -64,6 +66,7 @@ enum NiftiRawImage:
 
   def datatype: NiftiDatatype =
     this match
+      case Int8(_) => NiftiDatatype.Int8
       case UInt8(_) => NiftiDatatype.UInt8
       case Int16(_) => NiftiDatatype.Int16
       case Int32(_) => NiftiDatatype.Int32
@@ -77,6 +80,11 @@ enum NiftiRawImage:
   * materializing a `Double` image.
   */
 enum NiftiScalarStored:
+  case Int8(
+      image: EncodedSampled[
+        ? <: SampleSpace[?, D3], Byte, Double, Continuous, ? <: AnyRank
+      ]
+  )
   case UInt8(
       image: EncodedSampled[
         ? <: SampleSpace[?, D3],
@@ -125,6 +133,7 @@ enum NiftiScalarStored:
 
   def datatype: NiftiDatatype =
     this match
+      case Int8(_) => NiftiDatatype.Int8
       case UInt8(_) => NiftiDatatype.UInt8
       case Int16(_) => NiftiDatatype.Int16
       case Int32(_) => NiftiDatatype.Int32
@@ -138,6 +147,10 @@ enum NiftiScalarStored:
   * required.
   */
 enum NiftiLabelStored:
+  case Int8(
+      codes: SomeSampled[Byte, NiftiRaw],
+      encoding: ValueEncoding[Byte, Byte]
+  )
   case UInt8(
       codes: SomeSampled[RavelUInt8, NiftiRaw],
       encoding: ValueEncoding[RavelUInt8, RavelUInt8]
@@ -153,6 +166,7 @@ enum NiftiLabelStored:
 
   def datatype: NiftiDatatype =
     this match
+      case Int8(_, _) => NiftiDatatype.Int8
       case UInt8(_, _) => NiftiDatatype.UInt8
       case Int16(_, _) => NiftiDatatype.Int16
       case Int32(_, _) => NiftiDatatype.Int32
@@ -160,6 +174,8 @@ enum NiftiLabelStored:
 object NiftiLabelStored:
   def fromRaw(raw: NiftiRawImage): Either[NiftiError, NiftiLabelStored] =
     raw match
+      case NiftiRawImage.Int8(codes) =>
+        Right(NiftiLabelStored.Int8(codes, ValueEncoding.Identity[Byte]()))
       case NiftiRawImage.UInt8(codes) =>
         Right(
           NiftiLabelStored.UInt8(
@@ -733,13 +749,13 @@ object NiftiError:
       datatype: NiftiDatatype
   ) extends NiftiError:
     val message: String =
-      s"NIfTI label output requires UInt8, Int16, or Int32 storage, got $datatype"
+      s"NIfTI label output requires Int8, UInt8, Int16, or Int32 storage, got $datatype"
 
   final case class NativeLabelDatatypeMustBeIntegral(
       datatype: NiftiDatatype
   ) extends NiftiError:
     val message: String =
-      s"native NIfTI labels require UInt8, Int16, or Int32 storage, got $datatype"
+      s"native NIfTI labels require Int8, UInt8, Int16, or Int32 storage, got $datatype"
 
   final case class NativeLabelRequiresIdentityScale(
       slope: Double,

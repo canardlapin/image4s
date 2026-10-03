@@ -55,7 +55,7 @@ val stored: Either[
 ] = Nifti.readScalarStored(path)
 ```
 
-`NiftiScalarStored` records which native case was read: UInt8, Int16, Int32,
+`NiftiScalarStored` records which native case was read: Int8, UInt8, Int16, Int32,
 Float32, or Float64. Its codes are not silently presented as already-scaled
 physical values. The retained header supplies the slope/intercept receipt for
 the file interpretation.
@@ -63,7 +63,7 @@ the file interpretation.
 ## Read categorical labels
 
 `readLabels` validates scaled values as finite integral `Long` label codes.
-`readLabelsNative` is stricter: it retains UInt8, Int16, or Int32 storage and
+`readLabelsNative` is stricter: it retains Int8, UInt8, Int16, or Int32 storage and
 requires no effective scaling.
 
 ```scala mdoc:compile-only
@@ -142,7 +142,7 @@ it does not guess a time unit.
 ## I/O and format limits
 
 The current boundary supports NIfTI-1 single-file and pair-file storage for
-UInt8, Int16, Int32, Float32, and Float64 payloads. JVM paths support plain and
+Int8, UInt8, Int16, Int32, Float32, and Float64 payloads. JVM paths support plain and
 gzip files. `Nifti.ioStrategy(path)` reports whether the selected path uses
 bounded streaming or the whole-file compressed compatibility strategy.
 
