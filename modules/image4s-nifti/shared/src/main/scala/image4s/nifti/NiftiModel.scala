@@ -82,7 +82,11 @@ enum NiftiRawImage:
 enum NiftiScalarStored:
   case Int8(
       image: EncodedSampled[
-        ? <: SampleSpace[?, D3], Byte, Double, Continuous, ? <: AnyRank
+        ? <: SampleSpace[?, D3],
+        Byte,
+        Double,
+        Continuous,
+        ? <: AnyRank
       ]
   )
   case UInt8(

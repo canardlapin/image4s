@@ -112,13 +112,29 @@ final class NiftiSuite extends FunSuite:
 
   test("signed INT8 preserves negative boundaries and affine scaling without changing UInt8"):
     val int8 = temporaryPath("int8-boundaries.nii")
-    writeFixture(int8, dimensions = Vector(4, 1, 1), datatype = NiftiDatatype.Int8,
-      slope = 2.0, intercept = 3.0, values = Vector(-128.0, -1.0, 0.0, 127.0))
-    val signed = niftiRight(Nifti.readScaledDouble(int8)).image.fold(_ => fail("NIfTI must produce D3"), identity)
-    assertEquals(Vector.tabulate(4)(x => imageValue(signed.value.valueAt(Vector(x, 0, 0)))), Vector(-253.0, 1.0, 3.0, 257.0))
+    writeFixture(
+      int8,
+      dimensions = Vector(4, 1, 1),
+      datatype = NiftiDatatype.Int8,
+      slope = 2.0,
+      intercept = 3.0,
+      values = Vector(-128.0, -1.0, 0.0, 127.0)
+    )
+    val signed = niftiRight(Nifti.readScaledDouble(int8)).image
+      .fold(_ => fail("NIfTI must produce D3"), identity)
+    assertEquals(
+      Vector.tabulate(4)(x => imageValue(signed.value.valueAt(Vector(x, 0, 0)))),
+      Vector(-253.0, 1.0, 3.0, 257.0)
+    )
     val uint8 = temporaryPath("uint8-255.nii")
-    writeFixture(uint8, dimensions = Vector(1, 1, 1), datatype = NiftiDatatype.UInt8, values = Vector(255.0))
-    val unsigned = niftiRight(Nifti.readScaledDouble(uint8)).image.fold(_ => fail("NIfTI must produce D3"), identity)
+    writeFixture(
+      uint8,
+      dimensions = Vector(1, 1, 1),
+      datatype = NiftiDatatype.UInt8,
+      values = Vector(255.0)
+    )
+    val unsigned = niftiRight(Nifti.readScaledDouble(uint8)).image
+      .fold(_ => fail("NIfTI must produce D3"), identity)
     assertEquals(imageValue(unsigned.value.valueAt(Vector(0, 0, 0))), 255.0)
 
   test("big-endian payloads are decoded with their header order"):

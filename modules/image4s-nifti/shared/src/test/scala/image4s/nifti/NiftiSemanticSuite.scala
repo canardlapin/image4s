@@ -641,19 +641,35 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
 
   test("signed INT8 native labels refuse nonidentity scaling"):
     val path = "/signed-scaled-labels.nii"
-    writeFixture(path, Vector(1, 1, 1), NiftiDatatype.Int8,
-      slope = 2.0, intercept = 1.0, values = Vector(-1.0))
-    assertEquals(api.readLabelsNative(path),
-      Left(NiftiError.NativeLabelRequiresIdentityScale(2.0, 1.0)))
+    writeFixture(
+      path,
+      Vector(1, 1, 1),
+      NiftiDatatype.Int8,
+      slope = 2.0,
+      intercept = 1.0,
+      values = Vector(-1.0)
+    )
+    assertEquals(
+      api.readLabelsNative(path),
+      Left(NiftiError.NativeLabelRequiresIdentityScale(2.0, 1.0))
+    )
 
   test("signed INT8 labels preserve boundary bytes and refuse overflow"):
-    val frame = geometryRight(Frame.named[D3](
-      "signed-labels", LengthUnit.Millimeter, CoordinateConvention.RAS
-    ))
+    val frame = geometryRight(
+      Frame.named[D3](
+        "signed-labels",
+        LengthUnit.Millimeter,
+        CoordinateConvention.RAS
+      )
+    )
     val grid = geometryRight(Grid.in(frame)(Vector(4, 1, 1), Affine.identity[D3]))
-    def labels(values: Vector[Long]) = imageRight(Sampled.categorical(
-      grid, NonSpatialAxes.empty, NDArray.fromSeq(Shape(4, 1, 1), values)
-    ))
+    def labels(values: Vector[Long]) = imageRight(
+      Sampled.categorical(
+        grid,
+        NonSpatialAxes.empty,
+        NDArray.fromSeq(Shape(4, 1, 1), values)
+      )
+    )
     val values = Vector(-128L, -1L, 0L, 127L)
     val options = NiftiWriteOptions.forDatatype(NiftiDatatype.Int8)
     val path = "/signed-labels.nii"

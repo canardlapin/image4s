@@ -497,10 +497,7 @@ Grid.in[D2](patient)(Vector(64, 64), Affine.identity[D2])
 
   test("affine equality and hashing are geometric values, not construction identity"):
     val values = Vector(
-      1.0, 0.0, 0.0, 3.0,
-      0.0, 2.0, 0.0, -4.0,
-      0.0, 0.0, 3.0, 5.0,
-      0.0, 0.0, 0.0, 1.0
+      1.0, 0.0, 0.0, 3.0, 0.0, 2.0, 0.0, -4.0, 0.0, 0.0, 3.0, 5.0, 0.0, 0.0, 0.0, 1.0
     )
     val first = right(Affine.fromRowMajor[D3](values))
     val second = right(Affine.fromRowMajor[D3](values))

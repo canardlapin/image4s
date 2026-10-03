@@ -428,7 +428,14 @@ private[nifti] final class NiftiApi[P](
   ): Either[NiftiError, NiftiRawImage] =
     header.datatype match
       case NiftiDatatype.Int8 =>
-        readNativeIn[Byte, NiftiRaw](path, frame, header, selection, options, NativePayloadReader.byte)
+        readNativeIn[Byte, NiftiRaw](
+          path,
+          frame,
+          header,
+          selection,
+          options,
+          NativePayloadReader.byte
+        )
           .map(image => NiftiRawImage.Int8(SomeSampled.d3(image)))
       case NiftiDatatype.UInt8 =>
         readNativeIn[RavelUInt8, NiftiRaw](
@@ -489,8 +496,19 @@ private[nifti] final class NiftiApi[P](
     header.datatype match
       case NiftiDatatype.Int8 =>
         for
-          encoding <- ValueEncoding.PrimitiveToDoubleAffine.int8(slope, intercept).left.map(error => NiftiError.Image(ImageError.ValueEncoding(error)))
-          image <- readEncodedIn[Byte, F](path, frame, header, selection, options, NativePayloadReader.byte, encoding)
+          encoding <- ValueEncoding.PrimitiveToDoubleAffine
+            .int8(slope, intercept)
+            .left
+            .map(error => NiftiError.Image(ImageError.ValueEncoding(error)))
+          image <- readEncodedIn[Byte, F](
+            path,
+            frame,
+            header,
+            selection,
+            options,
+            NativePayloadReader.byte,
+            encoding
+          )
         yield NiftiScalarStored.Int8(image)
       case NiftiDatatype.UInt8 =>
         for
@@ -728,7 +746,12 @@ private[nifti] final class NiftiApi[P](
     val byte: NativePayloadReader[Byte] =
       new NativePayloadReader[Byte]:
         val bytesPerValue = 1
-        def write(builder: ravel.ArrayBuilder[Byte], logicalOffset: Int, buffer: ByteBuffer, byteOffset: Int): Unit =
+        def write(
+            builder: ravel.ArrayBuilder[Byte],
+            logicalOffset: Int,
+            buffer: ByteBuffer,
+            byteOffset: Int
+        ): Unit =
           builder.writeLinear(logicalOffset, buffer.get(byteOffset))
 
     val uint8: NativePayloadReader[RavelUInt8] =

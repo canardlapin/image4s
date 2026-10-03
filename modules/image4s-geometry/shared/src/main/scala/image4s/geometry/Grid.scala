@@ -275,10 +275,9 @@ object Grid:
 
   /** Certify exact equality of grid shape and index-to-frame geometry.
     *
-    * Unlike [[exactCongruence]], this relation deliberately makes no frame-identity
-    * claim. It is intended for trust boundaries that decode an independent grid,
-    * validate its serialized geometry, and then bind its values to an authoritative
-    * live grid.
+    * Unlike [[exactCongruence]], this relation deliberately makes no frame-identity claim. It is
+    * intended for trust boundaries that decode an independent grid, validate its serialized
+    * geometry, and then bind its values to an authoritative live grid.
     */
   def exactGeometryMatch[D <: Dim, LF <: Frame[D], RF <: Frame[D]](
       left: Grid[LF, D],
@@ -312,8 +311,8 @@ object Grid:
 
   /** Certify approximate equality of grid shape and index-to-frame geometry.
     *
-    * This does not align, convert, or otherwise equate the grids' frame owners.
-    * Use [[approximateCongruence]] when coordinate interchangeability is required.
+    * This does not align, convert, or otherwise equate the grids' frame owners. Use
+    * [[approximateCongruence]] when coordinate interchangeability is required.
     */
   def approximateGeometryMatch[
       D <: Dim,
