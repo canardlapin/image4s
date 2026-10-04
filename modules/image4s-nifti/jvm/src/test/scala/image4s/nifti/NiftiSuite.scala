@@ -80,6 +80,7 @@ final class NiftiSuite extends FunSuite:
   test("supported datatypes apply slope and intercept"):
     val cases =
       Vector(
+        NiftiDatatype.Int8 -> -100.0,
         NiftiDatatype.UInt8 -> 200.0,
         NiftiDatatype.Int16 -> -1234.0,
         NiftiDatatype.Int32 -> 123456.0,
@@ -108,6 +109,33 @@ final class NiftiSuite extends FunSuite:
           )
       )
     }
+
+  test("signed INT8 preserves negative boundaries and affine scaling without changing UInt8"):
+    val int8 = temporaryPath("int8-boundaries.nii")
+    writeFixture(
+      int8,
+      dimensions = Vector(4, 1, 1),
+      datatype = NiftiDatatype.Int8,
+      slope = 2.0,
+      intercept = 3.0,
+      values = Vector(-128.0, -1.0, 0.0, 127.0)
+    )
+    val signed = niftiRight(Nifti.readScaledDouble(int8)).image
+      .fold(_ => fail("NIfTI must produce D3"), identity)
+    assertEquals(
+      Vector.tabulate(4)(x => imageValue(signed.value.valueAt(Vector(x, 0, 0)))),
+      Vector(-253.0, 1.0, 3.0, 257.0)
+    )
+    val uint8 = temporaryPath("uint8-255.nii")
+    writeFixture(
+      uint8,
+      dimensions = Vector(1, 1, 1),
+      datatype = NiftiDatatype.UInt8,
+      values = Vector(255.0)
+    )
+    val unsigned = niftiRight(Nifti.readScaledDouble(uint8)).image
+      .fold(_ => fail("NIfTI must produce D3"), identity)
+    assertEquals(imageValue(unsigned.value.valueAt(Vector(0, 0, 0))), 255.0)
 
   test("big-endian payloads are decoded with their header order"):
     val path = temporaryPath("big-endian.nii")
@@ -752,6 +780,8 @@ final class NiftiSuite extends FunSuite:
     val frame = rasFrame("integer-bounds")
     val cases =
       Vector(
+        NiftiDatatype.Int8 ->
+          Vector(-128.0, 127.0),
         NiftiDatatype.UInt8 ->
           Vector(0.0, 255.0),
         NiftiDatatype.Int16 ->
@@ -1152,6 +1182,8 @@ final class NiftiSuite extends FunSuite:
     values.zipWithIndex.foreach { case (value, index) =>
       val offset = 352 + index * bytesPerValue
       datatype match
+        case NiftiDatatype.Int8 =>
+          buffer.put(offset, value.toInt.toByte)
         case NiftiDatatype.UInt8 =>
           buffer.put(offset, value.toInt.toByte)
         case NiftiDatatype.Int16 =>
@@ -1213,6 +1245,8 @@ final class NiftiSuite extends FunSuite:
         .order(ByteOrder.LITTLE_ENDIAN)
     values.foreach { value =>
       datatype match
+        case NiftiDatatype.Int8 =>
+          buffer.put(value.toInt.toByte)
         case NiftiDatatype.UInt8 =>
           buffer.put(value.toInt.toByte)
         case NiftiDatatype.Int16 =>

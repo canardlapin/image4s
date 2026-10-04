@@ -183,7 +183,7 @@ private[nifti] final class NiftiApi[P](
 
   /** Read categorical codes without widening their native integer storage.
     *
-    * This strict surface accepts only UInt8, Int16, and Int32 inputs whose header applies no
+    * This strict surface accepts only Int8, UInt8, Int16, and Int32 inputs whose header applies no
     * effective scaling. In accordance with the NIfTI convention, a zero slope means "do not scale"
     * and is accepted regardless of its intercept.
     */
@@ -412,7 +412,7 @@ private[nifti] final class NiftiApi[P](
     then Left(NiftiError.LabelWriteRequiresExactIntegerConversion)
     else
       options.datatype match
-        case NiftiDatatype.UInt8 | NiftiDatatype.Int16 | NiftiDatatype.Int32 =>
+        case NiftiDatatype.Int8 | NiftiDatatype.UInt8 | NiftiDatatype.Int16 | NiftiDatatype.Int32 =>
           writeValues(path, image, options, extensions, WriteValueSource.long)
         case datatype =>
           Left(NiftiError.LabelDatatypeMustBeIntegral(datatype))
@@ -427,6 +427,16 @@ private[nifti] final class NiftiApi[P](
       options: NiftiReadOptions
   ): Either[NiftiError, NiftiRawImage] =
     header.datatype match
+      case NiftiDatatype.Int8 =>
+        readNativeIn[Byte, NiftiRaw](
+          path,
+          frame,
+          header,
+          selection,
+          options,
+          NativePayloadReader.byte
+        )
+          .map(image => NiftiRawImage.Int8(SomeSampled.d3(image)))
       case NiftiDatatype.UInt8 =>
         readNativeIn[RavelUInt8, NiftiRaw](
           path,
@@ -484,6 +494,22 @@ private[nifti] final class NiftiApi[P](
   ): Either[NiftiError, NiftiScalarStored] =
     val (slope, intercept) = effectiveScaling(header)
     header.datatype match
+      case NiftiDatatype.Int8 =>
+        for
+          encoding <- ValueEncoding.PrimitiveToDoubleAffine
+            .int8(slope, intercept)
+            .left
+            .map(error => NiftiError.Image(ImageError.ValueEncoding(error)))
+          image <- readEncodedIn[Byte, F](
+            path,
+            frame,
+            header,
+            selection,
+            options,
+            NativePayloadReader.byte,
+            encoding
+          )
+        yield NiftiScalarStored.Int8(image)
       case NiftiDatatype.UInt8 =>
         for
           encoding <- ValueEncoding.PrimitiveToDoubleAffine
@@ -717,6 +743,17 @@ private[nifti] final class NiftiApi[P](
       result.map(_ => data)
 
   private object NativePayloadReader:
+    val byte: NativePayloadReader[Byte] =
+      new NativePayloadReader[Byte]:
+        val bytesPerValue = 1
+        def write(
+            builder: ravel.ArrayBuilder[Byte],
+            logicalOffset: Int,
+            buffer: ByteBuffer,
+            byteOffset: Int
+        ): Unit =
+          builder.writeLinear(logicalOffset, buffer.get(byteOffset))
+
     val uint8: NativePayloadReader[RavelUInt8] =
       new NativePayloadReader[RavelUInt8]:
         val bytesPerValue = 1
@@ -1171,7 +1208,7 @@ private[nifti] final class NiftiApi[P](
       header: NiftiHeader
   ): Either[NiftiError, Unit] =
     header.datatype match
-      case NiftiDatatype.UInt8 | NiftiDatatype.Int16 | NiftiDatatype.Int32 =>
+      case NiftiDatatype.Int8 | NiftiDatatype.UInt8 | NiftiDatatype.Int16 | NiftiDatatype.Int32 =>
         if header.slope == 0.0 ||
           (header.slope == 1.0 && header.intercept == 0.0)
         then Right(())
@@ -2152,6 +2189,16 @@ private[nifti] final class NiftiApi[P](
     val encoded =
       (value - options.intercept) / options.slope
     options.datatype match
+      case NiftiDatatype.Int8 =>
+        val integer = integerValue(
+          logicalIndex,
+          value,
+          encoded,
+          options,
+          minimum = Byte.MinValue.toDouble,
+          maximum = Byte.MaxValue.toDouble
+        )
+        val _ = buffer.put(offset, integer.toInt.toByte)
       case NiftiDatatype.UInt8 =>
         val integer = integerValue(
           logicalIndex,
@@ -2387,6 +2434,7 @@ private[nifti] final class NiftiApi[P](
       datatype: NiftiDatatype
   ): Double =
     datatype match
+      case NiftiDatatype.Int8 => buffer.get(offset).toDouble
       case NiftiDatatype.UInt8 =>
         (buffer.get(offset) & 0xff).toDouble
       case NiftiDatatype.Int16 =>

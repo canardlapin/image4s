@@ -18,7 +18,7 @@ final class Affine[D <: Dim] private (
   override def equals(other: Any): Boolean =
     other match
       case that: Affine[?] => rowMajor == that.rowMajor
-      case _               => false
+      case _ => false
 
   override def hashCode(): Int =
     rowMajor.##

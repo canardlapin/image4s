@@ -64,6 +64,7 @@ final class NiftiIncrementalSuite extends FunSuite:
       for i <- 0 until 36 do
         val offset = bytes.getFloat(108).toInt + i * dt.bitsPerValue / 8
         val actual = dt match
+          case NiftiDatatype.Int8 => bytes.get(offset).toDouble
           case NiftiDatatype.UInt8 => (bytes.get(offset) & 255).toDouble
           case NiftiDatatype.Int16 => bytes.getShort(offset).toDouble
           case NiftiDatatype.Int32 => bytes.getInt(offset).toDouble

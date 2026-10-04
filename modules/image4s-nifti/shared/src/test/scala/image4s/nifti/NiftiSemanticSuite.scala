@@ -66,6 +66,8 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
       val values =
         Vector.tabulate(count)(index =>
           datatype match
+            case NiftiDatatype.Int8 =>
+              ((index % 201) - 100).toDouble
             case NiftiDatatype.UInt8 =>
               (index % 251).toDouble
             case NiftiDatatype.Int16 =>
@@ -111,6 +113,7 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
   test("raw and scaled reads preserve every supported dtype in both byte orders"):
     val cases =
       Vector(
+        NiftiDatatype.Int8 -> Vector(-128.0, -1.0, 127.0),
         NiftiDatatype.UInt8 -> Vector(0.0, 17.0, 255.0),
         NiftiDatatype.Int16 -> Vector(-32768.0, 0.0, 32767.0),
         NiftiDatatype.Int32 ->
@@ -272,6 +275,7 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
   test("every native scalar dtype retains one encoded owner and affine scale"):
     val cases =
       Vector(
+        (NiftiDatatype.Int8, Vector(-128.0, -1.0, 127.0)),
         (NiftiDatatype.UInt8, Vector(0.0, 17.0, 255.0)),
         (NiftiDatatype.Int16, Vector(-7.0, 0.0, 12.0)),
         (NiftiDatatype.Int32, Vector(-70000.0, 0.0, 120000.0)),
@@ -295,6 +299,8 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
       val stored = niftiRight(api.readScalarStored(path)).image
       assertEquals(stored.datatype, datatype)
       val actual = stored match
+        case NiftiScalarStored.Int8(image) =>
+          Vector.tabulate(3)(x => image.valueAt(Vector(x, 0, 0)).toOption.get)
         case NiftiScalarStored.UInt8(image) =>
           Vector.tabulate(3)(x => image.valueAt(Vector(x, 0, 0)).toOption.get)
         case NiftiScalarStored.Int16(image) =>
@@ -315,6 +321,7 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
   test("native labels retain integer codes and reject scaled or floating input"):
     val cases =
       Vector(
+        NiftiDatatype.Int8 -> Vector(-128.0, -1.0, 127.0),
         NiftiDatatype.UInt8 -> Vector(0.0, 128.0, 255.0),
         NiftiDatatype.Int16 -> Vector(-32768.0, 0.0, 32767.0),
         NiftiDatatype.Int32 ->
@@ -459,6 +466,7 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
   test("label reads preserve exact integral categories and reject fractional scaling"):
     val exactCases =
       Vector(
+        NiftiDatatype.Int8 -> Vector(-128.0, -1.0, 127.0),
         NiftiDatatype.UInt8 -> Vector(0.0, 1.0, 7.0),
         NiftiDatatype.Int16 -> Vector(-2.0, 0.0, 9.0),
         NiftiDatatype.Int32 -> Vector(-100000.0, 0.0, 100000.0),
@@ -630,6 +638,51 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
       api.writeLabels("/quantized-labels.nii", labels, quantizing),
       Left(NiftiError.LabelWriteRequiresExactIntegerConversion)
     )
+
+  test("signed INT8 native labels refuse nonidentity scaling"):
+    val path = "/signed-scaled-labels.nii"
+    writeFixture(
+      path,
+      Vector(1, 1, 1),
+      NiftiDatatype.Int8,
+      slope = 2.0,
+      intercept = 1.0,
+      values = Vector(-1.0)
+    )
+    assertEquals(
+      api.readLabelsNative(path),
+      Left(NiftiError.NativeLabelRequiresIdentityScale(2.0, 1.0))
+    )
+
+  test("signed INT8 labels preserve boundary bytes and refuse overflow"):
+    val frame = geometryRight(
+      Frame.named[D3](
+        "signed-labels",
+        LengthUnit.Millimeter,
+        CoordinateConvention.RAS
+      )
+    )
+    val grid = geometryRight(Grid.in(frame)(Vector(4, 1, 1), Affine.identity[D3]))
+    def labels(values: Vector[Long]) = imageRight(
+      Sampled.categorical(
+        grid,
+        NonSpatialAxes.empty,
+        NDArray.fromSeq(Shape(4, 1, 1), values)
+      )
+    )
+    val values = Vector(-128L, -1L, 0L, 127L)
+    val options = NiftiWriteOptions.forDatatype(NiftiDatatype.Int8)
+    val path = "/signed-labels.nii"
+    niftiRight(api.writeLabels(path, labels(values), options))
+    val bytes = niftiRight(files.readBytes(path, NiftiOperation.ReadPayload))
+    assertEquals(bytes.slice(352, 356).toVector, Vector[Byte](-128, -1, 0, 127))
+    assertEquals(sampledValues(niftiRight(api.readLabels(path)).image), values)
+    assertEquals(nativeLabelCodes(niftiRight(api.readLabelsNative(path)).image), values)
+    for outside <- Vector(-129L, 128L) do
+      api.writeLabels("/signed-overflow.nii", labels(values.updated(1, outside)), options) match
+        case Left(error: NiftiError.ValueNotRepresentable) =>
+          assertEquals(error.datatype, NiftiDatatype.Int8)
+        case other => fail(s"expected signed-byte overflow refusal, got $other")
 
   test("fourth-axis sampling recovers time units and applies unknown-unit policy"):
     val cases =
@@ -874,6 +927,8 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
 
   private def rawAsDoubles(raw: NiftiRawImage): Vector[Double] =
     raw match
+      case NiftiRawImage.Int8(image) =>
+        sampledValues(image).map(_.toDouble)
       case NiftiRawImage.UInt8(image) =>
         sampledValues(image).map(_.toInt.toDouble)
       case NiftiRawImage.Int16(image) =>
@@ -889,6 +944,8 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
       labels: NiftiLabelStored
   ): Vector[Long] =
     labels match
+      case NiftiLabelStored.Int8(codes, _) =>
+        sampledValues(codes).map(_.toLong)
       case NiftiLabelStored.UInt8(codes, _) =>
         sampledValues(codes).map(_.toInt.toLong)
       case NiftiLabelStored.Int16(codes, _) =>
@@ -963,6 +1020,8 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
     values.zipWithIndex.foreach { case (value, index) =>
       val offset = 352 + index * bytesPerValue
       datatype match
+        case NiftiDatatype.Int8 =>
+          buffer.put(offset, value.toInt.toByte)
         case NiftiDatatype.UInt8 =>
           buffer.put(offset, value.toInt.toByte)
         case NiftiDatatype.Int16 =>

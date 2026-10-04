@@ -104,7 +104,7 @@ image semantics and geometry; reframe4s owns production transformations and
 resampling; locus4s owns identity-safe finite domains. `image4s-core` has no
 filesystem, format, or filter catalogue API.
 
-NIfTI support is deliberately bounded to scalar NIfTI-1 UInt8, Int16, Int32,
+NIfTI support is deliberately bounded to scalar NIfTI-1 Int8, UInt8, Int16, Int32,
 Float32, and Float64 payloads plus the implemented endianness, gzip, extension,
 and affine cases. Complex, RGB, binary, wider-integer, and NIfTI-2 payloads
 are rejected rather than guessed.
