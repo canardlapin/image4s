@@ -891,11 +891,11 @@ private[nifti] final class NiftiApi[P](
     val step = header.pixelDimensions.lift(3).getOrElse(1.0)
     header.temporalUnit match
       case NiftiTemporalUnit.Second =>
-        regularTimeAxis(extent, step, AxisUnit.Seconds)
+        regularTimeAxis(extent, header.temporalOrigin.value, step, AxisUnit.Seconds)
       case NiftiTemporalUnit.Millisecond =>
-        regularTimeAxis(extent, step, AxisUnit.Milliseconds)
+        regularTimeAxis(extent, header.temporalOrigin.value, step, AxisUnit.Milliseconds)
       case NiftiTemporalUnit.Microsecond =>
-        regularTimeAxis(extent, step, AxisUnit.Microseconds)
+        regularTimeAxis(extent, header.temporalOrigin.value, step, AxisUnit.Microseconds)
       case NiftiTemporalUnit.Hertz =>
         regularFrequencyAxis(extent, step, AxisUnit.Hertz)
       case NiftiTemporalUnit.Ppm =>
@@ -909,19 +909,32 @@ private[nifti] final class NiftiApi[P](
           case NiftiUnknownTemporalUnitPolicy.Reject =>
             Left(NiftiError.UnknownTemporalUnitForFourthDimension)
           case NiftiUnknownTemporalUnitPolicy.AssumeSeconds =>
-            regularTimeAxis(extent, step, AxisUnit.Seconds)
+            assumedTimeAxis(header, extent, AxisUnit.Seconds)
           case NiftiUnknownTemporalUnitPolicy.AssumeMilliseconds =>
-            regularTimeAxis(extent, step, AxisUnit.Milliseconds)
+            assumedTimeAxis(header, extent, AxisUnit.Milliseconds)
           case NiftiUnknownTemporalUnitPolicy.AssumeMicroseconds =>
-            regularTimeAxis(extent, step, AxisUnit.Microseconds)
+            assumedTimeAxis(header, extent, AxisUnit.Microseconds)
+
+  private def assumedTimeAxis(
+      header: NiftiHeader,
+      extent: Int,
+      unit: AxisUnit
+  ): Either[NiftiError, Axis] =
+    header.storedFourthAxisStep match
+      case Some(rawStep) if rawStep > 0.0 =>
+        regularTimeAxis(extent, header.temporalOrigin.value, rawStep, unit)
+      case _ =>
+        Left(NiftiError.InvalidHeader(NiftiHeaderField.PixelDimension(4),
+          "a physical-time assumption requires a positive stored fourth-axis step"))
 
   private def regularTimeAxis(
       extent: Int,
+      origin: Double,
       step: Double,
       unit: AxisUnit
   ): Either[NiftiError, Axis] =
     Axis
-      .regular("time", AxisKind.Time, extent, 0.0, step, unit)
+      .regular("time", AxisKind.Time, extent, origin, step, unit)
       .left
       .map(NiftiError.Image.apply)
 
@@ -1527,7 +1540,10 @@ private[nifti] final class NiftiApi[P](
         unsignedShort(buffer, 70),
         unsignedShort(buffer, 72)
       )
+      declaredTemporalUnit = temporalUnit(bytes(123) & 0x38)
+      _ <- validateFourthAxisStep(buffer, dimensions.length, declaredTemporalUnit)
       pixelDimensions <- pixelDimensions(buffer, dimensions.length)
+      temporalOrigin <- NiftiTemporalOrigin.fromStored(buffer.getFloat(136).toDouble)
       voxelOffset <- voxelOffset(buffer, actualStorage)
       scaling <- scaling(buffer)
       qform <- qform(buffer, pixelDimensions)
@@ -1536,6 +1552,8 @@ private[nifti] final class NiftiApi[P](
     yield NiftiHeader(
       dimensions = dimensions,
       pixelDimensions = pixelDimensions,
+      storedFourthAxisStep =
+        if dimensions.length >= 4 then Some(buffer.getFloat(92).toDouble) else None,
       datatype = datatype,
       voxelOffset = voxelOffset,
       slope = scaling._1,
@@ -1547,7 +1565,8 @@ private[nifti] final class NiftiApi[P](
       fallbackAffine = fallback,
       byteOrder = order,
       spatialUnit = spatialUnit(bytes(123) & 0x07),
-      temporalUnit = temporalUnit(bytes(123) & 0x38),
+      temporalUnit = declaredTemporalUnit,
+      temporalOrigin = temporalOrigin,
       storage = actualStorage,
       extensions = Vector.empty
     )
@@ -1610,6 +1629,19 @@ private[nifti] final class NiftiApi[P](
             )
         }
         .toLeft(values)
+
+  private def validateFourthAxisStep(
+      buffer: ByteBuffer,
+      rank: Int,
+      unit: NiftiTemporalUnit
+  ): Either[NiftiError, Unit] =
+    if rank < 4 then Right(())
+    else
+      val value = buffer.getFloat(92).toDouble
+      Either.cond(value.isFinite && value >= 0.0 &&
+        (unit == NiftiTemporalUnit.Unknown || value > 0.0), (),
+        NiftiError.InvalidHeader(NiftiHeaderField.PixelDimension(4),
+          s"fourth-axis sampling requires a nonnegative finite step and a positive step when units are declared, got $value"))
 
   private def pixelDimensions(
       buffer: ByteBuffer,
@@ -1982,6 +2014,7 @@ private[nifti] final class NiftiApi[P](
     buffer.putFloat(108, voxelOffset.toFloat)
     buffer.putFloat(112, options.slope.toFloat)
     buffer.putFloat(116, options.intercept.toFloat)
+    buffer.putFloat(136, options.temporalOrigin.value.toFloat)
     buffer.put(
       123,
       (

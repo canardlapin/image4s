@@ -185,8 +185,9 @@ final class NodeNiftiSuite extends FunSuite:
       NiftiWriteOptions.default
         .withNonSpatialSampling(
           Vector(0.8),
-          NiftiTemporalUnit.Second
+          NiftiTemporalUnit.Millisecond
         )
+        .flatMap(_.withTemporalOrigin(12.5))
         .fold(error => fail(error.message), identity)
     val path = temporaryPath("timing.nii.gz")
 
@@ -195,7 +196,8 @@ final class NodeNiftiSuite extends FunSuite:
     val decoded = niftiRight(Nifti.readScaledDouble(path))
 
     assertEqualsDouble(header.pixelDimensions(3), 0.8f.toDouble, 0.0)
-    assertEquals(header.temporalUnit, NiftiTemporalUnit.Second)
+    assertEquals(header.temporalUnit, NiftiTemporalUnit.Millisecond)
+    assertEquals(header.temporalOrigin.value, 12.5)
     decoded.image.fold(
       _ => fail("NIfTI must produce D3"),
       d3 =>
@@ -205,8 +207,8 @@ final class NodeNiftiSuite extends FunSuite:
         assertEquals(
           imageRight(axis.coordinateAt(1)),
           image4s.AxisCoordinate.Numeric(
-            0.8f.toDouble,
-            image4s.AxisUnit.Seconds
+            12.5 + 0.8f.toDouble,
+            image4s.AxisUnit.Milliseconds
           )
         )
     )
