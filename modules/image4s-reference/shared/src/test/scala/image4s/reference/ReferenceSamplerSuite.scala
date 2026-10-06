@@ -333,7 +333,7 @@ ReferenceSampler.linearToInt(image, point)
       geometryRight(
         Frame.persistentNamed[D2](id, "restored-frame")
       )
-    val record = geometryRight(original.record)
+    val record = geometryRight(original.record.left.map(image4s.geometry.GeometryError.fromSpatial))
     val left =
       geometryRight(
         Frame.restore[D2](record, Frame.Registry.empty)

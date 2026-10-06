@@ -115,7 +115,7 @@ Start with `image4s-core`; add only the modules needed by the workflow:
 
 | Module | Use it for |
 |---|---|
-| `image4s-geometry` | dimensions, frames, points, vectors, grids, identities, and affine coordinates |
+| `image4s-geometry` | grids, grid identities and index-to-world affine coordinates; Spatial4s coordinate aliases |
 | `image4s-core` | `Sampled`, axes, value semantics, checked construction, metadata, and views |
 | `image4s-filter` | convolution, correlation, Gaussian filtering, and neighborhood filters |
 | `image4s-morphology` | binary and grayscale morphology |
@@ -217,3 +217,18 @@ Ordinary builds use the exact revisions declared in `build.sbt`.
 
 Apache-2.0, as declared by the build. See the
 [Apache-2.0 license text](https://www.apache.org/licenses/LICENSE-2.0).
+
+Shared coordinate authority is provided by Spatial4s: `Dim`, `Frame`, `Point`,
+`Vec`, persistent frame keys, units and conventions have the same runtime and
+Scala types through `image4s.geometry`. Image4s owns grid identity and image
+geometry. Instance methods on those aliases return `spatial4s.SpatialError`;
+Image4s factories retain `GeometryError`, and `GeometryError.fromCoordinate`
+provides an explicit error bridge. Frame restoration with the same registry
+returns its canonical owner. Independent registries require explicit alignment.
+
+Units and conventions are extensible Spatial4s values. `LengthUnit.values` and
+`CoordinateConvention.values` list Image4s's standard supported values rather
+than all possible custom values. NIfTI writing rejects unsupported units before
+creating output. Existing standard grid identity encoding remains unchanged.
+Development builds may select `-Dimage4s.spatial4s.build=/absolute/path`; the
+default is the exact integrated Spatial4s revision recorded in `build.sbt`.

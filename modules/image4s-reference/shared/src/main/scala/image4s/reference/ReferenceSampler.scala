@@ -234,7 +234,7 @@ object ReferenceSampler:
   ](
       image: Sampled[S, A, Sem, R],
       point: Point[PF, D]
-  )(using Dimension[D]): Either[ImageError, Point[IF, D]] =
+  )(using @scala.annotation.unused dimension: Dimension[D]): Either[ImageError, Point[IF, D]] =
     Frame
       .alignOwners[D, IF, PF](image.frame, point.frame)
       .left

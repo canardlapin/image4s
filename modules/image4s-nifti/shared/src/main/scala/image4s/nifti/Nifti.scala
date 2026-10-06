@@ -924,8 +924,12 @@ private[nifti] final class NiftiApi[P](
       case Some(rawStep) if rawStep > 0.0 =>
         regularTimeAxis(extent, header.temporalOrigin.value, rawStep, unit)
       case _ =>
-        Left(NiftiError.InvalidHeader(NiftiHeaderField.PixelDimension(4),
-          "a physical-time assumption requires a positive stored fourth-axis step"))
+        Left(
+          NiftiError.InvalidHeader(
+            NiftiHeaderField.PixelDimension(4),
+            "a physical-time assumption requires a positive stored fourth-axis step"
+          )
+        )
 
   private def regularTimeAxis(
       extent: Int,
@@ -1638,10 +1642,15 @@ private[nifti] final class NiftiApi[P](
     if rank < 4 then Right(())
     else
       val value = buffer.getFloat(92).toDouble
-      Either.cond(value.isFinite && value >= 0.0 &&
-        (unit == NiftiTemporalUnit.Unknown || value > 0.0), (),
-        NiftiError.InvalidHeader(NiftiHeaderField.PixelDimension(4),
-          s"fourth-axis sampling requires a nonnegative finite step and a positive step when units are declared, got $value"))
+      Either.cond(
+        value.isFinite && value >= 0.0 &&
+          (unit == NiftiTemporalUnit.Unknown || value > 0.0),
+        (),
+        NiftiError.InvalidHeader(
+          NiftiHeaderField.PixelDimension(4),
+          s"fourth-axis sampling requires a nonnegative finite step and a positive step when units are declared, got $value"
+        )
+      )
 
   private def pixelDimensions(
       buffer: ByteBuffer,
@@ -1909,6 +1918,11 @@ private[nifti] final class NiftiApi[P](
     val headerBytes = HeaderSize.toLong + extensionBytes
     for
       _ <- validateIoLimits(limits)
+      _ <- Either.cond(
+        LengthUnit.values.contains(grid.frame.unit),
+        (),
+        NiftiError.UnsupportedSpatialFrameUnit(grid.frame.unit.id)
+      )
       _ <- Either.cond(
         dimensions.length >= 3 && dimensions.length <= 7,
         (),
@@ -2522,6 +2536,7 @@ private[nifti] final class NiftiApi[P](
       case LengthUnit.Meter => 1
       case LengthUnit.Millimeter => 2
       case LengthUnit.Micrometer => 3
+      case other => throw new IllegalArgumentException(s"unvalidated NIfTI write unit ${other.id}")
 
   private def temporalUnitCode(unit: NiftiTemporalUnit): Int =
     unit match

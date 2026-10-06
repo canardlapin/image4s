@@ -118,10 +118,10 @@ object GeometryLaws:
       alignment: FrameAlignment[D, LF, RF],
       point: Point[LF, D],
       tolerance: Double
-  )(using Dimension[D]): Either[GeometryError, Boolean] =
+  )(using @scala.annotation.unused dimension: Dimension[D]): Either[GeometryError, Boolean] =
     for
-      right <- alignment.pointToRight(point)
-      recovered <- alignment.pointToLeft(right)
+      right <- alignment.pointToRight(point).left.map(GeometryError.fromSpatial)
+      recovered <- alignment.pointToLeft(right).left.map(GeometryError.fromSpatial)
     yield closeVector(
       recovered.coordinates,
       point.coordinates,
@@ -136,7 +136,7 @@ object GeometryLaws:
       alignment: GridAlignment[D, LF, RF],
       point: Point[LF, D],
       tolerance: Double
-  )(using Dimension[D]): Either[GeometryError, Boolean] =
+  )(using @scala.annotation.unused dimension: Dimension[D]): Either[GeometryError, Boolean] =
     for
       right <- alignment.pointToRight(point)
       recovered <- alignment.pointToLeft(right)

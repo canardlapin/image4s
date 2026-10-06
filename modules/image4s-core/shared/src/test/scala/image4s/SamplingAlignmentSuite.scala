@@ -95,7 +95,7 @@ def invalid[
       )
     val axes = imageRight(NonSpatialAxes.from(Vector(time)))
     val originalSpace = SampleSpace.create(originalGrid, axes)
-    val frameRecord = geometryRight(originalFrame.record)
+    val frameRecord = geometryRight(originalFrame.record.left.map(GeometryError.fromSpatial))
     val gridRecord = geometryRight(originalGrid.record)
     val spaceRecord = imageRight(originalSpace.record)
 

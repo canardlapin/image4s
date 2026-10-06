@@ -300,3 +300,16 @@ checksum for direct Ravel access and checked `Sampled.valueAt` access. These
 numbers are development baselines, not cross-runtime release claims. Visible
 losses remain recorded until the zero-overhead image4s access bead
 `bd-01KYNR806KDX4GFH3B486AM1CG` replaces them with a matched rerun.
+
+## Shared spatial coordinate authority
+
+Spatial4s owns dimensions, frame keys and runtime owners, points, vectors, units
+and conventions. Image4s geometry names for those types are aliases. Grid
+identity and index-to-world geometry remain Image4s-owned. Alias instance
+operations return `spatial4s.SpatialError`; the Image4s static factory facade
+returns `GeometryError`. Use `GeometryError.fromCoordinate` when a boundary
+combines both errors. A shared registry restores the same canonical frame
+object; independent registries need explicit owner alignment.
+
+NIfTI supports the three standard length units. Custom Spatial4s units are
+refused before output creation instead of silently being encoded as millimeters.

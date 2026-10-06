@@ -161,7 +161,7 @@ final class GeometrySuite extends ScalaCheckSuite:
 
     assertEquals(first.persistentKey, None)
     assertEquals(second.persistentKey, None)
-    assertEquals(first.record, Left(GeometryError.EphemeralFrameHasNoRecord))
+    assertEquals(first.record, Left(spatial4s.SpatialError.EphemeralFrameHasNoRecord))
     assert(!first.sameRuntimeOwnerAs(second))
     assertEquals(
       Frame.align(first, second),
@@ -179,7 +179,7 @@ final class GeometrySuite extends ScalaCheckSuite:
     )
     assertEquals(
       FrameRegistry.empty.register(first),
-      Left(GeometryError.CannotRegisterEphemeralFrame)
+      Left(spatial4s.SpatialError.CannotRegisterEphemeralFrame)
     )
     assertEquals(
       GridRegistry.empty.register(firstGrid),
@@ -206,7 +206,7 @@ final class GeometrySuite extends ScalaCheckSuite:
 
     assertEquals(empty.size, 0)
     assertEquals(registered.size, 1)
-    assert(restored.frame ne frame)
+    assert(restored.frame eq frame)
     assert(restored.frame.sameRuntimeOwnerAs(frame))
     assert(restored.registry eq registered)
     assertEquals(restored.frame.metadata.label, "original")
@@ -262,7 +262,7 @@ final class GeometrySuite extends ScalaCheckSuite:
 
     assertEquals(
       registered.register(otherOwner),
-      Left(GeometryError.FrameRestoreDuplicateOwner(id))
+      Left(spatial4s.SpatialError.DuplicateFrameOwner(id))
     )
     assert(
       Frame
@@ -973,17 +973,20 @@ Grid.in[D2](patient)(Vector(64, 64), Affine.identity[D2])
     val vector = right(Vec.in[D2](rightFrame)(3.0, 4.0))
     val leftVector = right(Vec.in[D2](left)(1.0, 1.0))
 
-    assertEquals(
-      point.addChecked(vector),
-      Left(GeometryError.EphemeralFrameMismatch)
+    assert(
+      point.addChecked(vector).left.exists(_.isInstanceOf[spatial4s.SpatialError.FrameMismatch])
     )
-    assertEquals(
-      point.subtractChecked(otherPoint),
-      Left(GeometryError.EphemeralFrameMismatch)
+    assert(
+      point
+        .subtractChecked(otherPoint)
+        .left
+        .exists(_.isInstanceOf[spatial4s.SpatialError.FrameMismatch])
     )
-    assertEquals(
-      leftVector.addChecked(vector),
-      Left(GeometryError.EphemeralFrameMismatch)
+    assert(
+      leftVector
+        .addChecked(vector)
+        .left
+        .exists(_.isInstanceOf[spatial4s.SpatialError.FrameMismatch])
     )
 
   test("canonical geometry key fixture is identical on JVM and Scala.js"):
@@ -1046,7 +1049,7 @@ Grid.in[D2](patient)(Vector(64, 64), Affine.identity[D2])
     right(GridId.parse(value))
 
   private def encodeFrameKey(key: FrameKey): String =
-    s"${key.id.value}|${key.spatialRank}|${key.unit}|${key.convention}"
+    s"${key.id.value}|${key.spatialRank}|${LengthUnit.serializedName(key.unit)}|${CoordinateConvention.serializedName(key.convention)}"
 
   private def encodeGridKey(key: GridKey): String =
     s"${key.id.value}|${key.frame.id.value}|${key.spatialRank}|" +
@@ -1101,7 +1104,7 @@ Grid.in[D2](patient)(Vector(64, 64), Affine.identity[D2])
       assertEqualsDouble(left, right, tolerance)
     }
 
-  private def right[A](value: Either[GeometryError, A]): A =
+  private def right[E, A](value: Either[E, A]): A =
     value match
       case Right(result) => result
-      case Left(error) => fail(error.message)
+      case Left(error) => fail(error.toString)

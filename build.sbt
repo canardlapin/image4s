@@ -37,7 +37,7 @@ lazy val ravelStencilJS = ProjectRef(ravelBuild, "stencilJS")
 lazy val ravelPackedJVM = ProjectRef(ravelBuild, "packedJVM")
 lazy val ravelPackedJS = ProjectRef(ravelBuild, "packedJS")
 
-lazy val galeRevision = "099832ff15c8a4a8fcf3398c7b779fb4bbc12434"
+lazy val galeRevision = "85a8d12023b49598e5f39705fe8127cebbd9c014"
 lazy val galeBuild =
   sys.props
     .get("image4s.gale.build")
@@ -45,6 +45,14 @@ lazy val galeBuild =
     .getOrElse(uri(s"https://github.com/canardlapin/gale.git#$galeRevision"))
 lazy val galeCoreJVM = ProjectRef(galeBuild, "coreJVM")
 lazy val galeCoreJS = ProjectRef(galeBuild, "coreJS")
+
+lazy val spatial4sRevision = "2eca2b379c1985881e4ca152b2a6c63a763277b0"
+lazy val spatial4sBuild = sys.props
+  .get("image4s.spatial4s.build")
+  .map(path => file(path).getCanonicalFile.toURI)
+  .getOrElse(uri(s"https://github.com/canardlapin/spatial4s.git#$spatial4sRevision"))
+lazy val spatial4sCoreJVM = ProjectRef(spatial4sBuild, "spatial4s-coreJVM")
+lazy val spatial4sCoreJS = ProjectRef(spatial4sBuild, "spatial4s-coreJS")
 
 lazy val locus4sRevision = "a67bc87c33b5da8a5dc2cad49919c015b59f3050"
 lazy val locus4sBuild =
@@ -88,6 +96,8 @@ def imageProject(artifact: String): CrossProject =
 
 lazy val image4sGeometry =
   imageProject("image4s-geometry")
+    .jvmConfigure(_.dependsOn(spatial4sCoreJVM))
+    .jsConfigure(_.dependsOn(spatial4sCoreJS))
     .jvmConfigure(_.dependsOn(galeCoreJVM))
     .jsConfigure(_.dependsOn(galeCoreJS))
 
