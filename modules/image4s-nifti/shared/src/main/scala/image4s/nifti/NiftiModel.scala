@@ -24,8 +24,8 @@ enum NiftiSpatialUnit derives CanEqual:
 enum NiftiTemporalUnit derives CanEqual:
   case Unknown, Second, Millisecond, Microsecond, Hertz, Ppm, RadianPerSecond
 
-/** Coordinate of the first sample on the fourth axis, in the declared temporal unit.
-  * NIfTI-1 stores this value in the Float32 `toffset` field.
+/** Coordinate of the first sample on the fourth axis, in the declared temporal unit. NIfTI-1 stores
+  * this value in the Float32 `toffset` field.
   */
 opaque type NiftiTemporalOrigin = Double
 
@@ -39,7 +39,13 @@ object NiftiTemporalOrigin:
 
   private[nifti] def fromStored(value: Double): Either[NiftiError, NiftiTemporalOrigin] =
     if value.isFinite then Right(value)
-    else Left(NiftiError.InvalidHeader(NiftiHeaderField.TemporalOrigin, s"expected a finite value, got $value"))
+    else
+      Left(
+        NiftiError.InvalidHeader(
+          NiftiHeaderField.TemporalOrigin,
+          s"expected a finite value, got $value"
+        )
+      )
 
   extension (origin: NiftiTemporalOrigin) inline def value: Double = origin
 
@@ -382,11 +388,20 @@ final class NiftiWriteOptions private (
     )
 
   def withTemporalOrigin(value: Double): Either[NiftiWriteOptionsError, NiftiWriteOptions] =
-    NiftiTemporalOrigin.create(value).map: origin =>
-      new NiftiWriteOptions(
-        datatype, slope, intercept, integerConversion,
-        nonSpatialPixelDimensions, temporalUnit, origin, ioLimits, coordinateSystem
-      )
+    NiftiTemporalOrigin
+      .create(value)
+      .map: origin =>
+        new NiftiWriteOptions(
+          datatype,
+          slope,
+          intercept,
+          integerConversion,
+          nonSpatialPixelDimensions,
+          temporalUnit,
+          origin,
+          ioLimits,
+          coordinateSystem
+        )
 
 object NiftiWriteOptions:
   val default: NiftiWriteOptions =
@@ -776,6 +791,9 @@ object NiftiError:
   ) extends NiftiError:
     val message: String =
       s"NIfTI frames use RAS coordinates, but the supplied frame declares $actual"
+
+  final case class UnsupportedSpatialFrameUnit(id: String) extends NiftiError:
+    val message: String = s"NIfTI-1 cannot encode spatial coordinate unit '$id'"
 
   final case class FrameUnitMismatch(
       fileUnit: NiftiSpatialUnit,

@@ -52,7 +52,12 @@ final class Affine[D <: Dim] private (
     else if coordinates.exists(value => !value.isFinite) then
       val axis = coordinates.indexWhere(value => !value.isFinite)
       Left(GeometryError.NonFiniteCoordinate(axis, coordinates(axis)))
-    else Right(applyUnchecked(coordinates, matrix, dimension.rank))
+    else
+      val computed = applyUnchecked(coordinates, matrix, dimension.rank)
+      val invalidAxis = computed.indexWhere(value => !value.isFinite)
+      if invalidAxis >= 0 then
+        Left(GeometryError.NonFiniteCoordinate(invalidAxis, computed(invalidAxis)))
+      else Right(computed)
 
   def rowMajor: Vector[Double] =
     Vector.tabulate(matrix.rows * matrix.cols) { flat =>

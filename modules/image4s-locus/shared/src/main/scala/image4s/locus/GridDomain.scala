@@ -634,8 +634,11 @@ object GridDomain:
       component("grid-id", key.id.value),
       component("frame-id", key.frame.id.value),
       component("rank", key.spatialRank.toString),
-      component("unit", key.frame.unit.toString),
-      component("convention", key.frame.convention.toString),
+      component("unit", image4s.geometry.LengthUnit.serializedName(key.frame.unit)),
+      component(
+        "convention",
+        image4s.geometry.CoordinateConvention.serializedName(key.frame.convention)
+      ),
       component("shape", key.shape.mkString(",")),
       component(
         "affine-bits",

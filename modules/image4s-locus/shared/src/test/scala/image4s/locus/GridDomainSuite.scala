@@ -126,6 +126,20 @@ final class GridDomainSuite extends ScalaCheckSuite:
       )
     )
 
+  test("custom unit semantics cannot collide in persistent grid domain fingerprints"):
+    def fingerprint(scale: Double, quantity: spatial4s.CoordinateQuantity) =
+      val unit = spatial4s.CoordinateUnit.custom("custom", "c", quantity, Some(scale)).toOption.get
+      val frame = right(Frame.persistentNamed[D2](frameId("custom-frame"), "custom", unit))
+      val grid = right(
+        Grid.createPersistent(gridId("custom-grid"), frame)(Vector(2, 3), Affine.identity[D2])
+      )
+      right(GridDomain.canonicalDomainRecord(grid, "custom")).fingerprint
+    val first = fingerprint(0.01, spatial4s.CoordinateQuantity.Length)
+    val second = fingerprint(0.02, spatial4s.CoordinateQuantity.Length)
+    val third = fingerprint(0.01, spatial4s.CoordinateQuantity.custom("length").toOption.get)
+    assertNotEquals(first, second)
+    assertNotEquals(first, third)
+
   test("one registry converges repeated registration on one live owner"):
     val grid = persistentGrid2("converge", Vector(3, 5))
     val first = register(grid, "initial")

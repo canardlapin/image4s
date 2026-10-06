@@ -789,9 +789,12 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
     Vector(0.0, -2.0).foreach: step =>
       val invalidStep = s"/invalid-step-$step.nii"
       writeFixture(
-        invalidStep, Vector(1, 1, 1, 2), NiftiDatatype.Float32,
+        invalidStep,
+        Vector(1, 1, 1, 2),
+        NiftiDatatype.Float32,
         pixelDimensions = Vector(1.0, 1.0, 1.0, step),
-        temporalUnitCode = 8, values = Vector(1.0, 2.0)
+        temporalUnitCode = 8,
+        values = Vector(1.0, 2.0)
       )
       assert(api.readScaledDouble(invalidStep).left.toOption.exists {
         case NiftiError.InvalidHeader(NiftiHeaderField.PixelDimension(4), _) => true
@@ -801,21 +804,36 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
   test("unknown temporal units retain origin and assumptions interpret it in the chosen unit"):
     val path = "/origin-unknown.nii"
     writeFixture(
-      path, Vector(1, 1, 1, 2), NiftiDatatype.Float32,
+      path,
+      Vector(1, 1, 1, 2),
+      NiftiDatatype.Float32,
       pixelDimensions = Vector(1.0, 1.0, 1.0, 2.5),
       temporalOrigin = 1.25,
       values = Vector(1.0, 2.0)
     )
     val ordinal = niftiRight(api.readScaledDouble(path))
     assertEquals(ordinal.header.temporalOrigin.value, 1.25)
-    assertEquals(imageRight(soleNonSpatialAxis(ordinal.image).coordinateAt(1)), AxisCoordinate.Ordinal(1))
-    val milliseconds = niftiRight(api.readScaledDouble(path,
-      NiftiReadOptions.default.copy(unknownTemporalUnit = NiftiUnknownTemporalUnitPolicy.AssumeMilliseconds)))
-    assertEquals(imageRight(soleNonSpatialAxis(milliseconds.image).coordinateAt(1)),
-      AxisCoordinate.Numeric(3.75, AxisUnit.Milliseconds))
+    assertEquals(
+      imageRight(soleNonSpatialAxis(ordinal.image).coordinateAt(1)),
+      AxisCoordinate.Ordinal(1)
+    )
+    val milliseconds = niftiRight(
+      api.readScaledDouble(
+        path,
+        NiftiReadOptions.default.copy(unknownTemporalUnit =
+          NiftiUnknownTemporalUnitPolicy.AssumeMilliseconds
+        )
+      )
+    )
+    assertEquals(
+      imageRight(soleNonSpatialAxis(milliseconds.image).coordinateAt(1)),
+      AxisCoordinate.Numeric(3.75, AxisUnit.Milliseconds)
+    )
     val negativeUnknown = "/negative-unknown-step.nii"
     writeFixture(
-      negativeUnknown, Vector(1, 1, 1, 2), NiftiDatatype.Float32,
+      negativeUnknown,
+      Vector(1, 1, 1, 2),
+      NiftiDatatype.Float32,
       pixelDimensions = Vector(1.0, 1.0, 1.0, -1.0),
       values = Vector(1.0, 2.0)
     )
@@ -823,54 +841,75 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
 
     val microsecondsPath = "/microseconds-origin.nii"
     writeFixture(
-      microsecondsPath, Vector(1, 1, 1, 2), NiftiDatatype.Float32,
+      microsecondsPath,
+      Vector(1, 1, 1, 2),
+      NiftiDatatype.Float32,
       pixelDimensions = Vector(1.0, 1.0, 1.0, 0.75),
-      temporalUnitCode = 24, temporalOrigin = 100.0,
+      temporalUnitCode = 24,
+      temporalOrigin = 100.0,
       values = Vector(1.0, 2.0)
     )
     val microseconds = niftiRight(api.readScaledDouble(microsecondsPath))
-    assertEquals(imageRight(soleNonSpatialAxis(microseconds.image).coordinateAt(1)),
-      AxisCoordinate.Numeric(100.75, AxisUnit.Microseconds))
+    assertEquals(
+      imageRight(soleNonSpatialAxis(microseconds.image).coordinateAt(1)),
+      AxisCoordinate.Numeric(100.75, AxisUnit.Microseconds)
+    )
 
     val frequencyPath = "/frequency-origin.nii"
     writeFixture(
-      frequencyPath, Vector(1, 1, 1, 2), NiftiDatatype.Float32,
+      frequencyPath,
+      Vector(1, 1, 1, 2),
+      NiftiDatatype.Float32,
       pixelDimensions = Vector(1.0, 1.0, 1.0, 0.75),
-      temporalUnitCode = 32, temporalOrigin = 9.0,
+      temporalUnitCode = 32,
+      temporalOrigin = 9.0,
       values = Vector(1.0, 2.0)
     )
     val frequency = niftiRight(api.readScaledDouble(frequencyPath))
     assertEquals(frequency.header.temporalOrigin.value, 9.0)
-    assertEquals(imageRight(soleNonSpatialAxis(frequency.image).coordinateAt(1)),
-      AxisCoordinate.Numeric(0.75, AxisUnit.Hertz))
+    assertEquals(
+      imageRight(soleNonSpatialAxis(frequency.image).coordinateAt(1)),
+      AxisCoordinate.Numeric(0.75, AxisUnit.Hertz)
+    )
 
   test("unknown temporal unit cannot invent physical spacing from raw zero pixdim4"):
     val path = "/unknown-zero-step.nii"
     writeFixture(
-      path, Vector(1, 1, 1, 2), NiftiDatatype.Float32,
+      path,
+      Vector(1, 1, 1, 2),
+      NiftiDatatype.Float32,
       pixelDimensions = Vector(1.0, 1.0, 1.0, 0.0),
       values = Vector(1.0, 2.0)
     )
     val ordinal = niftiRight(api.readScaledDouble(path))
     assertEquals(ordinal.header.pixelDimensions(3), 1.0)
     assertEquals(ordinal.header.storedFourthAxisStep, Some(0.0))
-    assertEquals(imageRight(soleNonSpatialAxis(ordinal.image).coordinateAt(1)),
-      AxisCoordinate.Ordinal(1))
+    assertEquals(
+      imageRight(soleNonSpatialAxis(ordinal.image).coordinateAt(1)),
+      AxisCoordinate.Ordinal(1)
+    )
 
     Vector(
       NiftiUnknownTemporalUnitPolicy.AssumeSeconds,
       NiftiUnknownTemporalUnitPolicy.AssumeMilliseconds,
       NiftiUnknownTemporalUnitPolicy.AssumeMicroseconds
     ).foreach: policy =>
-      assert(api.readScaledDouble(path,
-        NiftiReadOptions.default.copy(unknownTemporalUnit = policy)).left.toOption.exists {
-        case NiftiError.InvalidHeader(NiftiHeaderField.PixelDimension(4), _) => true
-        case _ => false
-      })
+      assert(
+        api
+          .readScaledDouble(path, NiftiReadOptions.default.copy(unknownTemporalUnit = policy))
+          .left
+          .toOption
+          .exists {
+            case NiftiError.InvalidHeader(NiftiHeaderField.PixelDimension(4), _) => true
+            case _ => false
+          }
+      )
 
     val positive = "/unknown-positive-step.nii"
     writeFixture(
-      positive, Vector(1, 1, 1, 2), NiftiDatatype.Float32,
+      positive,
+      Vector(1, 1, 1, 2),
+      NiftiDatatype.Float32,
       pixelDimensions = Vector(1.0, 1.0, 1.0, 2.5),
       temporalOrigin = 1.25,
       values = Vector(1.0, 2.0)
@@ -880,11 +919,14 @@ final class NiftiSemanticSuite extends ScalaCheckSuite:
       NiftiUnknownTemporalUnitPolicy.AssumeMilliseconds -> AxisUnit.Milliseconds,
       NiftiUnknownTemporalUnitPolicy.AssumeMicroseconds -> AxisUnit.Microseconds
     ).foreach { case (policy, unit) =>
-      val decoded = niftiRight(api.readScaledDouble(positive,
-        NiftiReadOptions.default.copy(unknownTemporalUnit = policy)))
+      val decoded = niftiRight(
+        api.readScaledDouble(positive, NiftiReadOptions.default.copy(unknownTemporalUnit = policy))
+      )
       assertEquals(decoded.header.storedFourthAxisStep, Some(2.5))
-      assertEquals(imageRight(soleNonSpatialAxis(decoded.image).coordinateAt(1)),
-        AxisCoordinate.Numeric(3.75, unit))
+      assertEquals(
+        imageRight(soleNonSpatialAxis(decoded.image).coordinateAt(1)),
+        AxisCoordinate.Numeric(3.75, unit)
+      )
     }
 
   test("affine selection covers preference, agreement, diagnostics, fallback, and override"):

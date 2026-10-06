@@ -134,9 +134,9 @@ final class RegistryConcurrencySuite extends FunSuite:
       assertEquals(restored.registry.size, 1)
     finally executor.shutdownNow(): Unit
 
-  private def geometryRight[A](
-      value: Either[GeometryError, A]
+  private def geometryRight[E, A](
+      value: Either[E, A]
   ): A =
     value match
       case Right(result) => result
-      case Left(error) => fail(error.message)
+      case Left(error) => fail(error.toString)

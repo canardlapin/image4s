@@ -4,6 +4,28 @@ sealed trait GeometryError derives CanEqual:
   def message: String
 
 object GeometryError:
+  def fromCoordinate(error: GeometryError | spatial4s.SpatialError): GeometryError =
+    error match
+      case geometry: GeometryError => geometry
+      case spatial: spatial4s.SpatialError => fromSpatial(spatial)
+  final case class Spatial(error: spatial4s.SpatialError) extends GeometryError:
+    def message: String = error.message
+
+  def fromSpatial(error: spatial4s.SpatialError): GeometryError =
+    error match
+      case spatial4s.SpatialError.DimensionMismatch(expected, actual) =>
+        DimensionMismatch(expected, actual)
+      case spatial4s.SpatialError.NonFiniteCoordinate(axis, value) =>
+        NonFiniteCoordinate(axis, value)
+      case spatial4s.SpatialError.UnsupportedSpatialRank(actual) => UnsupportedSpatialRank(actual)
+      case spatial4s.SpatialError.InvalidFrameLabel(value) => InvalidFrameLabel(value)
+      case spatial4s.SpatialError.InvalidIdentifier("frame id", value) => InvalidFrameId(value)
+      case spatial4s.SpatialError.EphemeralFrameHasNoRecord => EphemeralFrameHasNoRecord
+      case spatial4s.SpatialError.CannotRegisterEphemeralFrame => CannotRegisterEphemeralFrame
+      case spatial4s.SpatialError.DuplicateFrameOwner(id) => FrameRestoreDuplicateOwner(id)
+      case spatial4s.SpatialError.FrameKeyConflict(id, registered, requested) =>
+        FrameKeyConflict(id, registered, requested)
+      case other => Spatial(other)
   final case class InvalidFrameId(value: String) extends GeometryError:
     val message: String =
       "frame identifier must be non-empty and contain no surrounding whitespace"

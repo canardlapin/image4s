@@ -329,6 +329,32 @@ final class NiftiSuite extends FunSuite:
       )
     )
 
+  test("unsupported shared spatial units are refused before output is created"):
+    val unit = spatial4s.CoordinateUnit
+      .custom(
+        "centimeter",
+        "cm",
+        spatial4s.CoordinateQuantity.Length,
+        Some(0.01)
+      )
+      .toOption
+      .get
+    val frame = geometryRight(Frame.named[D3]("custom-unit", unit, CoordinateConvention.RAS))
+    val grid = geometryRight(Grid.in(frame)(Vector(1, 1, 1), Affine.identity[D3]))
+    val image = imageRight(
+      Sampled.continuous(
+        grid,
+        NonSpatialAxes.empty,
+        NDArray.zeros[Double](1, 1, 1)
+      )
+    )
+    val path = temporaryPath("custom-unit.nii")
+    assertEquals(
+      Nifti.writeScalar(path, image),
+      Left(NiftiError.UnsupportedSpatialFrameUnit("centimeter"))
+    )
+    assert(!Files.exists(path))
+
   test("uncompressed writes preserve affine, indices, and NIfTI file order"):
     val path = temporaryPath("roundtrip.nii")
     val frame = rasFrame("writer")
@@ -358,10 +384,12 @@ final class NiftiSuite extends FunSuite:
       imageRight(Sampled.continuous(grid, axes, data))
     val writeOptions =
       writeOptionsRight(
-        NiftiWriteOptions.default.withNonSpatialSampling(
-          Vector(1.75),
-          NiftiTemporalUnit.Second
-        ).flatMap(_.withTemporalOrigin(-2.5))
+        NiftiWriteOptions.default
+          .withNonSpatialSampling(
+            Vector(1.75),
+            NiftiTemporalUnit.Second
+          )
+          .flatMap(_.withTemporalOrigin(-2.5))
       )
 
     niftiRight(Nifti.writeScalar(path, image, writeOptions))
@@ -436,14 +464,18 @@ final class NiftiSuite extends FunSuite:
   test("temporal origin and Float32 sampling survive single, gzip and pair encodings"):
     val frame = rasFrame("time-encodings")
     val grid = geometryRight(Grid.in(frame)(Vector(1, 1, 1), Affine.identity[D3]))
-    val time = imageRight(image4s.Axis.regular("time", image4s.AxisKind.Time, 2,
-      0.1, 0.8, AxisUnit.Milliseconds))
+    val time = imageRight(
+      image4s.Axis.regular("time", image4s.AxisKind.Time, 2, 0.1, 0.8, AxisUnit.Milliseconds)
+    )
     val axes = imageRight(NonSpatialAxes.from(Vector(time)))
-    val image = imageRight(Sampled.continuous(grid, axes,
-      NDArray.fromSeq(Shape(1, 1, 1, 2), Vector(1.0, 2.0))))
-    val options = writeOptionsRight(NiftiWriteOptions.default
-      .withNonSpatialSampling(Vector(0.8), NiftiTemporalUnit.Millisecond)
-      .flatMap(_.withTemporalOrigin(0.1)))
+    val image = imageRight(
+      Sampled.continuous(grid, axes, NDArray.fromSeq(Shape(1, 1, 1, 2), Vector(1.0, 2.0)))
+    )
+    val options = writeOptionsRight(
+      NiftiWriteOptions.default
+        .withNonSpatialSampling(Vector(0.8), NiftiTemporalUnit.Millisecond)
+        .flatMap(_.withTemporalOrigin(0.1))
+    )
     Vector("origin.nii", "origin.nii.gz", "origin.hdr", "origin.hdr.gz").foreach: name =>
       val path = temporaryPath(name)
       val files = niftiRight(Nifti.writeScalar(path, image, options))
@@ -453,10 +485,14 @@ final class NiftiSuite extends FunSuite:
       assertEquals(raw.getFloat(136), 0.1f)
       val decoded = niftiRight(Nifti.readScaledDouble(path))
       assertEquals(decoded.header.temporalOrigin.value, 0.1f.toDouble)
-      val axis = decoded.image.fold(_ => fail("expected D3"),
-        d3 => d3.value.nonSpatialAxes(0).getOrElse(fail("missing time axis")))
-      assertEquals(imageRight(axis.coordinateAt(1)),
-        AxisCoordinate.Numeric(0.1f.toDouble + 0.8f.toDouble, AxisUnit.Milliseconds))
+      val axis = decoded.image.fold(
+        _ => fail("expected D3"),
+        d3 => d3.value.nonSpatialAxes(0).getOrElse(fail("missing time axis"))
+      )
+      assertEquals(
+        imageRight(axis.coordinateAt(1)),
+        AxisCoordinate.Numeric(0.1f.toDouble + 0.8f.toDouble, AxisUnit.Milliseconds)
+      )
 
   test("label writes use the same Sampled owner and remain labels on read"):
     val path = temporaryPath("labels-roundtrip.nii")

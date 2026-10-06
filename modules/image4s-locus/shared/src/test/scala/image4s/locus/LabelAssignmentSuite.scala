@@ -6,7 +6,6 @@ import image4s.Sampled
 import image4s.geometry.Affine
 import image4s.geometry.CoordinateConvention
 import image4s.geometry.D2
-import image4s.geometry.Dimension
 import image4s.geometry.Frame
 import image4s.geometry.FrameId
 import image4s.geometry.Grid

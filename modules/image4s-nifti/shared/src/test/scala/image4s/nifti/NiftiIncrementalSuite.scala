@@ -294,8 +294,11 @@ final class NiftiIncrementalSuite extends FunSuite:
     )
     for system <- NiftiCoordinateSystem.values do
       val initial = NiftiWriteOptions.default.withCoordinateSystem(system)
-      val sampled = right(initial.withNonSpatialSampling(Vector(0.5), NiftiTemporalUnit.Second)
-        .flatMap(_.withTemporalOrigin(2.25)))
+      val sampled = right(
+        initial
+          .withNonSpatialSampling(Vector(0.5), NiftiTemporalUnit.Second)
+          .flatMap(_.withTemporalOrigin(2.25))
+      )
       val limited = sampled.withIoLimits(NiftiIoLimits.default)
       val created = right(
         NiftiWriteOptions.create(
