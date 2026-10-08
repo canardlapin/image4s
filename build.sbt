@@ -37,7 +37,7 @@ lazy val ravelStencilJS = ProjectRef(ravelBuild, "stencilJS")
 lazy val ravelPackedJVM = ProjectRef(ravelBuild, "packedJVM")
 lazy val ravelPackedJS = ProjectRef(ravelBuild, "packedJS")
 
-lazy val galeRevision = "38e4457a6aa0d4ed01db8ad6cda69c899f91c843"
+lazy val galeRevision = "1fc0382340d5bc7e405a17f72d9ee86639676f48"
 lazy val galeBuild =
   sys.props
     .get("image4s.gale.build")
