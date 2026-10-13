@@ -24,7 +24,7 @@ ThisBuild / scalacOptions ++= Seq(
 ThisBuild / Test / parallelExecution := false
 Global / concurrentRestrictions += Tags.limit(Tags.Test, 1)
 
-lazy val ravelRevision = "9c5669399ab8e2a11402e71973dd5f1e2f2c13f4"
+lazy val ravelRevision = "195d71027423d5bda1c53ef1baa17e07670fe290"
 lazy val ravelBuild =
   sys.props
     .get("image4s.ravel.build")
@@ -37,7 +37,7 @@ lazy val ravelStencilJS = ProjectRef(ravelBuild, "stencilJS")
 lazy val ravelPackedJVM = ProjectRef(ravelBuild, "packedJVM")
 lazy val ravelPackedJS = ProjectRef(ravelBuild, "packedJS")
 
-lazy val galeRevision = "be709f1e2458e6b58e902862f9e868c4da27e4fe"
+lazy val galeRevision = "9f72048d3ad4274b329aba24076829d078c4bf1a"
 lazy val galeBuild =
   sys.props
     .get("image4s.gale.build")
