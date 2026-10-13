@@ -54,7 +54,7 @@ lazy val spatial4sBuild = sys.props
 lazy val spatial4sCoreJVM = ProjectRef(spatial4sBuild, "spatial4s-coreJVM")
 lazy val spatial4sCoreJS = ProjectRef(spatial4sBuild, "spatial4s-coreJS")
 
-lazy val locus4sRevision = "a67bc87c33b5da8a5dc2cad49919c015b59f3050"
+lazy val locus4sRevision = "abafedbb135f3b8c0ca7b63ae9095643827ecd7d"
 lazy val locus4sBuild =
   sys.props
     .get("image4s.locus4s.build")
