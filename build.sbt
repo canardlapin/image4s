@@ -54,7 +54,7 @@ lazy val spatial4sBuild = sys.props
 lazy val spatial4sCoreJVM = ProjectRef(spatial4sBuild, "spatial4s-coreJVM")
 lazy val spatial4sCoreJS = ProjectRef(spatial4sBuild, "spatial4s-coreJS")
 
-lazy val locus4sRevision = "abafedbb135f3b8c0ca7b63ae9095643827ecd7d"
+lazy val locus4sRevision = "e32b0aeba5c4d19c457b2329272b95b26c061943"
 lazy val locus4sBuild =
   sys.props
     .get("image4s.locus4s.build")
@@ -67,7 +67,7 @@ lazy val locus4sCoreJS = ProjectRef(locus4sBuild, "locus4s-coreJS")
 lazy val locus4sDataJVM = ProjectRef(locus4sBuild, "locus4s-dataJVM")
 lazy val locus4sDataJS = ProjectRef(locus4sBuild, "locus4s-dataJS")
 
-lazy val intaglioRevision = "596b398af380079e4b251535230d0bc03cd88c51"
+lazy val intaglioRevision = "d553c327824f9916b1c0a055226c6c5e8f77bc59"
 lazy val intaglioBuild =
   sys.props
     .get("image4s.intaglio.build")
