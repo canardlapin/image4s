@@ -46,7 +46,7 @@ lazy val galeBuild =
 lazy val galeCoreJVM = ProjectRef(galeBuild, "coreJVM")
 lazy val galeCoreJS = ProjectRef(galeBuild, "coreJS")
 
-lazy val spatial4sRevision = "f3a4e40c38cdfec730d3e13093397ce38072f7fa"
+lazy val spatial4sRevision = "77037a7e6ced044b92d0a70b713c0a32a94f680d"
 lazy val spatial4sBuild = sys.props
   .get("image4s.spatial4s.build")
   .map(path => file(path).getCanonicalFile.toURI)
