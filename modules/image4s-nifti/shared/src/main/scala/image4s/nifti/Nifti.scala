@@ -1008,7 +1008,11 @@ private[nifti] final class NiftiApi[P](
         case _ =>
           Right(())
 
-  private def selectAffine(
+  /** Select and validate header geometry without reading or allocating the payload.
+    * This is the same policy gate used by image reads, including agreement
+    * tolerances and qform/sform diagnostics. The selected affine is retained.
+    */
+  def selectAffine(
       header: NiftiHeader,
       policy: NiftiAffinePolicy
   ): Either[NiftiError, NiftiAffineSelection] =
