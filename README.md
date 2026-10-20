@@ -232,3 +232,12 @@ than all possible custom values. NIfTI writing rejects unsupported units before
 creating output. Existing standard grid identity encoding remains unchanged.
 Development builds may select `-Dimage4s.spatial4s.build=/absolute/path`; the
 default is the exact integrated Spatial4s revision recorded in `build.sbt`.
+
+Raw single-file NIfTI-1 containers are available through
+`image4s.nifti.Nifti1Container.parse`, with uninterpreted intent/quaternion/srow
+metadata and first-axis-fastest UInt8, Int16/32 and Float32/64 payload access. `Nifti1Writer` preserves
+those fields when writing float64 data. This format boundary does not select an
+anatomical convention or construct a normalized image. It is distinct from the
+existing `NiftiRaw` value-semantics tag used by stored images. Invalid offsets,
+datatype/bit-width disagreement and truncated/overflowing payloads are refused
+before access. Run `image4s-niftiJVM/test` and `image4s-niftiJS/test` for its gates.
