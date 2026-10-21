@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "source_revision": "22aa32400b8ab749aaf3be2dbaa9288bdf996ed6",
+  "change": "Only spatial4sRevision changes from 77037a7 to reviewed additive XYZ f796741; production algorithms unchanged.",
+  "geometry": {
+    "jvm_passed": 43,
+    "js_passed": 40,
+    "skipped": 0,
+    "failed": 0
+  },
+  "limits": "Standalone surface consumer under coherent published pins remains pending; no broader image/full-graph or performance claim.",
+  "log": {
+    "path": "image4s-eco-u5-pin-01.log.gz",
+    "raw_sha256": "d52e86edeff7ba5b6910f5a9d09c505d4d16933301e07dc84fc4a8b25966659e",
+    "metadata": {
+      "schema_version": 1,
+      "started_utc": "2026-10-21T17:43:11.777389+00:00",
+      "finished_utc": "2026-10-21T17:50:17.755593+00:00",
+      "duration_seconds": 425.980431,
+      "command": [
+        "env",
+        "JAVA_HOME=/Users/bbuchsbaum/Library/Java/JavaVirtualMachines/openjdk-22/Contents/Home",
+        "SBT_WARM_HEAP=2g",
+        "python3",
+        "/Users/bbuchsbaum/code/scala/scalafim-eco-mesh-kernels-20261020/tools/build/sbt-warm",
+        "image4s-geometryJVM/test",
+        "image4s-geometryJS/test"
+      ],
+      "cwd": "/Users/bbuchsbaum/code/scala/image4s-eco-u5-20261021",
+      "log": "/tmp/image4s-eco-u5-pin-01.log",
+      "exit_code": 0,
+      "child_returncode": 0,
+      "reason": "exited",
+      "detail": null,
+      "timeout_seconds": 1800.0,
+      "log_bytes": 13782
+    }
+  }
+}
