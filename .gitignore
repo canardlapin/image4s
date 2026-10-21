@@ -2,7 +2,6 @@
 .bsp/
 .bootstrap/
 .metals/
-.mote/
 .scala-build/
 .vscode/
 project/project/
