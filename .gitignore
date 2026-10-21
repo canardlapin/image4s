@@ -14,3 +14,7 @@ metals.sbt
 benchmarks/motion/results/
 .DS_Store
 __pycache__/
+
+.mote/local/
+.mote/tmp/
+.mote/authority/
